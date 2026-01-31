@@ -60,6 +60,10 @@ class PresetStatusButton(QWidget):
         # Generate noise texture once for anti-banding
         self._noise_pixmap = self._generate_noise_texture()
         
+        # Track theme for hover text color
+        from client.utils.theme_utils import is_dark_mode
+        self._is_dark = is_dark_mode()
+        
         # Glow Effect Manager
         self._glow_manager = None
         
@@ -101,7 +105,25 @@ class PresetStatusButton(QWidget):
         self._click_pending = False
         
         # Calculate initial width
+        # Calculate initial width
         self._calculate_and_set_initial_width()
+        
+        # Initial colors
+        self._update_colors()
+        
+    def _update_colors(self):
+        """Update instance colors based on state and theme"""
+        if self._is_active:
+             self._bg_color = QColor("#00AA00")
+             # Text is always white on green background
+             self._text_color = QColor(255, 255, 255, 255)
+        else:
+            if self._is_dark:
+                self._bg_color = QColor(255, 255, 255, 12)
+                self._text_color = QColor(255, 255, 255, 150) # Dim white
+            else:
+                self._bg_color = QColor(0, 0, 0, 12) # Dark ghost
+                self._text_color = QColor(0, 0, 0, 150) # Dim black
         
     def mousePressEvent(self, event):
         """Handle mouse press - emit clicked signal with debounce."""
@@ -113,6 +135,8 @@ class PresetStatusButton(QWidget):
             
             self._click_pending = True
             self.clicked.emit()
+            if self._glow_manager:
+                self._glow_manager.set_state(GlowState.CLICKED)
             event.accept()
             
             # Reset debounce after 300ms
@@ -418,12 +442,8 @@ class PresetStatusButton(QWidget):
         self._text = self._pending_text
         
         # Update Colors
-        if self._is_active:
-            self._bg_color = QColor("#00AA00")
-            self._text_color = QColor(255, 255, 255, 255)
-        else:
-            self._bg_color = QColor(255, 255, 255, 12)
-            self._text_color = QColor(255, 255, 255, 100)
+        # Update Colors
+        self._update_colors()
             
         # Start Fade In
         self._text_fade_driver.stop()
@@ -471,9 +491,14 @@ class PresetStatusButton(QWidget):
         radius = h / 2
         
         # Background with hover effect
+        # Background with hover effect
         bg = self._bg_color
         if self._is_hovered and not self._is_active:
-            bg = QColor(255, 255, 255, 25)
+            # Ghost Hover
+            if self._is_dark:
+                bg = QColor(255, 255, 255, 25)
+            else:
+                bg = QColor(0, 0, 0, 0)  # Transparent in Light Mode
         elif self._is_hovered and self._is_active:
             bg = self._bg_color.lighter(110)
 
@@ -481,9 +506,14 @@ class PresetStatusButton(QWidget):
         
         # Border (Ghost only)
         if not self._is_active:
-            border_color = QColor(255, 255, 255, 50)
-            if self._is_hovered:
-                border_color = QColor(255, 255, 255, 100)
+            if self._is_dark:
+                border_color = QColor(255, 255, 255, 50)
+                if self._is_hovered:
+                    border_color = QColor(255, 255, 255, 100)
+            else:
+                border_color = QColor(0, 0, 0, 30)
+                if self._is_hovered:
+                    border_color = QColor(0, 0, 0, 80)
             painter.setPen(QPen(border_color, 1))
         else:
             painter.setPen(Qt.PenStyle.NoPen)
@@ -503,6 +533,16 @@ class PresetStatusButton(QWidget):
         
         # Text
         text_color = QColor(self._text_color)
+        
+        # Override text color on hover if not active
+        if self._is_hovered and not self._is_active:
+            # Dark Mode -> White Text on Hover
+            # Light Mode -> Black Text on Hover
+            if self._is_dark:
+                text_color = QColor(255, 255, 255, 255)
+            else:
+                text_color = QColor(0, 0, 0, 255)
+                
         # Apply opacity animation
         text_color.setAlphaF(text_color.alphaF() * self._text_opacity)
         
@@ -521,11 +561,6 @@ class PresetStatusButton(QWidget):
         
         painter.drawText(text_rect, Qt.AlignmentFlag.AlignCenter, self._text)
     
-    def mousePressEvent(self, event):
-        if event.button() == Qt.MouseButton.LeftButton:
-            if self._glow_manager:
-                self._glow_manager.set_state(GlowState.CLICKED)
-            self.clicked.emit()
     
     def enterEvent(self, event):
         self._is_hovered = True
@@ -544,3 +579,9 @@ class PresetStatusButton(QWidget):
         if self._glow_manager:
             self._glow_manager.cleanup()
         super().deleteLater()
+    
+    def update_theme(self, is_dark):
+        """Update theme state."""
+        self._is_dark = is_dark
+        self._update_colors()
+        self.update()

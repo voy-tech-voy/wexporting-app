@@ -253,6 +253,14 @@ class MainWindow(QMainWindow):
             self._enter_lab_mode(lab_tab if lab_tab is not None else self._active_lab_tab)
         
         self._current_mode = mode
+        self._update_footer_mode_active()
+
+    def _update_footer_mode_active(self):
+        """Update output footer mode active state based on current app state"""
+        if hasattr(self, 'output_footer'):
+            is_lab = (self._current_mode == Mode.LAB)
+            has_preset = (hasattr(self, '_active_preset') and self._active_preset is not None)
+            self.output_footer.set_mode_active(is_lab or has_preset)
     
     def _enter_preset_mode(self):
         """Internal: Configure UI for Preset mode."""
@@ -304,7 +312,7 @@ class MainWindow(QMainWindow):
         # Icon paths matching tab order
         icons = [
             "client/assets/icons/pic_icon2.svg",
-            "client/assets/icons/vid_icon2.svg",
+            "client/assets/icons/vid_icon.svg",
             "client/assets/icons/loop_icon3.svg"
         ]
         
@@ -797,6 +805,10 @@ class MainWindow(QMainWindow):
         if hasattr(self.command_panel, 'update_theme'):
             self.command_panel.update_theme(is_dark)
         
+        # Update control bar theme
+        if hasattr(self, 'control_bar'):
+            self.control_bar.update_theme(is_dark)
+        
         # Update title bar theme
         self.update_title_bar_theme(is_dark)
         
@@ -1013,6 +1025,9 @@ class MainWindow(QMainWindow):
             self.command_panel.set_lab_mode_active(False)
             self.command_panel.set_top_bar_preset_mode(True)
             
+            self.command_panel.set_top_bar_preset_mode(True)
+            
+        self._update_footer_mode_active()
         self.update_status(f"Applied Preset: {preset.name}")
         
         # Hide Command Panel with animation (Preset mode is simple drag & drop)
@@ -1025,6 +1040,9 @@ class MainWindow(QMainWindow):
             self._active_preset = None  # Clear active preset
             if hasattr(self, 'preset_status_btn'):
                 self.preset_status_btn.set_active(False)
+        
+        # Update footer state since preset might be cleared
+        self._update_footer_mode_active()
             
         # Notify CommandPanel that top bar preset mode is inactive
         if mode != "Presets" and hasattr(self, 'command_panel'):

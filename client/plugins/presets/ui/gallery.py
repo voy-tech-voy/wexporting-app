@@ -148,6 +148,7 @@ class PresetGallery(QWidget):
         self.setStyleSheet(f"""
             QWidget#PresetGallery {{
                 background-color: {bg_color};
+                border-radius: {Theme.RADIUS_LG}px;
             }}
             QLabel#CategoryLabel {{
                 color: {Theme.text_muted()};

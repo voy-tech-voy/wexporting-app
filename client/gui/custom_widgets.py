@@ -63,23 +63,30 @@ class HoverIconButton(QPushButton):
         with open(self.svg_path, 'r') as f:
             svg_content = f.read()
         
-        # Determine theme base color (black or white) for the main outline
-        base_color = "white" if self._is_dark else "black"
+        # Determine theme colors
+        # Normal: Grey shades
+        normal_color = "#AAAAAA" if self._is_dark else "#444444"
+        # Hover: Stark White/Black
+        hover_color = "white" if self._is_dark else "black"
         
-        # 1. Adjust main outline color based on theme
-        # Replace black strokes with base_color
-        svg_base = svg_content.replace('stroke="black"', f'stroke="{base_color}"')
-        svg_base = svg_base.replace('stroke="#000000"', f'stroke="{base_color}"')
-        svg_base = svg_base.replace('stroke="#000"', f'stroke="{base_color}"')
+        # 1. Create Base SVGs for Normal and Hover with different stroke colors
+        def apply_stroke_color(content, color):
+            c = content.replace('stroke="black"', f'stroke="{color}"')
+            c = c.replace('stroke="#000000"', f'stroke="{color}"')
+            c = c.replace('stroke="#000"', f'stroke="{color}"')
+            return c
+
+        svg_base_normal = apply_stroke_color(svg_content, normal_color)
+        svg_base_hover = apply_stroke_color(svg_content, hover_color)
         
-        # 2. Create the Normal version (colored curves -> gray)
+        # 2. Finalize Normal version (colored curves -> gray)
         # Replace green (#4CAF50) and red (#D32F2F) with grey
-        gray_color = "#888888"
-        svg_normal = svg_base.replace('#4CAF50', gray_color).replace('#4caf50', gray_color)
-        svg_normal = svg_normal.replace('#D32F2F', gray_color).replace('#d32f2f', gray_color)
+        gray_accent = "#888888"
+        svg_normal = svg_base_normal.replace('#4CAF50', gray_accent).replace('#4caf50', gray_accent)
+        svg_normal = svg_normal.replace('#D32F2F', gray_accent).replace('#d32f2f', gray_accent)
         
-        # 3. Create the Hover version (original colored curves)
-        svg_hover = svg_base
+        # 3. Finalize Hover version (keep original colored curves)
+        svg_hover = svg_base_hover
         
         # Generate Icons
         def svg_to_icon(content):

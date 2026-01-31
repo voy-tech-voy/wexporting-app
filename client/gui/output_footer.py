@@ -34,6 +34,7 @@ class OutputFooter(QWidget):
         self._is_dark = True
         self._is_converting = False
         self._has_files = False
+        self._mode_active = False  # Track if a valid mode (Preset/Lab) is selected
         self._gpu_available = False
         
         self.setMinimumHeight(56)
@@ -122,6 +123,13 @@ class OutputFooter(QWidget):
         
         # Enable/disable interaction
         self.setEnabled(has_files)
+        # Update button style to reflect state
+        self._update_button_state()
+
+    def set_mode_active(self, active):
+        """Set whether a valid processing mode (Preset or Lab) is active"""
+        self._mode_active = active
+        self._update_button_state()
         
     def set_gpu_available(self, gpu_available):
         """Set GPU availability for turbo styling"""
@@ -153,7 +161,7 @@ class OutputFooter(QWidget):
         # Container styling
         self.setStyleSheet(f"""
             OutputFooter {{
-                background-color: {Theme.surface()};
+                background-color: {Theme.color("input_bg")};
                 border-top: 1px solid {Theme.border()};
             }}
         """)
@@ -199,12 +207,16 @@ class OutputFooter(QWidget):
             glow.setOffset(0, 0)
             self.start_btn.setGraphicsEffect(glow)
         else:
-            # Standard (CPU) style
+            # Standard (CPU) style - Conditional Outline
+            # Green outline only if files present AND mode selected (Preset or Lab)
+            is_ready = self._has_files and self._mode_active
+            border_color = Theme.success() if is_ready else Theme.text_muted()
+            
             self.start_btn.setStyleSheet(f"""
                 QPushButton#BtnStart {{
-                    background-color: {Theme.accent()};
-                    color: {Theme.bg()};
-                    border: none;
+                    background-color: transparent;
+                    color: {Theme.text_muted()};
+                    border: 2px solid {border_color};
                     border-radius: {Theme.RADIUS_MD}px;
                     font-family: '{Theme.FONT_BODY}';
                     font-size: {Theme.FONT_SIZE_LG}px;
@@ -212,15 +224,19 @@ class OutputFooter(QWidget):
                     padding: 8px 30px;
                 }}
                 QPushButton#BtnStart:hover {{
-                    background-color: {Theme.border_focus()};
-                    color: {Theme.text()};
+                    background-color: {Theme.success()};
+                    color: white;
+                    border: 2px solid {Theme.success()};
                 }}
                 QPushButton#BtnStart:pressed {{
-                    background-color: {Theme.border()};
+                    background-color: #2E7D32;
+                    color: white;
+                    border: 2px solid #2E7D32;
                 }}
                 QPushButton#BtnStart:disabled {{
-                    background-color: {Theme.surface_element()};
+                    background-color: transparent;
                     color: {Theme.text_muted()};
+                    border: 2px solid {Theme.text_muted()};
                 }}
             """)
             # Remove glow if any

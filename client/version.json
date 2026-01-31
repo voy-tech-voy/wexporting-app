@@ -1,7 +1,7 @@
 {
-  "version": "11.0.6",
-  "build": 8,
-  "last_build": "2026-01-28T11:31:15.359082Z",
+  "version": "11.0.7",
+  "build": 9,
+  "last_build": "2026-01-28T11:47:34.769476Z",
   "changelog": {
     "7.4": "Phase 1 enterprise implementation (backup system, trial conversion, server health)",
     "7.3": "Login error UX improvements (inline errors, removed popups)",
@@ -28,6 +28,7 @@
     "11.0.3": "Build 2026-01-28",
     "11.0.4": "Build 2026-01-28",
     "11.0.5": "Build 2026-01-28",
-    "11.0.6": "Build 2026-01-28"
+    "11.0.6": "Build 2026-01-28",
+    "11.0.7": "Build 2026-01-28"
   }
 }

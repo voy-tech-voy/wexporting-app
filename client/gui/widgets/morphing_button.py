@@ -45,6 +45,7 @@ class MorphingButton(QPushButton):
         self._is_solid_style = False # False = Ghost, True = Solid
         self._active_item_id = None
         self._items = [] # List of item widgets
+        self._item_icon_paths = {} # Map button -> icon_path for re-tinting
         self._item_animations = [] # Keep animations alive to prevent GC
         self._main_icon_path = main_icon_path
         self._is_dark = True
@@ -191,14 +192,25 @@ class MorphingButton(QPushButton):
         radius = curr_height / 2
         
         # Background color
-        bg_color = QColor("#2196F3") if self._is_solid_style else QColor(255, 255, 255, 12)
+        if self._is_solid_style:
+            bg_color = QColor("#2196F3")
+        else:
+            # Ghost Style
+            if self._is_dark:
+                bg_color = QColor(255, 255, 255, 12)
+            else:
+                bg_color = QColor(0, 0, 0, 12) # Dark ghost for light mode
         
         # Border
-        border_color = QColor(255, 255, 255, 25)
         if self._is_flashing:
-            border_color = QColor(255, 255, 255, 255)
+            border_color = QColor(255, 255, 255, 255) if self._is_dark else QColor(0, 0, 0, 255)
         elif not self._is_solid_style:
-            border_color = QColor(255, 255, 255, 75)
+            if self._is_dark:
+                border_color = QColor(255, 255, 255, 75)
+            else:
+                border_color = QColor(0, 0, 0, 50) # Dark border for light mode
+        else:
+            border_color = QColor(255, 255, 255, 25) # Default/Fallback
             
         painter.setPen(QPen(border_color, 1.5 if self._is_flashing else 1))
         painter.setBrush(QBrush(bg_color))
@@ -253,17 +265,27 @@ class MorphingButton(QPushButton):
             
             # Draw icon using pixmap at explicit coordinates for perfect centering
             # ALWAYS use original SVG-based icon to get pixmap (preserves proper scaling)
-            # Apply grey tint at paint time if in ghost/inactive state
+            # Apply tinting based on state: grey for ghost, white for solid
             
-            apply_grey_tint = not self._is_solid_style
-            
-            # Get pixmap from ORIGINAL icon (not the pre-created grey one)
+            # Get pixmap from ORIGINAL icon
             pixmap = self._current_icon.pixmap(icon_size, icon_size)
             if not pixmap.isNull():
-                # Apply grey tinting at paint time if needed
-                if apply_grey_tint:
-                    # Create a grey-tinted copy of the pixmap
-                    # CRITICAL: Preserve devicePixelRatio for proper DPI scaling
+                # Apply tinting based on style
+                if self._is_solid_style:
+                    # Solid style: white icon
+                    tinted_pixmap = QPixmap(pixmap.size())
+                    tinted_pixmap.setDevicePixelRatio(pixmap.devicePixelRatio())
+                    tinted_pixmap.fill(Qt.GlobalColor.transparent)
+                    tint_painter = QPainter(tinted_pixmap)
+                    tint_painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+                    tint_painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
+                    tint_painter.drawPixmap(0, 0, pixmap)
+                    tint_painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceIn)
+                    tint_painter.fillRect(tinted_pixmap.rect(), QColor(255, 255, 255))  # White
+                    tint_painter.end()
+                    pixmap = tinted_pixmap
+                else:
+                    # Ghost style: grey icon
                     grey_pixmap = QPixmap(pixmap.size())
                     grey_pixmap.setDevicePixelRatio(pixmap.devicePixelRatio())
                     grey_pixmap.fill(Qt.GlobalColor.transparent)
@@ -272,7 +294,7 @@ class MorphingButton(QPushButton):
                     tint_painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
                     tint_painter.drawPixmap(0, 0, pixmap)
                     tint_painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceIn)
-                    tint_painter.fillRect(grey_pixmap.rect(), QColor(136, 136, 136))
+                    tint_painter.fillRect(grey_pixmap.rect(), QColor(136, 136, 136))  # Grey
                     tint_painter.end()
                     pixmap = grey_pixmap
                 
@@ -323,24 +345,17 @@ class MorphingButton(QPushButton):
         btn.setToolTip(tooltip)
         btn.setCursor(Qt.CursorShape.PointingHandCursor)
         
-        # Icon
+        # Store icon path for re-tinting
         if icon_path:
-            abs_path = get_resource_path(icon_path)
-            if os.path.exists(abs_path):
-                btn.setIcon(QIcon(abs_path))
-                btn.setIconSize(QSize(20, 20))
+            self._item_icon_paths[btn] = icon_path
+            btn.setIconSize(QSize(20, 20))
+            self._update_item_icon(btn, hovered=False)
+        
+        # Install event filter for hover detection
+        btn.installEventFilter(self)
         
         # Styling for icon buttons
-        btn.setStyleSheet(f"""
-            QPushButton {{
-                background-color: transparent;
-                border: none;
-                border-radius: 6px;
-            }}
-            QPushButton:hover {{
-                background-color: rgba(255, 255, 255, 0.2);
-            }}
-        """)
+        self._apply_item_style(btn)
         
         # IMPORTANT: Use default arg to capture item_id by VALUE, not reference
         # This fixes the closure bug where all buttons would emit the last item_id
@@ -352,10 +367,83 @@ class MorphingButton(QPushButton):
         btn.setGraphicsEffect(op)
         op.setOpacity(0)
         
+    def _update_item_icon(self, btn, hovered=False):
+        """Update menu item icon with appropriate tinting"""
+        icon_path = self._item_icon_paths.get(btn)
+        if not icon_path:
+            return
+            
+        abs_path = get_resource_path(icon_path)
+        if not os.path.exists(abs_path):
+            return
+        
+        # Load original icon
+        original_icon = QIcon(abs_path)
+        pixmap = original_icon.pixmap(20, 20)
+        
+        if pixmap.isNull():
+            return
+        
+        # Determine tint color based on button style and theme
+        if self._is_solid_style:
+            # Solid mode (blue background): always white icons
+            tint_color = QColor(255, 255, 255)
+        elif self._is_dark:
+            # Dark mode ghost: white icons (no tinting needed)
+            btn.setIcon(original_icon)
+            return
+        else:
+            # Light mode ghost: grey (normal) or black (hover)
+            tint_color = QColor(0, 0, 0) if hovered else QColor(136, 136, 136)
+        
+        # Create tinted pixmap
+        tinted_pixmap = QPixmap(pixmap.size())
+        tinted_pixmap.setDevicePixelRatio(pixmap.devicePixelRatio())
+        tinted_pixmap.fill(Qt.GlobalColor.transparent)
+        
+        painter = QPainter(tinted_pixmap)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
+        painter.drawPixmap(0, 0, pixmap)
+        painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceIn)
+        painter.fillRect(tinted_pixmap.rect(), tint_color)
+        painter.end()
+        
+        btn.setIcon(QIcon(tinted_pixmap))
+    
+    def eventFilter(self, obj, event):
+        """Handle hover events for menu item buttons"""
+        if obj in self._items:
+            if event.type() == 10:  # QEvent.Type.Enter
+                self._update_item_icon(obj, hovered=True)
+            elif event.type() == 11:  # QEvent.Type.Leave
+                self._update_item_icon(obj, hovered=False)
+        return super().eventFilter(obj, event)
+    
+    def _apply_item_style(self, btn):
+        """Apply theme-appropriate style to menu item button"""
+        hover_bg = "rgba(255, 255, 255, 0.2)" if self._is_dark else "rgba(0, 0, 0, 0.1)"
+        
+        btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: transparent;
+                border: none;
+                border-radius: 6px;
+            }}
+            QPushButton:hover {{
+                background-color: {hover_bg};
+            }}
+        """)
+        
     def set_style_solid(self, is_solid):
         if self._is_solid_style != is_solid:
             self._is_solid_style = is_solid
             self._update_main_icon()
+            
+            # Update all menu item icons to match new style
+            for btn in self._items:
+                self._update_item_icon(btn, hovered=False)
+            
             self.update()
             self.styleChanged.emit(is_solid)
             
@@ -375,6 +463,12 @@ class MorphingButton(QPushButton):
     def update_theme(self, is_dark):
         self._is_dark = is_dark
         self._update_main_icon()
+        
+        # Update styling and icons for all menu items
+        for btn in self._items:
+            self._apply_item_style(btn)
+            self._update_item_icon(btn, hovered=False)
+            
         self.update()
 
     def _on_item_clicked(self, item_id):

@@ -65,40 +65,13 @@ class ControlBar(QWidget):
         self.clear_files_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
         self.clear_files_btn.clicked.connect(self.clear_files_clicked.emit)
         
-        # Apply Styles
-        base_style = """
-            QPushButton {
-                background-color: rgba(255, 255, 255, 5);
-                border: 1px solid rgba(255, 255, 255, 20);
-                border-radius: 8px;
-            }
-            QPushButton:hover {
-                background-color: rgba(255, 255, 255, 10);
-                border: 1px solid rgba(255, 255, 255, 50);
-            }
-            QPushButton:pressed {
-                background-color: rgba(0, 0, 0, 50);
-            }
-        """
-        self.add_files_btn.setStyleSheet(base_style)
-        self.add_folder_btn.setStyleSheet(base_style)
+        # Connect to ThemeManager for initial state
+        from client.gui.theme_manager import ThemeManager
+        theme_manager = ThemeManager.instance()
+        self._is_dark = theme_manager.is_dark_mode()
         
-        # Clear Button Style (Red Outline on Hover)
-        clear_style = """
-            QPushButton {
-                background-color: rgba(255, 255, 255, 5);
-                border: 1px solid rgba(255, 255, 255, 20);
-                border-radius: 8px;
-            }
-            QPushButton:hover {
-                background-color: rgba(255, 50, 50, 15);
-                border: 1px solid #FF4444;
-            }
-            QPushButton:pressed {
-                background-color: rgba(50, 0, 0, 50);
-            }
-        """
-        self.clear_files_btn.setStyleSheet(clear_style)
+        # Apply Styles using the dynamic method
+        self._apply_button_styles(self._is_dark)
         
         layout.addWidget(self.add_files_btn)
         layout.addWidget(self.add_folder_btn)
@@ -125,7 +98,7 @@ class ControlBar(QWidget):
         
         self.lab_btn = MorphingButton(main_icon_path="client/assets/icons/lab_icon.svg")
         self.lab_btn.add_menu_item(0, "client/assets/icons/pic_icon2.svg", "Image Conversion")
-        self.lab_btn.add_menu_item(1, "client/assets/icons/vid_icon2.svg", "Video Conversion")
+        self.lab_btn.add_menu_item(1, "client/assets/icons/vid_icon.svg", "Video Conversion")
         self.lab_btn.add_menu_item(2, "client/assets/icons/loop_icon3.svg", "Loop Conversion")
         self.lab_btn.itemClicked.connect(self._on_lab_item_clicked)
         lab_container_layout.addWidget(self.lab_btn)
@@ -164,3 +137,71 @@ class ControlBar(QWidget):
         """Visual highlight for lab mode active."""
         self.set_preset_active(False)
         self.set_lab_solid(True)
+
+    def update_theme(self, is_dark: bool):
+        """Update theme for all child widgets."""
+        self.add_files_btn.set_dark_mode(is_dark)
+        self.add_folder_btn.set_dark_mode(is_dark)
+        self.clear_files_btn.set_dark_mode(is_dark)
+        self.preset_status_btn.update_theme(is_dark)
+        self.lab_btn.update_theme(is_dark)
+        
+        # Update button stylesheets
+        self._apply_button_styles(is_dark)
+        
+    def _apply_button_styles(self, is_dark):
+        """Apply theme-dependent styles to file buttons."""
+        if is_dark:
+            # Dark Mode: White glass effect
+            bg_normal = "rgba(255, 255, 255, 5)"
+            border_normal = "rgba(255, 255, 255, 20)"
+            bg_hover = "rgba(255, 255, 255, 10)"
+            border_hover = "rgba(255, 255, 255, 50)"
+            bg_pressed = "rgba(0, 0, 0, 50)"
+            
+            clear_border_hover = "#FF4444"
+            clear_bg_hover = "rgba(255, 50, 50, 15)"
+        else:
+            # Light Mode: Black/Dark glass effect
+            bg_normal = "rgba(0, 0, 0, 5)"
+            border_normal = "rgba(0, 0, 0, 20)"
+            bg_hover = "rgba(0, 0, 0, 10)"
+            border_hover = "rgba(0, 0, 0, 50)"
+            bg_pressed = "rgba(0, 0, 0, 20)"
+            
+            clear_border_hover = "#FF3B30"
+            clear_bg_hover = "rgba(255, 59, 48, 15)"
+
+        base_style = f"""
+            QPushButton {{
+                background-color: {bg_normal};
+                border: 1px solid {border_normal};
+                border-radius: 8px;
+            }}
+            QPushButton:hover {{
+                background-color: {bg_hover};
+                border: 1px solid {border_hover};
+            }}
+            QPushButton:pressed {{
+                background-color: {bg_pressed};
+            }}
+        """
+        self.add_files_btn.setStyleSheet(base_style)
+        self.add_folder_btn.setStyleSheet(base_style)
+        
+        # Clear Button Style (Red Outline on Hover)
+        clear_style = f"""
+            QPushButton {{
+                background-color: {bg_normal};
+                border: 1px solid {border_normal};
+                border-radius: 8px;
+            }}
+            QPushButton:hover {{
+                background-color: {clear_bg_hover};
+                border: 1px solid {clear_border_hover};
+            }}
+            QPushButton:pressed {{
+                background-color: {bg_pressed};
+            }}
+        """
+        self.clear_files_btn.setStyleSheet(clear_style)
