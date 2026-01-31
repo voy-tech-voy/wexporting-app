@@ -701,7 +701,7 @@ class MainWindow(QMainWindow):
         
         # Create appropriate engine
         if use_target_size_engine:
-            from client.core.target_size_conversion_engine import TargetSizeConversionEngine
+            from client.core.target_size import TargetSizeConversionEngine
             self.conversion_engine = TargetSizeConversionEngine(files, params)
         else:
             self.conversion_engine = ConversionEngine(files, params)

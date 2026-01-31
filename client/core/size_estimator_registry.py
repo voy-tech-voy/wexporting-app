@@ -142,10 +142,10 @@ def _get_v2_functions():
     global _v2_cache
     if not _v2_cache:
         try:
-            from client.core.size_estimator_v2 import (
-                optimize_gif_params,
-                optimize_image_params,
+            from client.core.target_size import (
                 optimize_video_params,
+                optimize_image_params,
+                optimize_gif_params
             )
             _v2_cache = {
                 'gif_raw': optimize_gif_params,
@@ -246,7 +246,7 @@ def _adapt_v2_video(file_path: str, codec: str, base_params: dict, target_size_b
     }
     
     # Resolution scaling
-    from client.core.size_estimator_v2 import get_media_metadata
+    from client.core.target_size._common import get_media_metadata
     meta = get_media_metadata(file_path)
     if meta['width'] > 0:
         scale = result.get('resolution_w', meta['width']) / meta['width']

@@ -12,12 +12,11 @@ from pathlib import Path
 from typing import Dict, Optional, Callable
 from PyQt6.QtCore import QThread, pyqtSignal
 
-from client.core.size_estimator_v2 import (
-    optimize_video_params,
-    optimize_image_params,
-    optimize_gif_params,
-    get_media_metadata
-)
+from .video_estimator import optimize_video_params
+from .image_estimator import optimize_image_params
+from .loop_estimator import optimize_gif_params
+from ._common import get_media_metadata
+from .suffix_manager import get_output_path
 from client.core.ffmpeg_utils import (
     get_video_dimensions,
     get_video_duration,
@@ -91,26 +90,9 @@ class TargetSizeConversionEngine(QThread):
             
         self.conversion_completed.emit(self.successful_conversions, self.failed_conversions)
         
-    def _get_output_path(self, file_path: str, extension: str) -> str:
-        """Generate output path with proper suffix."""
-        base_name = os.path.splitext(os.path.basename(file_path))[0]
-        
-        # Get target size for suffix
-        target_mb = self.params.get('video_max_size_mb') or self.params.get('image_max_size_mb') or self.params.get('gif_max_size_mb') or 0
-        
-        # Build suffix
-        suffix = f"_target{target_mb:.1f}mb"
-        
-        # Determine output directory
-        if self.params.get('use_nested_output', True):
-            output_dir = os.path.join(os.path.dirname(file_path), 
-                                       self.params.get('nested_output_name', 'output'))
-        else:
-            output_dir = os.path.dirname(file_path)
-            
-        os.makedirs(output_dir, exist_ok=True)
-        
-        return os.path.join(output_dir, f"{base_name}{suffix}.{extension}")
+    def _get_output_path(self, file_path: str, extension: str, optimal_params: Dict = None) -> str:
+        """Generate output path using suffix manager."""
+        return get_output_path(file_path, self.params, extension, optimal_params)
         
     def _convert_video(self, file_path: str) -> bool:
         """Convert video to target file size using 2-pass bitrate encoding."""
@@ -133,7 +115,6 @@ class TargetSizeConversionEngine(QThread):
             
             # Determine output format
             output_ext = 'webm' if 'WebM' in selected_codec else 'mp4'
-            output_path = self._get_output_path(file_path, output_ext)
             
             self.status_updated.emit(f"[v2] Calculating optimal bitrate for {target_mb:.1f} MB target...")
             
@@ -148,6 +129,9 @@ class TargetSizeConversionEngine(QThread):
             video_bitrate = optimal['video_bitrate_kbps']
             audio_bitrate = optimal['audio_bitrate_kbps']
             resolution_scale = optimal.get('resolution_scale', 1.0)
+            
+            # Generate output path with optimal params for suffix
+            output_path = self._get_output_path(file_path, output_ext, optimal_params=optimal)
             
             self.status_updated.emit(f"[v2] Using {video_bitrate}kbps video, {audio_bitrate}kbps audio")
             
@@ -233,7 +217,6 @@ class TargetSizeConversionEngine(QThread):
             
             # Get output format
             output_format = self.params.get('format', 'jpg').lower()
-            output_path = self._get_output_path(file_path, output_format)
             
             self.status_updated.emit(f"[v2] Optimizing image for {target_mb:.1f} MB target...")
             
@@ -247,6 +230,9 @@ class TargetSizeConversionEngine(QThread):
             
             quality = optimal['quality']
             scale_factor = optimal.get('scale_factor', 1.0)
+            
+            # Generate output path with optimal params for suffix
+            output_path = self._get_output_path(file_path, output_format, optimal_params=optimal)
             
             self.status_updated.emit(f"[v2] Using quality {quality}, scale {int(scale_factor * 100)}%")
             
@@ -290,8 +276,6 @@ class TargetSizeConversionEngine(QThread):
             target_bytes = int(target_mb * 1024 * 1024)
             auto_resize = self.params.get('gif_auto_resize', False)
             
-            output_path = self._get_output_path(file_path, 'gif')
-            
             self.status_updated.emit(f"[v2] Optimizing GIF for {target_mb:.1f} MB target...")
             
             # Call v2 estimator
@@ -305,6 +289,9 @@ class TargetSizeConversionEngine(QThread):
             colors = optimal['colors']
             dither = optimal.get('dither', 'bayer:bayer_scale=3')
             resolution_scale = optimal.get('resolution_scale', 1.0)
+            
+            # Generate output path with optimal params for suffix
+            output_path = self._get_output_path(file_path, 'gif', optimal_params=optimal)
             
             self.status_updated.emit(f"[v2] Using {fps}fps, {colors} colors, {int(resolution_scale * 100)}% scale")
             
