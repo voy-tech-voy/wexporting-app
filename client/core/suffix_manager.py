@@ -93,6 +93,60 @@ class SuffixManager:
         p = params
         suppressed = suppressed_types or []
         
+        # 0. Target Size Suffix (for max_size mode)
+        # Check if we're in max_size mode and add the target size to the filename
+        size_mode = p.get('video_size_mode') or p.get('image_size_mode') or p.get('gif_size_mode')
+        if size_mode == 'max_size':
+            # Get the target size in MB
+            target_mb = None
+            if 'video_max_size_mb' in p:
+                target_mb = p['video_max_size_mb']
+            elif 'image_max_size_mb' in p:
+                target_mb = p['image_max_size_mb']
+            elif 'gif_max_size_mb' in p:
+                target_mb = p['gif_max_size_mb']
+            
+            if target_mb is not None:
+                # Format the size nicely (remove trailing zeros)
+                if target_mb >= 1:
+                    size_str = f"{target_mb:.0f}MB" if target_mb == int(target_mb) else f"{target_mb:.1f}MB"
+                else:
+                    # For sizes < 1MB, show in KB or with decimal
+                    if target_mb < 0.1:
+                        size_str = f"{int(target_mb * 1024)}KB"
+                    else:
+                        size_str = f"{target_mb:.2f}MB".rstrip('0').rstrip('.')
+                
+                # Get output resolution - prefer the calculated output resolution from size estimator
+                resolution_str = ""
+                output_res = p.get('_output_resolution')
+                if output_res and len(output_res) == 2:
+                    width, height = output_res
+                    if width > 0 and height > 0:
+                        resolution_str = f"_{width}x{height}"
+                elif file_path:
+                    # Fallback: read from input file if no output resolution calculated
+                    try:
+                        width, height = get_video_dimensions(file_path)
+                        if width > 0 and height > 0:
+                            resolution_str = f"_{width}x{height}"
+                    except:
+                        pass  # If we can't get dimensions, just skip resolution
+                
+                # In dev mode, include the estimator version
+                is_dev_mode = p.get('_is_dev_mode', False)
+                if is_dev_mode:
+                    # Get current estimator version
+                    try:
+                        from client.core.size_estimator_registry import get_estimator_version
+                        version = get_estimator_version()
+                        parts.append(f"_{version}TargetSize{size_str}{resolution_str}")
+                    except:
+                        # Fallback if registry not available
+                        parts.append(f"_TargetSize{size_str}{resolution_str}")
+                else:
+                    parts.append(f"_TargetSize{size_str}{resolution_str}")
+        
         # 1. Resize Suffixes
         if not skip_resize:
             # Check 'current_resize' (Video/WebM single) or 'gif_resize_values' (GIF)
@@ -126,8 +180,25 @@ class SuffixManager:
              elif '270' in rot: parts.append('_rot270')
              else: parts.append('_rot')
         
-        # 3. GIF Specifics (FPS/Colors/Dither)
+        
+        # 2.5 Codec Suffix (Video Tab)
         is_gif = format_ext.lower() == 'gif' or p.get('type') == 'gif' or p.get('loop_format') == 'GIF'
+        
+        codec = p.get('codec')
+        # Only add codec suffix for video type and when codec is specified
+        if codec and not is_gif and p.get('type') == 'video':
+             # Clean up codec string
+             # "MP4 (H.264)" -> "H264"
+             cleaned_codec = codec
+             if '(' in codec:
+                 cleaned_codec = codec.split('(')[1].split(')')[0]
+             
+             cleaned_codec = cleaned_codec.replace('.', '').replace(' ', '')
+             
+             if cleaned_codec:
+                 parts.append(f"_codec{cleaned_codec}")
+        
+        # 3. GIF Specifics (FPS/Colors/Dither)
         if is_gif:
              # FPS
              if 'ffmpeg_fps' in p:

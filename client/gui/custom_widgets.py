@@ -1041,6 +1041,8 @@ class SideButtonGroup(QWidget):
         super().__init__(parent)
         self.buttons = {}  # Store buttons by ID
         self.buttons_config = buttons_config
+        self.active_transforms = set()  # Track which transforms are active
+        self._current_is_dark = True  # Track current theme state
         
         # Vertical layout with proper spacing
         layout = QVBoxLayout(self)
@@ -1159,7 +1161,7 @@ class SideButtonGroup(QWidget):
         return QIcon(tinted_pixmap)
     
     def update_theme(self, is_dark):
-        """Update button icons and styles based on theme"""
+        self._current_is_dark = is_dark
         Theme.set_dark_mode(is_dark)
         
         # Update icons for all buttons
@@ -1172,23 +1174,55 @@ class SideButtonGroup(QWidget):
             if btn_id in self.buttons and icon_path:
                 self.buttons[btn_id].setIcon(self._get_tinted_icon(icon_path, icon_color))
         
-        # Theme-aware styling
-        bg_hover = Theme.color_with_alpha('surface_element', 0.5)
-        border_color = Theme.border()
-        # Use blue for transform buttons (Resize, Rotate, Time)
-        selected_color = "#2196F3"  # Material Blue
-        selected_border = "#1e88e5"  # Darker blue for border
+        # Apply styles to all buttons
+        for btn_id in self.buttons:
+            self._update_single_btn_style(btn_id)
+            
+    def _update_single_btn_style(self, btn_id):
+        """Update style for a single button based on state"""
+        if btn_id not in self.buttons:
+            return
+            
+        btn = self.buttons[btn_id]
+        is_active = btn_id in self.active_transforms
         
-        button_style = (
-            f"QPushButton {{ padding: 6px; border-top-left-radius: {Theme.RADIUS_MD}px; border-bottom-left-radius: {Theme.RADIUS_MD}px; "
+        Theme.set_dark_mode(self._current_is_dark)
+        bg_hover = Theme.color_with_alpha('surface_element', 0.5)
+        
+        # Use blue for active transform state or selected state
+        active_color = "#2196F3"  # Material Blue
+        
+        # Determine border style
+        if is_active:
+            # Active transform: Blue border
+            border_str = f"2px solid {active_color}"
+            radius = Theme.RADIUS_MD - 1 # Adjust for thicker border
+            padding = "5px" # Adjust for thicker border
+        else:
+            # Normal: Theme border
+            border_str = f"1px solid {Theme.border()}"
+            radius = Theme.RADIUS_MD
+            padding = "6px"
+            
+        style = (
+            f"QPushButton {{ padding: {padding}; "
+            f"border-top-left-radius: {radius}px; border-bottom-left-radius: {radius}px; "
             f"border-top-right-radius: 0px; border-bottom-right-radius: 0px; "
-            f"border: 1px solid {border_color}; border-right: none; background-color: transparent; }}"
+            f"border: {border_str}; border-right: none; background-color: transparent; }}"
             f"QPushButton:hover {{ background-color: {bg_hover}; }}"
-            f"QPushButton:checked {{ background-color: {selected_color}; color: white; border-color: {selected_border}; }}"
+            f"QPushButton:checked {{ background-color: {active_color}; color: white; border-color: {active_color}; }}"
         )
         
-        for btn in self.buttons.values():
-            btn.setStyleSheet(button_style)
+        btn.setStyleSheet(style)
+
+    def set_transform_active(self, btn_id, active: bool):
+        """Set whether a transform button has an active state (blue outline)"""
+        if active:
+            self.active_transforms.add(btn_id)
+        else:
+            self.active_transforms.discard(btn_id)
+        
+        self._update_single_btn_style(btn_id)
     
     def get_selection(self):
         """Get the currently selected button ID"""

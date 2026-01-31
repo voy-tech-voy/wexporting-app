@@ -11,7 +11,7 @@ from client.core.ffmpeg_utils import (
     clamp_resize_width,
     calculate_longer_edge_resize
 )
-from client.core.size_estimator import find_optimal_gif_params_for_size
+from client.core.size_estimator_registry import find_optimal_gif_params_for_size
 
 class GifConverter:
     def __init__(self, engine):
@@ -55,6 +55,29 @@ class GifConverter:
                 
                 # Update params with optimized values
                 self.params.update(optimized_params)
+                
+                # Calculate and store actual output resolution for suffix
+                if '_resolution_scale' in optimized_params:
+                    scale = optimized_params['_resolution_scale']
+                    try:
+                        orig_width, orig_height = get_video_dimensions(file_path)
+                        if orig_width > 0 and orig_height > 0:
+                            out_width = int(orig_width * scale)
+                            out_height = int(orig_height * scale)
+                            # Ensure even dimensions (FFmpeg requirements often prefer even)
+                            out_width = out_width - (out_width % 2)
+                            out_height = out_height - (out_height % 2)
+                            self.params['_output_resolution'] = (out_width, out_height)
+                    except:
+                        pass
+                else:
+                    # No scaling - output resolution is same as input
+                    try:
+                         orig_width, orig_height = get_video_dimensions(file_path)
+                         if orig_width > 0 and orig_height > 0:
+                             self.params['_output_resolution'] = (orig_width, orig_height)
+                    except:
+                        pass
                 
                 # Check if target was exceeded
                 if optimized_params.get('_target_exceeded'):

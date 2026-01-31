@@ -142,6 +142,11 @@ class CommandPanel(QWidget):
         self.tabs.addTab(self._video_tab, QIcon(get_resource_path("client/assets/icons/vid_icon.svg")), "")
         self.tabs.addTab(self._loop_tab, QIcon(get_resource_path("client/assets/icons/loop_icon3.svg")), "")
         
+        # Connect param changed signals
+        self._image_tab.params_changed.connect(self._on_tab_params_changed)
+        self._video_tab.params_changed.connect(self._on_tab_params_changed)
+        self._loop_tab.params_changed.connect(self._on_tab_params_changed)
+        
         # Create and add side buttons for each tab
         self._create_side_buttons()
         
@@ -230,6 +235,7 @@ class CommandPanel(QWidget):
             'nested_output_name': 'output',
             'suffix': '_converted',
             'overwrite': True,
+            '_is_dev_mode': getattr(self, '_is_dev_mode', False),  # For dev-mode features like version suffix
         }
         
         # Delegate to active tab
@@ -293,6 +299,9 @@ class CommandPanel(QWidget):
         
         # Update UI icons
         self.update_tab_icons()
+        
+        # Sync active state indicators
+        self._on_tab_params_changed()
     
     def _update_side_buttons_visibility(self, mode: str):
         """Update side buttons visibility based on mode."""
@@ -320,6 +329,68 @@ class CommandPanel(QWidget):
         if 0 <= index < self.tabs.count():
             self.tabs.setCurrentIndex(index)
     
+    def _on_tab_params_changed(self):
+        """Update side button active states (blue outline) based on current params."""
+        current_index = self.tabs.currentIndex()
+        
+        if current_index == 0: # Image Tab
+            params = self._image_tab.get_params()
+            group = self.image_side_buttons
+            
+            # Resize is active if resize_mode is NOT "No resize"
+            resize_active = params.get('resize_mode') != "No resize"
+            
+            # In Max Size mode, check auto_resize checkbox instead
+            if self.mode_buttons.get_mode() == "Max Size":
+                resize_active = params.get('image_auto_resize', False)
+            
+            rotate_active = params.get('rotation_angle') not in [None, "No rotation"]
+            
+            self._set_btn_active(group, 'resize', resize_active)
+            self._set_btn_active(group, 'rotate', rotate_active)
+            
+        elif current_index == 1: # Video Tab
+            params = self._video_tab.get_params()
+            group = self.video_side_buttons
+            
+            # Resize is active if resize_mode is NOT "No resize"
+            resize_active = params.get('resize_mode') != "No resize"
+            
+            # In Max Size mode, check auto_resize checkbox instead
+            if self.mode_buttons.get_mode() == "Max Size":
+                resize_active = params.get('video_auto_resize', False)
+            
+            rotate_active = params.get('rotation_angle') not in [None, "No rotation"]
+            time_active = params.get('enable_time_cutting', False) or params.get('retime_enabled', False)
+            
+            self._set_btn_active(group, 'resize', resize_active)
+            self._set_btn_active(group, 'rotate', rotate_active)
+            self._set_btn_active(group, 'time', time_active)
+            
+        elif current_index == 2: # Loop Tab
+            params = self._loop_tab.get_params()
+            group = self.loop_side_buttons
+            
+            # Resize is active if resize_mode is NOT "No resize"
+            resize_active = params.get('resize_mode') != "No resize"
+            
+            # In Max Size mode, check auto_resize checkbox instead
+            # Loop tab uses gif_auto_resize for GIF format, video_auto_resize for WebM
+            if self.mode_buttons.get_mode() == "Max Size":
+                resize_active = params.get('gif_auto_resize', False) or params.get('video_auto_resize', False)
+                
+            rotate_active = params.get('rotation_angle') not in [None, "No rotation"]
+            time_active = params.get('enable_time_cutting', False) or params.get('retime_enabled', False)
+            
+            self._set_btn_active(group, 'resize', resize_active)
+            self._set_btn_active(group, 'rotate', rotate_active)
+            self._set_btn_active(group, 'time', time_active)
+
+    def _set_btn_active(self, group, btn_id, is_active):
+        """Helper to set active state safely."""
+        if hasattr(group, 'set_transform_active'):
+            group.set_transform_active(btn_id, bool(is_active))
+    
     def _on_tab_btn_clicked(self, btn_id: int):
         """Handle MorphingButton menu item click (for MainWindow Lab Button)."""
         self.set_current_tab(btn_id)
@@ -345,6 +416,13 @@ class CommandPanel(QWidget):
         self._image_tab.update_theme(is_dark)
         self._video_tab.update_theme(is_dark)
         self._loop_tab.update_theme(is_dark)
+    
+    def set_dev_mode(self, is_dev: bool):
+        """Enable/disable dev mode features on all tabs (e.g., estimator version selector)."""
+        self._is_dev_mode = is_dev
+        self._image_tab.set_dev_mode(is_dev)
+        self._video_tab.set_dev_mode(is_dev)
+        self._loop_tab.set_dev_mode(is_dev)
     
     def _initialize_gpu_detection(self):
         """Initialize GPU detection for codec acceleration."""

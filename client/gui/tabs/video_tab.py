@@ -7,7 +7,7 @@ This tab handles video codec, quality, resize, rotation, and time settings.
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QSlider, 
-    QSizePolicy
+    QSizePolicy, QComboBox
 )
 from PyQt6.QtCore import Qt
 
@@ -101,6 +101,17 @@ class VideoTab(BaseTab):
         self.auto_resize_checkbox.setVisible(False)
         self.codec_group.add_row(self.auto_resize_checkbox)
         
+        # --- Estimator Version Dropdown (Dev Mode Only) ---
+        self.estimator_version_combo = QComboBox()
+        self.estimator_version_combo.addItem("v1 (Preset-Based)", "v1")
+        self.estimator_version_combo.addItem("v2 (Deterministic 2-Pass)", "v2")
+        self.estimator_version_combo.setToolTip("[DEV] Switch size estimation algorithm")
+        self.estimator_version_combo.setVisible(False)
+        self.estimator_version_combo.currentIndexChanged.connect(self._on_estimator_version_changed)
+        self.estimator_version_label = QLabel("Estimator [DEV]")
+        self.estimator_version_label.setVisible(False)
+        self.codec_group.add_row(self.estimator_version_label, self.estimator_version_combo)
+        
         # --- Multiple qualities ---
         self.multiple_qualities = ThemedCheckBox("Multiple quality variants")
         self.multiple_qualities.toggled.connect(self._toggle_quality_mode)
@@ -165,6 +176,7 @@ class VideoTab(BaseTab):
         rotate_layout.setContentsMargins(0, 0, 0, 0)
         
         self.rotation_angle = RotationButtonRow()
+        self.rotation_angle.currentTextChanged.connect(lambda _: self._notify_param_change())
         rotate_layout.addWidget(self.rotation_angle)
         
         self.transform_group.add_row(self.rotate_container)
@@ -223,18 +235,22 @@ class VideoTab(BaseTab):
         # Get resize params from ResizeSection
         resize_params = self.resize_section.get_params()
         
+        # Determine if Max Size mode is active
+        is_max_size_mode = self.max_size_spinbox.isVisible()
+        
         params = {
             'type': 'video',
             'codec': self.codec.currentText(),
             'quality': self.quality.value(),
             'multiple_qualities': self.multiple_qualities.isChecked(),
             'quality_variants': self._parse_variants(self.quality_variants.text()),
-            'max_size_mb': self.max_size_spinbox.value() if self.max_size_spinbox.isVisible() else None,
-            'auto_resize': self.auto_resize_checkbox.isChecked(),
+            'video_max_size_mb': self.max_size_spinbox.value() if is_max_size_mode else None,
+            'video_auto_resize': self.auto_resize_checkbox.isChecked(),
+            'video_size_mode': 'max_size' if is_max_size_mode else 'manual',
             'rotation_angle': self.rotation_angle.currentText(),
             'enable_time_cutting': self.enable_time_cutting.isChecked(),
-            'time_start': self.time_range_slider.start_value() if self.enable_time_cutting.isChecked() else 0.0,
-            'time_end': self.time_range_slider.end_value() if self.enable_time_cutting.isChecked() else 1.0,
+            'time_start': self.time_range_slider.getStartValue() if self.enable_time_cutting.isChecked() else 0.0,
+            'time_end': self.time_range_slider.getEndValue() if self.enable_time_cutting.isChecked() else 1.0,
             'retime_enabled': self.enable_retime.isChecked(),
             'retime_speed': self.retime_slider.value() / 10.0 if self.enable_retime.isChecked() else 1.0,
         }
@@ -261,11 +277,17 @@ class VideoTab(BaseTab):
         """Set the size mode (Max Size, Presets, Manual)."""
         is_max_size = (mode == "Max Size")
         is_manual = (mode == "Manual")
+        self._is_max_size_mode = is_max_size  # Track for dev mode features
         
         # Max size controls (only these visible in Max Size mode)
         self.max_size_label.setVisible(is_max_size)
         self.max_size_spinbox.setVisible(is_max_size)
         self.auto_resize_checkbox.setVisible(is_max_size)
+        
+        # Estimator version dropdown (only in dev mode AND max_size mode)
+        is_dev = getattr(self, '_is_dev_mode', False)
+        self.estimator_version_label.setVisible(is_max_size and is_dev)
+        self.estimator_version_combo.setVisible(is_max_size and is_dev)
         
         # Quality controls (only visible in Manual mode, hidden in Max Size)
         self.quality_label.setVisible(is_manual and not self.multiple_qualities.isChecked())
@@ -318,3 +340,19 @@ class VideoTab(BaseTab):
             return [v.strip() for v in text.split(',') if v.strip()]
         except:
             return []
+    
+    def _on_estimator_version_changed(self, index: int):
+        """Handle estimator version dropdown change."""
+        from client.core.size_estimator_registry import set_estimator_version
+        version = self.estimator_version_combo.itemData(index)
+        if version:
+            set_estimator_version(version)
+            print(f"[VideoTab] Estimator version changed to: {version}")
+    
+    def set_dev_mode(self, is_dev: bool):
+        """Enable/disable dev mode features like estimator version selector."""
+        self._is_dev_mode = is_dev
+        # Estimator dropdown only shows in dev mode AND max_size mode
+        if hasattr(self, '_is_max_size_mode') and self._is_max_size_mode:
+            self.estimator_version_label.setVisible(is_dev)
+            self.estimator_version_combo.setVisible(is_dev)

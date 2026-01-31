@@ -200,7 +200,6 @@ class MainWindow(QMainWindow):
         self.title_bar_window.theme_toggle_requested.connect(self.toggle_theme)
         self.title_bar_window.show_advanced_requested.connect(self.show_advanced)
         self.title_bar_window.show_about_requested.connect(self.show_about)
-        self.title_bar_window.toggle_log_requested.connect(lambda: self.toggle_status_bar(not self.bottom_frame.isVisible() if hasattr(self, 'bottom_frame') else True))
         self.title_bar_window.logout_requested.connect(self.logout)
 
     
@@ -545,6 +544,9 @@ class MainWindow(QMainWindow):
         self.command_panel.stop_conversion_requested.connect(self.stop_conversion)
         self.command_panel.global_mode_changed.connect(self.on_mode_changed)
         self.command_panel.lab_state_changed.connect(self._on_lab_state_changed)
+        
+        # Propagate dev mode to command panel (enables estimator version selector)
+        self.command_panel.set_dev_mode(self.DEVELOPMENT_MODE)
         
         # Connect unified control bar buttons to drag-drop area
         self.add_files_btn.clicked.connect(self.drag_drop_area.add_files_dialog)

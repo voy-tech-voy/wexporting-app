@@ -42,7 +42,7 @@ class TitleBarWindow(QMainWindow):
     theme_toggle_requested = pyqtSignal()
     show_advanced_requested = pyqtSignal()
     show_about_requested = pyqtSignal()
-    toggle_log_requested = pyqtSignal()
+
     logout_requested = pyqtSignal()
     
     TITLE_BAR_HEIGHT = 45
@@ -186,9 +186,7 @@ class TitleBarWindow(QMainWindow):
         about_action.triggered.connect(self.show_about_requested.emit)
         self._menu.addAction(about_action)
         
-        show_log_action = QAction("Show Log", self)
-        show_log_action.triggered.connect(self.toggle_log_requested.emit)
-        self._menu.addAction(show_log_action)
+
         
         self._menu.addSeparator()
         

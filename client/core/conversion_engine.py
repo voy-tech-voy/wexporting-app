@@ -323,8 +323,8 @@ def get_subprocess_kwargs():
 
 
 
-# Import size estimation functions from dedicated module
-from client.core.size_estimator import (
+# Import size estimation functions from unified registry (supports v1/v2 switching)
+from client.core.size_estimator_registry import (
     get_video_frame_rate,
     estimate_gif_size_fast_preview,
     estimate_gif_size_heuristic,
@@ -337,16 +337,16 @@ from client.core.size_estimator import (
     IMAGE_QUALITY_PRESETS_STANDARD,
     IMAGE_QUALITY_PRESETS_AUTORESIZE,
     IMAGE_REFERENCE_PRESET_IDX,
-    estimate_image_size_at_preset,
     estimate_all_image_preset_sizes,
     find_optimal_image_params_for_size,
     VIDEO_QUALITY_PRESETS_STANDARD,
     VIDEO_QUALITY_PRESETS_AUTORESIZE,
     VIDEO_REFERENCE_PRESET_IDX,
-    estimate_video_size_at_preset,
     estimate_all_video_preset_sizes,
     find_optimal_video_params_for_size
 )
+# Note: estimate_image_size_at_preset and estimate_video_size_at_preset 
+# are internal to size_estimator and not exported through registry
 from client.core.ffmpeg_utils import (
     map_ui_quality_to_crf,
     get_image_dimensions,
@@ -621,7 +621,12 @@ class ConversionEngine(QThread):
                 quality_variants = self.params.get('quality_variants', [])
                 
                 # Check if we need multiple variants (either size or quality)
-                has_multiple_variants = (video_variants and len(video_variants) > 1) or (quality_variants and len(quality_variants) > 1)
+                # MUST check the toggle flags explicitly
+                multiple_size_variants = self.params.get('multiple_size_variants', False)
+                multiple_qualities = self.params.get('multiple_qualities', False)
+                
+                has_multiple_variants = (multiple_size_variants and video_variants and len(video_variants) > 1) or \
+                                      (multiple_qualities and quality_variants and len(quality_variants) > 1)
                 
                 if has_multiple_variants:
                     print(f"Creating multiple video variants for {file_path}")
@@ -777,7 +782,28 @@ class ConversionEngine(QThread):
                     if '_resolution_scale' in optimal:
                         scale = optimal['_resolution_scale']
                         self.params['_max_size_resolution_scale'] = scale
+                        
+                        # Calculate and store actual output resolution for suffix
+                        try:
+                            from client.core.ffmpeg_utils import get_video_dimensions
+                            orig_width, orig_height = get_video_dimensions(file_path)
+                            if orig_width > 0 and orig_height > 0:
+                                out_width = int(orig_width * scale)
+                                out_height = int(orig_height * scale)
+                                self.params['_output_resolution'] = (out_width, out_height)
+                        except:
+                            pass
+                            
                         self.status_updated.emit(f"Applied resolution scale: {int(scale * 100)}%")
+                    else:
+                        # No scaling - output resolution is same as input
+                        try:
+                            from client.core.ffmpeg_utils import get_video_dimensions
+                            orig_width, orig_height = get_video_dimensions(file_path)
+                            if orig_width > 0 and orig_height > 0:
+                                self.params['_output_resolution'] = (orig_width, orig_height)
+                        except:
+                            pass
                     
                     # Log optimization result
                     preset_info = optimal.get('_preset_info', '')
@@ -1033,12 +1059,38 @@ class ConversionEngine(QThread):
                     # Store for use in output_args
                     self.params['_optimized_crf'] = optimized_crf
                     self.params['_optimized_audio_bitrate'] = optimized_audio
+                    self.params['_encoding_mode'] = optimal.get('encoding_mode')
+                    self.params['_video_bitrate_kbps'] = optimal.get('video_bitrate_kbps')
                     
                     # Apply resolution scale if present
                     if '_resolution_scale' in optimal:
                         scale = optimal['_resolution_scale']
                         self.params['_max_size_resolution_scale'] = scale
+                        
+                        # Calculate and store actual output resolution for suffix
+                        try:
+                            from client.core.ffmpeg_utils import get_video_dimensions
+                            orig_width, orig_height = get_video_dimensions(file_path)
+                            if orig_width > 0 and orig_height > 0:
+                                out_width = int(orig_width * scale)
+                                out_height = int(orig_height * scale)
+                                # Ensure even dimensions for video encoding
+                                out_width = out_width - (out_width % 2)
+                                out_height = out_height - (out_height % 2)
+                                self.params['_output_resolution'] = (out_width, out_height)
+                        except:
+                            pass
+                        
                         self.status_updated.emit(f"Applied resolution scale: {int(scale * 100)}%")
+                    else:
+                        # No scaling - output resolution is same as input
+                        try:
+                            from client.core.ffmpeg_utils import get_video_dimensions
+                            orig_width, orig_height = get_video_dimensions(file_path)
+                            if orig_width > 0 and orig_height > 0:
+                                self.params['_output_resolution'] = (orig_width, orig_height)
+                        except:
+                            pass
                     
                     # Log optimization result
                     preset_info = optimal.get('_preset_info', '')
@@ -1363,6 +1415,84 @@ class ConversionEngine(QThread):
             if 'extra_ffmpeg_args' in self.params:
                 output_args.update(self.params['extra_ffmpeg_args'])
 
+            # Check for 2-pass encoding mode
+            encoding_mode = self.params.get('_encoding_mode')
+            video_bitrate = self.params.get('_video_bitrate_kbps')
+            
+            if encoding_mode == '2-pass' and video_bitrate:
+                try:
+                    self.status_updated.emit(f"Starting 2-Pass Encoding at {video_bitrate} kbps...")
+                    
+                    # Cleanup conflicting args for 2-pass
+                    pass_args = output_args.copy()
+                    pass_args.pop('crf', None)
+                    pass_args['video_bitrate'] = f"{video_bitrate}k"
+                    
+                    # --- PASS 1 ---
+                    self.status_updated.emit("Running Pass 1/2 (Analysis)...")
+                    pass1_args = pass_args.copy()
+                    pass1_args['pass'] = 1
+                    pass1_args['f'] = 'null'
+                    # Remove audio for pass 1
+                    pass1_args['an'] = None 
+                    
+                    # Output to null device
+                    # On Windows, use NUL. On others /dev/null
+                    null_dev = 'NUL' if os.name == 'nt' else '/dev/null'
+                    
+                    # Note: We reuse video_stream filter graph
+                    pass1_out = ffmpeg.output(video_stream, null_dev, **pass1_args)
+                    pass1_out = ffmpeg.overwrite_output(pass1_out)
+                    
+                    # Check cancellation
+                    if self.should_stop: return False
+                    self.run_ffmpeg_with_cancellation(pass1_out)
+                    
+                    # --- PASS 2 ---
+                    self.status_updated.emit("Running Pass 2/2 (Export)...")
+                    pass2_args = pass_args.copy()
+                    pass2_args['pass'] = 2
+                    
+                    if audio_stream is not None:
+                         output = ffmpeg.output(video_stream, audio_stream, output_path, **pass2_args)
+                    else:
+                         output = ffmpeg.output(video_stream, output_path, **pass2_args)
+
+                    if self.params.get('overwrite', False):
+                        output = ffmpeg.overwrite_output(output)
+
+                    if self.should_stop: return False
+                    self.run_ffmpeg_with_cancellation(output)
+                    
+                    # Clean up ffmpeg 2-pass log files
+                    try:
+                        cwd = os.getcwd()
+                        for f in os.listdir(cwd):
+                            if f.startswith('ffmpeg2pass') and f.endswith('.log'):
+                                try:
+                                    os.remove(os.path.join(cwd, f))
+                                except: pass
+                    except: pass
+                    
+                    self.file_completed.emit(file_path, output_path)
+                    return True
+                    
+                except Exception as e2pass:
+                    # 2-Pass Failed - Fallback to 1-Pass
+                    self.status_updated.emit(f"Warning: 2-Pass encoding failed ({str(e2pass)}). Falling back to CRF encoding.")
+                    
+                    # Reset params for fallback
+                    if 'crf' not in output_args:
+                        # Ensure we have a CRF value (default to 23 or user quality)
+                        if self.params.get('quality'):
+                            output_args['crf'] = map_ui_quality_to_crf(self.params.get('quality'), codec)
+                        else:
+                            output_args['crf'] = 23
+                    
+                    # Fallthrough to standard 1-pass execution below
+                    pass
+            
+            # Standard 1-pass (CRF or Quality) - Also serves as fallback
             if audio_stream is not None:
                 output = ffmpeg.output(video_stream, audio_stream, output_path, **output_args)
             else:
@@ -1378,10 +1508,24 @@ class ConversionEngine(QThread):
             # Use run_ffmpeg_with_cancellation
             self.run_ffmpeg_with_cancellation(output)
             
+            # Clean up ffmpeg 2-pass log files
+            try:
+                # FFmpeg creates ffmpeg2pass-0.log in CWD
+                cwd = os.getcwd()
+                for f in os.listdir(cwd):
+                    if f.startswith('ffmpeg2pass') and f.endswith('.log'):
+                        try:
+                            os.remove(os.path.join(cwd, f))
+                        except: pass
+            except: pass
+            
             self.file_completed.emit(file_path, output_path)
             return True
             
         except Exception as e:
+            import traceback
+            traceback.print_exc()
+            print(f"CRITICAL ERROR in convert_video: {e}")
             error_msg = f"FFmpeg error: {str(e)}"
             if hasattr(e, 'stderr') and e.stderr:
                 stderr_output = e.stderr.decode('utf-8', errors='ignore')
@@ -1389,6 +1533,9 @@ class ConversionEngine(QThread):
             self.status_updated.emit(error_msg)
             return False
         except Exception as e:
+            import traceback
+            traceback.print_exc()
+            print(f"CRITICAL GENERIC ERROR in convert_video: {e}")
             self.status_updated.emit(f"Video conversion error: {e}")
             return False
             
