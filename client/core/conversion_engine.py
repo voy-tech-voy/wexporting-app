@@ -1174,6 +1174,10 @@ class ConversionEngine(QThread):
             
             output_args = {'vcodec': codec}
             
+            # Check if using bitrate-based encoding (v2 Max Size mode with 2-pass)
+            encoding_mode = self.params.get('_encoding_mode')
+            video_bitrate_kbps = self.params.get('_video_bitrate_kbps')
+            
             # Get quality parameter - use optimized CRF in Max Size mode
             optimized_crf = self.params.get('_optimized_crf')
             optimized_audio = self.params.get('_optimized_audio_bitrate')
@@ -1200,6 +1204,39 @@ class ConversionEngine(QThread):
                 # Override codec if specified (e.g. force h264 for insta)
                 if 'vcodec' in social_config:
                     codec = social_config['vcodec']
+                    
+            elif encoding_mode == '2-pass' and video_bitrate_kbps:
+                # Use bitrate-based encoding for Max Size mode (v2 estimator)
+                self.status_updated.emit(f"DEBUG: Using 2-pass bitrate mode: {video_bitrate_kbps}kbps")
+                
+                # Set video bitrate with buffer constraints
+                output_args['b:v'] = f'{video_bitrate_kbps}k'
+                output_args['maxrate'] = f'{int(video_bitrate_kbps * 1.5)}k'
+                output_args['bufsize'] = f'{int(video_bitrate_kbps * 2)}k'
+                
+                # Set format based on codec
+                if selected_codec in ['WebM (VP9, faster)', 'WebM (AV1, slower)']:
+                    output_args['f'] = 'webm'
+                    # WebM: Strip audio completely
+                    audio_stream = None
+                    output_args['an'] = None
+                    
+                    # Optimize AV1 speed
+                    if codec == 'libaom-av1':
+                        output_args['cpu-used'] = 4
+                        self.status_updated.emit("DEBUG: Applied AV1 speed optimization (cpu-used=4)")
+                else:
+                    output_args['f'] = 'mp4'
+                    
+                    # Optimize AV1 speed for MP4 container too
+                    if codec == 'libaom-av1':
+                        output_args['cpu-used'] = 4
+                        self.status_updated.emit("DEBUG: Applied AV1 speed optimization (cpu-used=4)")
+                    
+                    # Set audio bitrate if audio exists
+                    if has_audio and optimized_audio:
+                        output_args['b:a'] = f'{optimized_audio}k'
+                        self.status_updated.emit(f"DEBUG: Audio bitrate set to {optimized_audio}k (2-pass mode)")
                     
             else:
                 # For WebM/VP9/AV1, we need to handle audio codec and format-specific parameters

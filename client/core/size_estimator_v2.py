@@ -129,11 +129,16 @@ def optimize_video_params(file_path: str, target_size_bytes: int, codec_pref: st
         while (vid_bps / (curr_w * (curr_w * meta['height'] / meta['width']) * meta['fps'])) < target_bpp and curr_w > 240:
             curr_w = int(curr_w * 0.85); curr_w -= (curr_w % 2)
 
+    # Calculate actual estimated output size based on bitrates and duration
+    video_size_bytes = (vid_bps * meta['duration']) / 8
+    audio_size_bytes = ((audio_kbps * 1000) * meta['duration']) / 8 if meta['has_audio'] else 0
+    total_estimated_bytes = int(video_size_bytes + audio_size_bytes)
+    
     return {
         'video_bitrate_kbps': int(vid_bps / 1000),
         'audio_bitrate_kbps': audio_kbps,
         'resolution_scale': curr_w / meta['width'],
-        'estimated_size': target_size_bytes,
+        'estimated_size': total_estimated_bytes,
         'codec': codec,
         'encoding_mode': '2-pass', 
         'crf': None

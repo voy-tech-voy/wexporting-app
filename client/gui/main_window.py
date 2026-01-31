@@ -689,15 +689,36 @@ class MainWindow(QMainWindow):
         if hasattr(self, 'output_footer'):
             self.output_footer.set_converting(True)
         
-        # Create and start conversion engine
-        self.conversion_engine = ConversionEngine(files, params)
+        # Check if we should use TargetSizeConversionEngine (v2 + max_size mode)
+        use_target_size_engine = False
+        size_mode = params.get('video_size_mode') or params.get('image_size_mode') or params.get('gif_size_mode')
+        
+        if size_mode == 'max_size':
+            from client.core.size_estimator_registry import get_estimator_version
+            if get_estimator_version() == 'v2':
+                use_target_size_engine = True
+                print("[MainWindow] Using TargetSizeConversionEngine (v2 active)")
+        
+        # Create appropriate engine
+        if use_target_size_engine:
+            from client.core.target_size_conversion_engine import TargetSizeConversionEngine
+            self.conversion_engine = TargetSizeConversionEngine(files, params)
+        else:
+            self.conversion_engine = ConversionEngine(files, params)
         
         # Connect engine signals
         self.conversion_engine.progress_updated.connect(self.set_progress)
         self.conversion_engine.file_progress_updated.connect(self.on_file_progress)
         self.conversion_engine.status_updated.connect(self.update_status)
         self.conversion_engine.file_completed.connect(self.on_file_completed)
-        self.conversion_engine.conversion_finished.connect(self.on_conversion_finished)
+        
+        # Handle different signal names between engines
+        if hasattr(self.conversion_engine, 'conversion_finished'):
+            self.conversion_engine.conversion_finished.connect(self.on_conversion_finished)
+        elif hasattr(self.conversion_engine, 'conversion_completed'):
+            self.conversion_engine.conversion_completed.connect(
+                lambda s, f: self.on_conversion_finished(s > 0, f"Completed: {s} success, {f} failed")
+            )
         
         # Reset progress bars
         if hasattr(self, 'file_progress_bar'):

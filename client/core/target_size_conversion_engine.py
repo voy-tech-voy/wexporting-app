@@ -1,0 +1,356 @@
+"""
+Target Size Conversion Engine - Dedicated converter for Max Size mode (v2)
+Uses 2-pass bitrate encoding to achieve target file sizes.
+
+This is a completely separate conversion engine from the main one,
+designed specifically for target size based conversions.
+"""
+
+import os
+import ffmpeg
+from pathlib import Path
+from typing import Dict, Optional, Callable
+from PyQt6.QtCore import QThread, pyqtSignal
+
+from client.core.size_estimator_v2 import (
+    optimize_video_params,
+    optimize_image_params,
+    optimize_gif_params,
+    get_media_metadata
+)
+from client.core.ffmpeg_utils import (
+    get_video_dimensions,
+    get_video_duration,
+    has_audio_stream,
+)
+
+
+class TargetSizeConversionEngine(QThread):
+    """
+    Conversion engine for target size mode (v2 estimator).
+    Uses bitrate-based encoding to achieve specific file sizes.
+    """
+    
+    # Signals
+    progress_updated = pyqtSignal(int)
+    file_progress_updated = pyqtSignal(int, float)
+    status_updated = pyqtSignal(str)
+    file_completed = pyqtSignal(str, str)
+    conversion_completed = pyqtSignal(int, int)
+    
+    def __init__(self, files: list, params: Dict):
+        super().__init__()
+        self.files = files
+        self.params = params
+        self.should_stop = False
+        self.successful_conversions = 0
+        self.failed_conversions = 0
+        
+    def stop_conversion(self):
+        """Stop the conversion process."""
+        self.should_stop = True
+        
+    def run(self):
+        """Main conversion thread execution."""
+        total_files = len(self.files)
+        
+        for i, file_path in enumerate(self.files):
+            if self.should_stop:
+                break
+                
+            self.file_progress_updated.emit(i, 0.0)
+            self.status_updated.emit(f"Processing: {os.path.basename(file_path)}")
+            
+            try:
+                conversion_type = self.params.get('type', 'video')
+                
+                if conversion_type == 'video':
+                    success = self._convert_video(file_path)
+                elif conversion_type == 'image':
+                    success = self._convert_image(file_path)
+                elif conversion_type == 'loop':
+                    success = self._convert_gif(file_path)
+                else:
+                    self.status_updated.emit(f"Unknown type: {conversion_type}")
+                    success = False
+                    
+                if success:
+                    self.successful_conversions += 1
+                    self.file_completed.emit(file_path, "success")
+                else:
+                    self.failed_conversions += 1
+                    self.file_completed.emit(file_path, "failed")
+                    
+            except Exception as e:
+                self.status_updated.emit(f"Error: {str(e)}")
+                self.failed_conversions += 1
+                self.file_completed.emit(file_path, "failed")
+                
+            self.file_progress_updated.emit(i, 1.0)
+            self.progress_updated.emit(int((i + 1) / total_files * 100))
+            
+        self.conversion_completed.emit(self.successful_conversions, self.failed_conversions)
+        
+    def _get_output_path(self, file_path: str, extension: str) -> str:
+        """Generate output path with proper suffix."""
+        base_name = os.path.splitext(os.path.basename(file_path))[0]
+        
+        # Get target size for suffix
+        target_mb = self.params.get('video_max_size_mb') or self.params.get('image_max_size_mb') or self.params.get('gif_max_size_mb') or 0
+        
+        # Build suffix
+        suffix = f"_target{target_mb:.1f}mb"
+        
+        # Determine output directory
+        if self.params.get('use_nested_output', True):
+            output_dir = os.path.join(os.path.dirname(file_path), 
+                                       self.params.get('nested_output_name', 'output'))
+        else:
+            output_dir = os.path.dirname(file_path)
+            
+        os.makedirs(output_dir, exist_ok=True)
+        
+        return os.path.join(output_dir, f"{base_name}{suffix}.{extension}")
+        
+    def _convert_video(self, file_path: str) -> bool:
+        """Convert video to target file size using 2-pass bitrate encoding."""
+        try:
+            # Get target size
+            target_mb = self.params.get('video_max_size_mb', 5.0)
+            target_bytes = int(target_mb * 1024 * 1024)
+            auto_resize = self.params.get('video_auto_resize', False)
+            
+            # Get codec preference
+            codec_map = {
+                'H.264 (MP4)': 'libx264',
+                'H.265 (MP4)': 'libx265',
+                'WebM (VP9, faster)': 'libvpx-vp9',
+                'WebM (AV1, slower)': 'libaom-av1',
+                'AV1 (MP4)': 'libaom-av1'
+            }
+            selected_codec = self.params.get('codec', 'H.264 (MP4)')
+            codec = codec_map.get(selected_codec, 'libx264')
+            
+            # Determine output format
+            output_ext = 'webm' if 'WebM' in selected_codec else 'mp4'
+            output_path = self._get_output_path(file_path, output_ext)
+            
+            self.status_updated.emit(f"[v2] Calculating optimal bitrate for {target_mb:.1f} MB target...")
+            
+            # Call v2 estimator directly
+            optimal = optimize_video_params(
+                file_path, 
+                target_bytes, 
+                codec_pref=selected_codec,
+                allow_downscale=auto_resize
+            )
+            
+            video_bitrate = optimal['video_bitrate_kbps']
+            audio_bitrate = optimal['audio_bitrate_kbps']
+            resolution_scale = optimal.get('resolution_scale', 1.0)
+            
+            self.status_updated.emit(f"[v2] Using {video_bitrate}kbps video, {audio_bitrate}kbps audio")
+            
+            # Build FFmpeg command
+            input_stream = ffmpeg.input(file_path)
+            video_stream = input_stream.video
+            
+            # Apply resolution scale if needed
+            if resolution_scale < 1.0:
+                meta = get_media_metadata(file_path)
+                new_width = int(meta['width'] * resolution_scale)
+                new_width = new_width - (new_width % 2)  # Ensure even
+                video_stream = ffmpeg.filter(video_stream, 'scale', new_width, -2)
+                self.status_updated.emit(f"[v2] Scaling to {int(resolution_scale * 100)}%")
+                
+            # Apply rotation if specified
+            rotation = self.params.get('rotation_angle')
+            if rotation and rotation != "No rotation":
+                if rotation == "90° clockwise":
+                    video_stream = ffmpeg.filter(video_stream, 'transpose', 1)
+                elif rotation == "180°":
+                    video_stream = ffmpeg.filter(video_stream, 'transpose', 2)
+                    video_stream = ffmpeg.filter(video_stream, 'transpose', 2)
+                elif rotation == "270° clockwise":
+                    video_stream = ffmpeg.filter(video_stream, 'transpose', 2)
+                    
+            # Output arguments - 2-pass bitrate encoding
+            output_args = {
+                'vcodec': codec,
+                'b:v': f'{video_bitrate}k',
+                'maxrate': f'{int(video_bitrate * 1.5)}k',
+                'bufsize': f'{int(video_bitrate * 2)}k',
+            }
+            
+            # Handle audio
+            has_audio = has_audio_stream(file_path)
+            if 'WebM' in selected_codec:
+                # WebM: no audio
+                output_args['an'] = None
+                audio_stream = None
+            elif has_audio:
+                audio_stream = input_stream.audio
+                output_args['b:a'] = f'{audio_bitrate}k'
+                output_args['acodec'] = 'aac'
+            else:
+                audio_stream = None
+                
+            # AV1 speed optimization
+            if codec == 'libaom-av1':
+                output_args['cpu-used'] = 4
+                
+            # Run conversion
+            self.status_updated.emit(f"[v2] Encoding with {video_bitrate}kbps bitrate...")
+            
+            if audio_stream:
+                stream = ffmpeg.output(video_stream, audio_stream, output_path, **output_args)
+            else:
+                stream = ffmpeg.output(video_stream, output_path, **output_args)
+                
+            stream = ffmpeg.overwrite_output(stream)
+            ffmpeg.run(stream, quiet=True)
+            
+            # Report result
+            if os.path.exists(output_path):
+                actual_size = os.path.getsize(output_path)
+                actual_mb = actual_size / (1024 * 1024)
+                self.status_updated.emit(f"[v2] ✓ Complete: {actual_mb:.2f} MB (target: {target_mb:.1f} MB)")
+                return True
+            else:
+                self.status_updated.emit("[v2] ✗ Output file not created")
+                return False
+                
+        except Exception as e:
+            self.status_updated.emit(f"[v2] Error: {str(e)}")
+            return False
+            
+    def _convert_image(self, file_path: str) -> bool:
+        """Convert image to target file size."""
+        try:
+            target_mb = self.params.get('image_max_size_mb', 1.0)
+            target_bytes = int(target_mb * 1024 * 1024)
+            auto_resize = self.params.get('image_auto_resize', False)
+            
+            # Get output format
+            output_format = self.params.get('format', 'jpg').lower()
+            output_path = self._get_output_path(file_path, output_format)
+            
+            self.status_updated.emit(f"[v2] Optimizing image for {target_mb:.1f} MB target...")
+            
+            # Call v2 estimator
+            optimal = optimize_image_params(
+                file_path,
+                output_format,
+                target_bytes,
+                allow_downscale=auto_resize
+            )
+            
+            quality = optimal['quality']
+            scale_factor = optimal.get('scale_factor', 1.0)
+            
+            self.status_updated.emit(f"[v2] Using quality {quality}, scale {int(scale_factor * 100)}%")
+            
+            # Build FFmpeg command
+            input_stream = ffmpeg.input(file_path)
+            stream = input_stream
+            
+            # Apply scale if needed
+            if scale_factor < 1.0:
+                meta = get_media_metadata(file_path)
+                new_width = int(meta['width'] * scale_factor)
+                stream = ffmpeg.filter(stream, 'scale', new_width, -1)
+                
+            # Output with quality
+            if output_format in ['jpg', 'jpeg']:
+                q_val = max(1, min(31, int((100 - quality) * 31 / 100)))
+                stream = ffmpeg.output(stream, output_path, **{'q:v': q_val})
+            elif output_format == 'webp':
+                stream = ffmpeg.output(stream, output_path, quality=quality)
+            else:
+                stream = ffmpeg.output(stream, output_path)
+                
+            stream = ffmpeg.overwrite_output(stream)
+            ffmpeg.run(stream, quiet=True)
+            
+            if os.path.exists(output_path):
+                actual_size = os.path.getsize(output_path)
+                actual_mb = actual_size / (1024 * 1024)
+                self.status_updated.emit(f"[v2] ✓ Complete: {actual_mb:.2f} MB")
+                return True
+            return False
+            
+        except Exception as e:
+            self.status_updated.emit(f"[v2] Image error: {str(e)}")
+            return False
+            
+    def _convert_gif(self, file_path: str) -> bool:
+        """Convert video to GIF at target file size."""
+        try:
+            target_mb = self.params.get('gif_max_size_mb', 2.0)
+            target_bytes = int(target_mb * 1024 * 1024)
+            auto_resize = self.params.get('gif_auto_resize', False)
+            
+            output_path = self._get_output_path(file_path, 'gif')
+            
+            self.status_updated.emit(f"[v2] Optimizing GIF for {target_mb:.1f} MB target...")
+            
+            # Call v2 estimator
+            optimal = optimize_gif_params(
+                file_path,
+                target_bytes,
+                allow_downscale=auto_resize
+            )
+            
+            fps = optimal['fps']
+            colors = optimal['colors']
+            dither = optimal.get('dither', 'bayer:bayer_scale=3')
+            resolution_scale = optimal.get('resolution_scale', 1.0)
+            
+            self.status_updated.emit(f"[v2] Using {fps}fps, {colors} colors, {int(resolution_scale * 100)}% scale")
+            
+            # Build FFmpeg command with palette
+            meta = get_media_metadata(file_path)
+            width = int(meta['width'] * resolution_scale)
+            height = int(meta['height'] * resolution_scale)
+            
+            # Two-pass GIF encoding with palette
+            palette_path = output_path + '.palette.png'
+            
+            # Pass 1: Generate palette
+            (
+                ffmpeg
+                .input(file_path)
+                .filter('fps', fps)
+                .filter('scale', width, height)
+                .filter('palettegen', max_colors=colors)
+                .output(palette_path)
+                .overwrite_output()
+                .run(quiet=True)
+            )
+            
+            # Pass 2: Apply palette
+            main = ffmpeg.input(file_path).filter('fps', fps).filter('scale', width, height)
+            palette = ffmpeg.input(palette_path)
+            
+            (
+                ffmpeg
+                .filter([main, palette], 'paletteuse', dither=dither.split(':')[0] if ':' in dither else dither)
+                .output(output_path)
+                .overwrite_output()
+                .run(quiet=True)
+            )
+            
+            # Cleanup palette
+            if os.path.exists(palette_path):
+                os.remove(palette_path)
+                
+            if os.path.exists(output_path):
+                actual_size = os.path.getsize(output_path)
+                actual_mb = actual_size / (1024 * 1024)
+                self.status_updated.emit(f"[v2] ✓ GIF complete: {actual_mb:.2f} MB")
+                return True
+            return False
+            
+        except Exception as e:
+            self.status_updated.emit(f"[v2] GIF error: {str(e)}")
+            return False
