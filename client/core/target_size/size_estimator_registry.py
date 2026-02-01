@@ -9,7 +9,7 @@ from pathlib import Path
 # =============================================================================
 # VERSION STATE
 # =============================================================================
-_active_estimator_version = 'v2'
+_active_estimator_version = 'v3'  # v3: Interruptible encoding with proper error capture
 
 def get_estimator_version(): 
     return _active_estimator_version

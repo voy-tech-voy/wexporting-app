@@ -327,6 +327,7 @@ class LoopTab(BaseTab):
             'time_end': self.time_range_slider.endValue() if self.enable_time_cutting.isChecked() else 1.0,
             'retime_enabled': self.enable_retime.isChecked(),
             'retime_speed': self.retime_slider.value() / 10.0 if self.enable_retime.isChecked() else 1.0,
+            'estimator_version': self.estimator_version_combo.currentText() if self.estimator_version_combo.isVisible() else None,
         }
         
         # Add format-specific max size parameters

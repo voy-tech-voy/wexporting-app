@@ -689,6 +689,16 @@ class MainWindow(QMainWindow):
         if hasattr(self, 'output_footer'):
             self.output_footer.set_converting(True)
         
+        # Check for AV1 codec and show warning
+        codec = params.get('codec', '')
+        print(f"[DEBUG] Codec parameter: '{codec}'")
+        if 'av1' in codec.lower():
+            print("[DEBUG] AV1 detected - showing warning popup")
+            # Show AV1 slow export warning (auto-dismisses after 15 seconds)
+            self.dialogs.show_av1_warning()
+        
+        
+        
         # Check if we should use TargetSizeConversionEngine (max_size mode with any estimator version)
         use_target_size_engine = False
         size_mode = params.get('video_size_mode') or params.get('image_size_mode') or params.get('gif_size_mode')

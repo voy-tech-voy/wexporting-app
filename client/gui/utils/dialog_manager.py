@@ -252,3 +252,33 @@ class DialogManager:
             QMessageBox result code
         """
         return self.show_info("Tool Status", message)
+    
+    def show_av1_warning(self) -> None:
+        """
+        Show AV1 slow export warning that auto-dismisses after 15 seconds.
+        
+        This is a non-blocking warning that appears when the user starts
+        an AV1 conversion, informing them that the export will be slow
+        due to lack of GPU acceleration.
+        """
+        from PyQt6.QtCore import QTimer
+        
+        dlg = self._create_dialog(
+            QMessageBox.Icon.Warning,
+            "Slow Export Detected",
+            "Your GPU doesn't support AV1 acceleration.\nThis export will be much slower than other codecs.",
+            buttons=QMessageBox.StandardButton.Ok
+        )
+        
+        # Auto-close after 15 seconds
+        auto_close_timer = QTimer()
+        auto_close_timer.setSingleShot(True)
+        auto_close_timer.timeout.connect(dlg.accept)
+        auto_close_timer.start(15000)  # 15 seconds
+        
+        # Show dialog (blocks until dismissed or timer expires)
+        dlg.exec()
+        
+        # Clean up timer
+        auto_close_timer.stop()
+

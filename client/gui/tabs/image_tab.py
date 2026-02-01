@@ -197,6 +197,7 @@ class ImageTab(BaseTab):
             'multiple_max_sizes': target_params['multiple_variants'],
             'max_size_variants': target_params['size_variants'],
             'rotation_angle': self.rotation_angle.currentText(),
+            'estimator_version': self.estimator_version_combo.currentText() if self.estimator_version_combo.isVisible() else None,
         }
         # Merge resize params
         params.update(resize_params)

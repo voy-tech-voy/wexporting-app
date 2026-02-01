@@ -49,10 +49,16 @@ def generate_target_size_suffix(
         if w > 0 and h > 0:
             resolution_str = f"_{w}x{h}"
     
-    # Dev mode version indicator
-    is_dev = params.get('_is_dev_mode', False)
-    if is_dev:
-        parts.append(f"_v2TargetSize{size_str}{resolution_str}")
+    # Estimator version - prioritize UI selection from params, fallback to estimator's version
+    version_str = ""
+    if params and 'estimator_version' in params and params['estimator_version']:
+        version_str = params['estimator_version']
+    elif optimal and 'estimator_version' in optimal:
+        version_str = optimal['estimator_version']
+    
+    # Build suffix: v{version}TargetSize{size}MB_{resolution}
+    if version_str:
+        parts.append(f"_{version_str}TargetSize{size_str}{resolution_str}")
     else:
         parts.append(f"_TargetSize{size_str}{resolution_str}")
     

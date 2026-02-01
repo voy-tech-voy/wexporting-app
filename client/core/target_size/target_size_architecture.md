@@ -290,6 +290,44 @@ estimator_v3.py → calculate params + CRF encoding
 - **Engine:** Orchestration and progress
 - **UI:** User interaction
 
+### 5. Version Suffix Selection Flow
+**Why:** The output filename suffix should reflect the estimator version selected in the UI dropdown, not the hardcoded version in the estimator file.
+
+**Flow:**
+```
+UI Dropdown Selection
+  → Tab.get_params() includes 'estimator_version'
+  → ConversionEngine receives params with version
+  → SuffixManager.generate_target_size_suffix()
+    → Checks params['estimator_version'] FIRST (UI selection)
+    → Falls back to optimal['estimator_version'] (estimator's version)
+  → Filename: {base}_v2_TargetSize1MB_1920x1080.mp4
+```
+
+**Implementation:**
+1. **UI Tabs** (`video_tab.py`, `image_tab.py`, `loop_tab.py`):
+   ```python
+   def get_params(self) -> dict:
+       params = {
+           # ... other params ...
+           'estimator_version': self.estimator_version_combo.currentText() 
+                                if self.estimator_version_combo.isVisible() 
+                                else None,
+       }
+   ```
+
+2. **Suffix Manager** (`suffix_manager.py`):
+   ```python
+   # Prioritize UI selection from params, fallback to estimator's version
+   version_str = ""
+   if params and 'estimator_version' in params and params['estimator_version']:
+       version_str = f"_{params['estimator_version']}"
+   elif optimal and 'estimator_version' in optimal:
+       version_str = f"_{optimal['estimator_version']}"
+   ```
+
+**Result:** When user selects v2 in dropdown → filename shows `_v2`, even if using `mp4_h264_estimator_v3.py`
+
 ---
 
 ## Error Handling
@@ -347,7 +385,7 @@ except ffmpeg.Error as e:
 
 ```
 target_size/
-├── ARCHITECTURE.md              # This file
+├── target_size_architecture.md  # This file (architecture documentation)
 ├── _estimator_protocol.py       # ABC for all estimators
 ├── _common.py                   # Shared utilities (get_media_metadata)
 ├── size_estimator_registry.py  # Dynamic loading and version management
@@ -355,9 +393,13 @@ target_size/
 ├── suffix_manager.py            # Output filename generation
 ├── video_estimators/
 │   ├── mp4_h264_estimator_v2.py
+│   ├── mp4_h264_estimator_v3.py
 │   ├── mp4_h265_estimator_v2.py
+│   ├── mp4_h265_estimator_v3.py
 │   ├── webm_vp9_estimator_v2.py
-│   └── webm_av1_estimator_v2.py
+│   ├── webm_vp9_estimator_v3.py
+│   ├── webm_av1_estimator_v2.py
+│   └── webm_av1_estimator_v3.py
 ├── image_estimators/
 │   ├── jpg_estimator_v5.py
 │   ├── png_estimator_v5.py

@@ -249,6 +249,7 @@ class VideoTab(BaseTab):
             'time_end': self.time_range_slider.getEndValue() if self.enable_time_cutting.isChecked() else 1.0,
             'retime_enabled': self.enable_retime.isChecked(),
             'retime_speed': self.retime_slider.value() / 10.0 if self.enable_retime.isChecked() else 1.0,
+            'estimator_version': self.estimator_version_combo.currentText() if self.estimator_version_combo.isVisible() else None,
         }
         # Merge resize params
         params.update(resize_params)
@@ -351,8 +352,10 @@ class VideoTab(BaseTab):
             self.estimator_version_combo.addItem(version)
         self.estimator_version_combo.blockSignals(False)
         
-        # Select default version (v2 if available, otherwise first)
-        if 'v2' in versions:
+        # Select highest version available (v3 > v2 > v1)
+        if 'v3' in versions:
+            self.estimator_version_combo.setCurrentText('v3')
+        elif 'v2' in versions:
             self.estimator_version_combo.setCurrentText('v2')
         elif versions:
             self.estimator_version_combo.setCurrentIndex(0)
