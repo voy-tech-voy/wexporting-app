@@ -1809,8 +1809,15 @@ class ConversionEngine(QThread):
 
         
     def stop_conversion(self):
-        """Stop the conversion process"""
+        """Stop the conversion process immediately."""
         self.should_stop = True
+        # Kill active FFmpeg process if running
+        if self.current_process:
+            try:
+                self.current_process.kill()
+                self.current_process = None
+            except Exception:
+                pass
 
 
 class ToolChecker:

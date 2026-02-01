@@ -59,7 +59,7 @@ class ResizeSection(QWidget):
         layout.addWidget(self.resize_mode)
         
         # Multiple variants checkbox
-        self.multiple_variants = ThemedCheckBox("Multiple size variants")
+        self.multiple_variants = ThemedCheckBox("Multiple variants")
         self.multiple_variants.toggled.connect(self._on_multiple_toggled)
         layout.addWidget(self.multiple_variants)
         

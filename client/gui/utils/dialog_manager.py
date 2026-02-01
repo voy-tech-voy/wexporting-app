@@ -56,13 +56,27 @@ class DialogManager:
         """
         msg = QMessageBox(icon, title, text, buttons, parent=self.parent)
         
+        # Enable rich text to support HTML formatting
+        msg.setTextFormat(Qt.TextFormat.RichText)
+        
         # Remove title bar and make frameless for custom look
         msg.setWindowFlags(msg.windowFlags() | Qt.WindowType.FramelessWindowHint)
         
-        # Apply theme styling
+        # Apply theme styling with beveled corners
         styles = self.theme_manager.get_dialog_styles()
+        
+        # Add QMessageBox-specific styling with border-radius
+        messagebox_style = """
+            QMessageBox {
+                background-color: """ + ("rgb(43, 43, 43)" if self.theme_manager.get_current_theme() == 'dark' else "rgb(255, 255, 255)") + """;
+                border-radius: 8px;
+            }
+        """
+        
         if styles:
-            msg.setStyleSheet(styles)
+            msg.setStyleSheet(styles + messagebox_style)
+        else:
+            msg.setStyleSheet(messagebox_style)
         
         # Set default button if specified
         if default_button:
@@ -149,15 +163,83 @@ class DialogManager:
         
         Args:
             success: True for success (info icon), False for error (critical icon)
-            message: Completion message with details
+            message: Completion message with details (may contain HTML)
             
         Returns:
             QMessageBox result code
         """
-        if success:
-            return self.show_info("Conversion Complete", message)
+        # Parse the HTML message to extract components and reformat
+        # Expected format: "<span style='color: #xxx;'>X successful</span>, <span...>Y skipped</span>"
+        
+        # Extract full HTML spans with their styling
+        import re
+        spans = re.findall(r"<span[^>]*>.*?</span>", message)
+        
+        if len(spans) >= 1:
+            # Reorganize: success first, skipped second, failed third
+            lines = []
+            success_span = None
+            skipped_span = None
+            failed_span = None
+            stopped_span = None
+            
+            for span in spans:
+                # Check content inside span
+                content = re.search(r">([^<]+)<", span)
+                if content:
+                    text = content.group(1).lower()
+                    if 'success' in text or 'exported' in text:
+                        success_span = span
+                    elif 'skipped' in text:
+                        skipped_span = span
+                    elif 'failed' in text:
+                        failed_span = span
+                    elif 'stopped' in text:
+                        stopped_span = span
+            
+            # Build formatted message with line breaks, preserving HTML
+            if success_span:
+                lines.append(success_span)
+            if skipped_span:
+                lines.append(skipped_span)
+            if failed_span:
+                lines.append(failed_span)
+            if stopped_span:
+                lines.append(stopped_span)
+            
+            formatted_message = "<br>".join(lines)
         else:
-            return self.show_error("Conversion Error", message)
+            # Fallback to original message if parsing fails
+            formatted_message = message
+        
+        # Create dialog without buttons
+        icon = QMessageBox.Icon.Information if success else QMessageBox.Icon.Critical
+        dlg = self._create_dialog(
+            icon,
+            "Conversion Complete" if success else "Conversion Error",
+            formatted_message,
+            buttons=QMessageBox.StandardButton.NoButton  # No buttons
+        )
+        
+        # Install event filter to close on click or keypress
+        from PyQt6.QtCore import QEvent, QObject
+        
+        class ClickOrKeyCloseFilter(QObject):
+            def __init__(self, dialog):
+                super().__init__()
+                self.dialog = dialog
+            
+            def eventFilter(self, obj, event):
+                # Close on mouse click or key press
+                if event.type() in (QEvent.Type.MouseButtonPress, QEvent.Type.KeyPress):
+                    self.dialog.accept()
+                    return True
+                return False
+        
+        close_filter = ClickOrKeyCloseFilter(dlg)
+        dlg.installEventFilter(close_filter)
+        
+        return dlg.exec()
     
     def show_tool_status(self, message: str) -> int:
         """

@@ -19,7 +19,7 @@ from client.gui.custom_widgets import (
     CustomTargetSizeSpinBox, VideoCodecSelector, TimeRangeSlider,
     UnifiedVariantInput
 )
-from client.gui.sections import ResizeSection
+from client.gui.sections import ResizeSection, TargetSizeSection
 from client.gui.theme import get_combobox_style
 
 COMBOBOX_STYLE = get_combobox_style(True)  # Default dark mode
@@ -81,25 +81,17 @@ class VideoTab(BaseTab):
         self.codec.codecChanged.connect(self._on_codec_changed)
         self.codec_group.get_content_layout().insertRow(0, self.codec)
         
-        # --- Max Size (for Max Size mode) ---
-        self.max_size_spinbox = CustomTargetSizeSpinBox(
+        # Target Size Section
+        self.target_size_section = TargetSizeSection(
+            parent=self,
+            focus_callback=self._focus_callback,
             default_value=1.0,
-            on_enter_callback=self._focus_callback
+            sensitivity=0.01,
+            variant_defaults_map="0.5, 1.0, 2.0"  # Single default for all codecs
         )
-        self.max_size_spinbox.setToolTip("Target maximum file size in megabytes")
-        self.max_size_spinbox.setVisible(False)
-        self.max_size_label = QLabel("Max Size")
-        self.max_size_label.setVisible(False)
-        self.codec_group.add_row(self.max_size_label, self.max_size_spinbox)
-        
-        # --- Auto-resize checkbox ---
-        self.auto_resize_checkbox = ThemedCheckBox("Auto-resize")
-        self.auto_resize_checkbox.setChecked(True)
-        self.auto_resize_checkbox.setToolTip(
-            "Change the resolution in pixels (width×height) to match desired file size in MB."
-        )
-        self.auto_resize_checkbox.setVisible(False)
-        self.codec_group.add_row(self.auto_resize_checkbox)
+        self.target_size_section.paramChanged.connect(self._notify_param_change)
+        self.target_size_section.setVisible(False)
+        self.codec_group.add_row(self.target_size_section)
         
         # --- Estimator Version Dropdown (Dev Mode Only) ---
         self.estimator_version_combo = QComboBox()
@@ -112,7 +104,7 @@ class VideoTab(BaseTab):
         self.codec_group.add_row(self.estimator_version_label, self.estimator_version_combo)
         
         # --- Multiple qualities ---
-        self.multiple_qualities = ThemedCheckBox("Multiple quality variants")
+        self.multiple_qualities = ThemedCheckBox("Multiple variants")
         self.multiple_qualities.toggled.connect(self._toggle_quality_mode)
         self.codec_group.add_row(self.multiple_qualities)
         
@@ -234,8 +226,11 @@ class VideoTab(BaseTab):
         # Get resize params from ResizeSection
         resize_params = self.resize_section.get_params()
         
+        # Get target size params from TargetSizeSection
+        target_params = self.target_size_section.get_params()
+        
         # Determine if Max Size mode is active
-        is_max_size_mode = self.max_size_spinbox.isVisible()
+        is_max_size_mode = self.target_size_section.isVisible()
         
         params = {
             'type': 'video',
@@ -243,9 +238,11 @@ class VideoTab(BaseTab):
             'quality': self.quality.value(),
             'multiple_qualities': self.multiple_qualities.isChecked(),
             'quality_variants': self._parse_variants(self.quality_variants.text()),
-            'video_max_size_mb': self.max_size_spinbox.value() if is_max_size_mode else None,
-            'video_auto_resize': self.auto_resize_checkbox.isChecked(),
+            'video_max_size_mb': target_params['target_size_mb'],
+            'video_auto_resize': target_params['auto_resize'],
             'video_size_mode': 'max_size' if is_max_size_mode else 'manual',
+            'multiple_max_sizes': target_params['multiple_variants'],
+            'max_size_variants': target_params['size_variants'],
             'rotation_angle': self.rotation_angle.currentText(),
             'enable_time_cutting': self.enable_time_cutting.isChecked(),
             'time_start': self.time_range_slider.getStartValue() if self.enable_time_cutting.isChecked() else 0.0,
@@ -261,12 +258,11 @@ class VideoTab(BaseTab):
         """Apply theme styling to all elements."""
         self._is_dark_theme = is_dark
         
-        # Update ResizeSection (doesn't auto-connect to ThemeManager)
+        # Update sections (don't auto-connect to ThemeManager)
         self.resize_section.update_theme(is_dark)
+        self.target_size_section.update_theme(is_dark)
         
         # Note: ThemedCheckBox widgets auto-update via ThemeManager signal
-        # No need to manually update: multiple_qualities, auto_resize_checkbox, 
-        # enable_time_cutting, enable_retime
         
         # Update time range slider (doesn't auto-connect to ThemeManager)
         if hasattr(self.time_range_slider, 'update_theme'):
@@ -278,10 +274,8 @@ class VideoTab(BaseTab):
         is_manual = (mode == "Manual")
         self._is_max_size_mode = is_max_size  # Track for dev mode features
         
-        # Max size controls (only these visible in Max Size mode)
-        self.max_size_label.setVisible(is_max_size)
-        self.max_size_spinbox.setVisible(is_max_size)
-        self.auto_resize_checkbox.setVisible(is_max_size)
+        # Target size section (only visible in Max Size mode)
+        self.target_size_section.setVisible(is_max_size)
         
         # Estimator version dropdown (only in dev mode AND max_size mode)
         is_dev = getattr(self, '_is_dev_mode', False)
@@ -322,9 +316,48 @@ class VideoTab(BaseTab):
             self.quality_label.setText("CRF (0-63, lower=better):")
         else:  # H.264
             self.quality_label.setText("CRF (0-51, lower=better):")
-        self.quality_variants.setVisible(multiple)
-        self.quality_variants_label.setVisible(multiple)
+        # Restore visibility state based on current checkbox
+        is_multiple = self.multiple_qualities.isChecked()
+        self.quality_variants.setVisible(is_multiple)
+        self.quality_variants_label.setVisible(is_multiple)
         self._notify_param_change()
+    
+    def _populate_estimator_versions(self):
+        """Populate estimator version dropdown based on selected codec."""
+        from client.core.target_size.size_estimator_registry import get_available_video_estimator_versions
+        
+        # Map codec display name to format key
+        codec_text = self.codec.currentText()
+        
+        # Determine format key based on codec (must match size_estimator_registry._normalize_video_codec)
+        if "H.264" in codec_text:
+            format_key = "mp4_h264"
+        elif "H.265" in codec_text or "HEVC" in codec_text:
+            format_key = "mp4_h265"
+        elif "AV1" in codec_text:
+            format_key = "webm_av1"  # FIXED: was mp4_av1
+        elif "VP9" in codec_text:
+            format_key = "webm_vp9"
+        else:
+            format_key = "mp4_h264"  # Default
+        
+        # Get available versions for this codec
+        versions = get_available_video_estimator_versions(format_key)
+        
+        # Update dropdown
+        self.estimator_version_combo.blockSignals(True)
+        self.estimator_version_combo.clear()
+        for version in versions:
+            self.estimator_version_combo.addItem(version)
+        self.estimator_version_combo.blockSignals(False)
+        
+        # Select default version (v2 if available, otherwise first)
+        if 'v2' in versions:
+            self.estimator_version_combo.setCurrentText('v2')
+        elif versions:
+            self.estimator_version_combo.setCurrentIndex(0)
+        
+        print(f"[VideoTab] Estimator version changed to: {self.estimator_version_combo.currentText()}")
     
     def _toggle_quality_mode(self, multiple: bool):
         """Toggle between single quality slider and multiple variants."""
@@ -334,6 +367,8 @@ class VideoTab(BaseTab):
         self.quality_variants.setVisible(multiple)
         self.quality_variants_label.setVisible(multiple)
         self._notify_param_change()
+    
+
     
     def _toggle_time_cutting(self, enabled: bool):
         """Toggle time range slider visibility."""
@@ -347,36 +382,19 @@ class VideoTab(BaseTab):
         self._notify_param_change()
     
     def _parse_variants(self, text: str) -> list:
-        """Parse comma-separated variant values."""
+        """Parse comma-separated variant values as numbers."""
         try:
-            return [v.strip() for v in text.split(',') if v.strip()]
+            result = []
+            for v in text.split(','):
+                v = v.strip()
+                if v:
+                    try:
+                        result.append(float(v))
+                    except ValueError:
+                        continue
+            return result
         except:
             return []
-    
-    def _populate_estimator_versions(self):
-        """Populate estimator version dropdown with available versions for current codec."""
-        from client.core.target_size.size_estimator_registry import get_available_versions_for_format, get_estimator_version
-        
-        # Get current codec
-        current_codec = self.codec.currentText()
-        
-        self.estimator_version_combo.clear()
-        
-        # Get codec-specific versions
-        versions = get_available_versions_for_format('video', current_codec)
-        if not versions:
-            # Fallback to default if no versions found
-            self.estimator_version_combo.addItem(f"v2 ({current_codec})", "v2")
-        else:
-            for display_name, version_key in versions:
-                self.estimator_version_combo.addItem(display_name, version_key)
-        
-        # Set current selection to active version
-        current_version = get_estimator_version()
-        for i in range(self.estimator_version_combo.count()):
-            if self.estimator_version_combo.itemData(i) == current_version:
-                self.estimator_version_combo.setCurrentIndex(i)
-                break
     
     def _on_estimator_version_changed(self, index: int):
         """Handle estimator version dropdown change."""

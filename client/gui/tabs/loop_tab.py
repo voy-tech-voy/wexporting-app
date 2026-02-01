@@ -120,7 +120,7 @@ class LoopTab(BaseTab):
         gif_layout.setVerticalSpacing(14)
         
         # Multiple variants toggle
-        self.gif_variants_checkbox = ThemedCheckBox("Multiple Variants (FPS, Colors, Qualities)")
+        self.gif_variants_checkbox = ThemedCheckBox("Multiple variants")
         self.gif_variants_checkbox.toggled.connect(self._toggle_gif_variants)
         gif_layout.addRow(self.gif_variants_checkbox)
         
@@ -194,7 +194,7 @@ class LoopTab(BaseTab):
         webm_layout.setVerticalSpacing(14)
         
         # WebM variants toggle
-        self.webm_variants_checkbox = ThemedCheckBox("Multiple quality variants")
+        self.webm_variants_checkbox = ThemedCheckBox("Multiple variants")
         self.webm_variants_checkbox.toggled.connect(self._toggle_webm_variants)
         webm_layout.addRow(self.webm_variants_checkbox)
         
@@ -521,7 +521,7 @@ class LoopTab(BaseTab):
         from client.core.target_size.size_estimator_registry import get_available_versions_for_format, get_estimator_version
         
         # Get current format (GIF or WebM)
-        current_format = self.format_selector.current_format
+        current_format = self.format_selector.currentText()
         
         self.estimator_version_combo.clear()
         

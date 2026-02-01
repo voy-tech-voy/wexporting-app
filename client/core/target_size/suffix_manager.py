@@ -10,7 +10,8 @@ from typing import Dict, Optional
 def generate_target_size_suffix(
     params: Dict,
     optimal: Dict,
-    extension: str
+    extension: str,
+    target_mb: Optional[float] = None
 ) -> str:
     """
     Generate comprehensive suffix for target size conversions.
@@ -19,16 +20,18 @@ def generate_target_size_suffix(
         params: Conversion parameters from UI
         optimal: Optimal parameters from estimator
         extension: Output file extension
+        target_mb: Optional explicit target size (for multiple variants)
         
     Returns:
         Suffix string (e.g., "_v2TargetSize5MB_1920x1080_codecH264")
     """
     parts = []
     
-    # Get target size
-    target_mb = params.get('video_max_size_mb') or \
-                params.get('image_max_size_mb') or \
-                params.get('gif_max_size_mb') or 0
+    # Get target size (use explicit if provided, otherwise from params)
+    if target_mb is None:
+        target_mb = params.get('video_max_size_mb') or \
+                    params.get('image_max_size_mb') or \
+                    params.get('gif_max_size_mb') or 0
     
     # Format size string
     if target_mb >= 1:
@@ -86,7 +89,8 @@ def get_output_path(
     file_path: str,
     params: Dict,
     extension: str,
-    optimal: Optional[Dict] = None
+    optimal: Optional[Dict] = None,
+    target_mb: Optional[float] = None
 ) -> str:
     """
     Generate full output path with comprehensive suffix.
@@ -96,12 +100,13 @@ def get_output_path(
         params: Conversion parameters
         extension: Output extension
         optimal: Optional optimal parameters from estimator
+        target_mb: Optional explicit target size (for multiple variants)
         
     Returns:
         Full output path
     """
     base_name = os.path.splitext(os.path.basename(file_path))[0]
-    suffix = generate_target_size_suffix(params, optimal, extension)
+    suffix = generate_target_size_suffix(params, optimal, extension, target_mb)
     
     # Determine output directory
     if params.get('use_nested_output', True):

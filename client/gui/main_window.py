@@ -717,7 +717,7 @@ class MainWindow(QMainWindow):
             self.conversion_engine.conversion_finished.connect(self.on_conversion_finished)
         elif hasattr(self.conversion_engine, 'conversion_completed'):
             self.conversion_engine.conversion_completed.connect(
-                lambda s, f: self.on_conversion_finished(s > 0, f"Completed: {s} success, {f} failed")
+                lambda s, f, sk, st: self._on_target_size_completed(s, f, sk, st)
             )
         
         # Reset progress bars
@@ -791,6 +791,49 @@ class MainWindow(QMainWindow):
         self.update_status(message)
         
         self.dialogs.show_completion(success, message)
+    
+    def _on_target_size_completed(self, successful, failed, skipped, stopped):
+        """Handle target size conversion completion with detailed breakdown."""
+        # Build detailed message with color coding
+        parts = []
+        
+        # Get app colors (green, yellow, red)
+        app_green = "#4CAF50"  # Success green
+        app_yellow = "#FFC107"  # Warning yellow
+        app_red = "#F44336"  # Error red
+        
+        # Always show successful count in green
+        if successful == 1:
+            parts.append(f"<span style='color: {app_green};'>1 file exported successfully</span>")
+        else:
+            parts.append(f"<span style='color: {app_green};'>{successful} files exported successfully</span>")
+        
+        # Show skipped only if any (in yellow)
+        if skipped > 0:
+            if skipped == 1:
+                parts.append(f"<span style='color: {app_yellow};'>1 skipped</span>")
+            else:
+                parts.append(f"<span style='color: {app_yellow};'>{skipped} skipped</span>")
+        
+        # Show failed only if any (in red)
+        if failed > 0:
+            if failed == 1:
+                parts.append(f"<span style='color: {app_red};'>1 failed</span>")
+            else:
+                parts.append(f"<span style='color: {app_red};'>{failed} failed</span>")
+        
+        # Show stopped only if any (in yellow)
+        if stopped > 0:
+            if stopped == 1:
+                parts.append(f"<span style='color: {app_yellow};'>1 file stopped</span>")
+            else:
+                parts.append(f"<span style='color: {app_yellow};'>{stopped} files stopped</span>")
+        
+        message = ", ".join(parts)
+        success = successful > 0 or (successful == 0 and failed == 0 and stopped == 0)
+        
+        # Call the standard completion handler
+        self.on_conversion_finished(success, message)
             
     def check_tools(self):
         """Check if required tools are available"""

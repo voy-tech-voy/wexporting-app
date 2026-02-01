@@ -7,7 +7,7 @@ This tab handles image format, quality, resize, and rotation settings.
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QSlider, 
-    QSizePolicy, QComboBox
+    QSizePolicy, QComboBox, QDoubleSpinBox, QCheckBox
 )
 from PyQt6.QtCore import Qt
 
@@ -18,10 +18,17 @@ from client.gui.custom_widgets import (
     FormatButtonRow, RotationButtonRow, 
     ThemedCheckBox, CustomTargetSizeSpinBox, UnifiedVariantInput
 )
-from client.gui.sections import ResizeSection
+from client.gui.sections import ResizeSection, TargetSizeSection
 from client.gui.theme import get_combobox_style
 
 COMBOBOX_STYLE = get_combobox_style(True)  # Default dark mode
+
+# Format-specific defaults for max size variants (in MB)
+DEFAULT_MAX_SIZE_VARIANTS = {
+    'WebP': '0.1, 0.2, 0.3',
+    'JPEG': '0.1, 0.2, 0.3',
+    'PNG': '0.1, 0.2, 0.3',
+}
 
 
 class ImageTab(BaseTab):
@@ -79,23 +86,16 @@ class ImageTab(BaseTab):
         # Connect format change to refresh estimator versions
         self.format.currentTextChanged.connect(self._on_format_changed)
         
-        # Target Size Controls
-        self.size_mode_label = QLabel("Size Mode:")
-        self.size_mode = QComboBox()
-        self.size_mode.addItems(["Quality", "Target Size"])
-        self.format_group.add_row(self.size_mode_label, self.size_mode)
-        
-        self.max_size_label = QLabel("Target Size (MB):")
-        self.max_size_spinbox = QDoubleSpinBox()
-        self.max_size_spinbox.setRange(0.001, 100.0)
-        self.max_size_spinbox.setValue(0.5)
-        self.max_size_spinbox.setDecimals(3)
-        self.max_size_spinbox.setSingleStep(0.1)
-        self.format_group.add_row(self.max_size_label, self.max_size_spinbox)
-        
-        self.auto_resize_checkbox = QCheckBox("Auto-resize if needed")
-        self.auto_resize_checkbox.setChecked(False)
-        self.format_group.add_row(self.auto_resize_checkbox)
+        # Target Size Section
+        self.target_size_section = TargetSizeSection(
+            parent=self,
+            focus_callback=self._focus_callback,
+            default_value=0.15,
+            sensitivity=0.001,
+            variant_defaults_map=DEFAULT_MAX_SIZE_VARIANTS
+        )
+        self.target_size_section.paramChanged.connect(self._notify_param_change)
+        self.format_group.add_row(self.target_size_section)
         
         # Estimator Version Selection
         self.estimator_version_label = QLabel("Estimator Version:")
@@ -106,7 +106,7 @@ class ImageTab(BaseTab):
         self.format_group.add_row(self.estimator_version_label, self.estimator_version_combo)
         
         # --- Multiple qualities ---
-        self.multiple_qualities = ThemedCheckBox("Multiple qualities")
+        self.multiple_qualities = ThemedCheckBox("Multiple variants")
         self.multiple_qualities.toggled.connect(self._toggle_quality_mode)
         self.format_group.add_row(self.multiple_qualities)
         
@@ -179,8 +179,11 @@ class ImageTab(BaseTab):
         # Get resize params from ResizeSection
         resize_params = self.resize_section.get_params()
         
+        # Get target size params from TargetSizeSection
+        target_params = self.target_size_section.get_params()
+        
         # Determine if Max Size mode is active
-        is_max_size_mode = self.max_size_spinbox.isVisible()
+        is_max_size_mode = self.target_size_section.isVisible()
         
         params = {
             'type': 'image',
@@ -188,9 +191,11 @@ class ImageTab(BaseTab):
             'quality': self.quality.value(),
             'multiple_qualities': self.multiple_qualities.isChecked(),
             'quality_variants': self._parse_variants(self.quality_variants.text()),
-            'image_max_size_mb': self.max_size_spinbox.value() if is_max_size_mode else None,
-            'image_auto_resize': self.auto_resize_checkbox.isChecked(),
+            'image_max_size_mb': target_params['target_size_mb'],
+            'image_auto_resize': target_params['auto_resize'],
             'image_size_mode': 'max_size' if is_max_size_mode else 'manual',
+            'multiple_max_sizes': target_params['multiple_variants'],
+            'max_size_variants': target_params['size_variants'],
             'rotation_angle': self.rotation_angle.currentText(),
         }
         # Merge resize params
@@ -201,11 +206,11 @@ class ImageTab(BaseTab):
         """Apply theme styling to all elements."""
         self._is_dark_theme = is_dark
         
-        # Update ResizeSection (doesn't auto-connect to ThemeManager)
+        # Update sections (don't auto-connect to ThemeManager)
         self.resize_section.update_theme(is_dark)
+        self.target_size_section.update_theme(is_dark)
         
         # Note: ThemedCheckBox widgets auto-update via ThemeManager signal
-        # No need to manually update: multiple_qualities, auto_resize_checkbox
     
     def set_mode(self, mode: str):
         """
@@ -218,10 +223,8 @@ class ImageTab(BaseTab):
         is_manual = (mode == "Manual")
         self._is_max_size_mode = is_max_size  # Track for dev mode features
         
-        # Max size controls (only these visible in Max Size mode)
-        self.max_size_label.setVisible(is_max_size)
-        self.max_size_spinbox.setVisible(is_max_size)
-        self.auto_resize_checkbox.setVisible(is_max_size)
+        # Target size section (only visible in Max Size mode)
+        self.target_size_section.setVisible(is_max_size)
         
         # Estimator version dropdown (only in dev mode AND max_size mode)
         is_dev = getattr(self, '_is_dev_mode', False)
@@ -255,6 +258,8 @@ class ImageTab(BaseTab):
         self.quality_variants.setVisible(multiple)
         self.quality_variants_label.setVisible(multiple)
         self._notify_param_change()
+    
+
     
     def _toggle_resize_mode(self, multiple: bool):
         """Toggle between single resize value and multiple variants."""
@@ -290,16 +295,17 @@ class ImageTab(BaseTab):
         self._notify_param_change()
     
     def _parse_variants(self, text: str) -> list:
-        """Parse comma-separated variant values as integers."""
+        """Parse comma-separated variant values as numbers (floats or integers)."""
         try:
             result = []
             for v in text.split(','):
                 v = v.strip()
                 if v:
                     try:
-                        result.append(int(v))
+                        # Try float first to support decimal values (e.g., 0.15, 0.25)
+                        result.append(float(v))
                     except ValueError:
-                        # Skip non-integer values
+                        # Skip non-numeric values
                         continue
             return result
         except:
@@ -331,9 +337,13 @@ class ImageTab(BaseTab):
                 break
     
     def _on_format_changed(self, new_format: str):
-        """Handle format change - refresh available estimator versions."""
+        """Handle format dropdown change."""
         print(f"[ImageTab] Format changed to: {new_format}")
         self._populate_estimator_versions()
+        
+        # Update target size variant defaults based on format
+        if hasattr(self, 'target_size_section'):
+            self.target_size_section.update_variant_defaults(new_format)
     
     def _on_estimator_version_changed(self, index: int):
         """Handle estimator version dropdown change."""

@@ -1217,10 +1217,12 @@ class SideButtonGroup(QWidget):
 
     def set_transform_active(self, btn_id, active: bool):
         """Set whether a transform button has an active state (blue outline)"""
+        print(f"[DEBUG] set_transform_active: btn_id={btn_id}, active={active}, before={btn_id in self.active_transforms}")
         if active:
             self.active_transforms.add(btn_id)
         else:
             self.active_transforms.discard(btn_id)
+        print(f"[DEBUG] set_transform_active: after={btn_id in self.active_transforms}")
         
         self._update_single_btn_style(btn_id)
     

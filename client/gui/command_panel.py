@@ -337,12 +337,13 @@ class CommandPanel(QWidget):
             params = self._image_tab.get_params()
             group = self.image_side_buttons
             
-            # Resize is active if resize_mode is NOT "No resize"
-            resize_active = params.get('resize_mode') != "No resize"
             
-            # In Max Size mode, check auto_resize checkbox instead
-            if self.mode_buttons.get_mode() == "Max Size":
-                resize_active = params.get('image_auto_resize', False)
+            # Resize is active if resize_mode is NOT "No resize"
+            resize_mode_value = params.get('resize_mode')
+            resize_active = resize_mode_value != "No resize"
+            current_mode = self.mode_buttons.get_mode()
+            
+            print(f"[DEBUG] Image tab: mode={current_mode}, resize_mode='{resize_mode_value}', comparison={resize_mode_value != 'No resize'}, final resize_active={resize_active}")
             
             rotate_active = params.get('rotation_angle') not in [None, "No rotation"]
             
@@ -354,11 +355,11 @@ class CommandPanel(QWidget):
             group = self.video_side_buttons
             
             # Resize is active if resize_mode is NOT "No resize"
-            resize_active = params.get('resize_mode') != "No resize"
+            resize_mode_value = params.get('resize_mode')
+            resize_active = resize_mode_value != "No resize"
+            current_mode = self.mode_buttons.get_mode()
             
-            # In Max Size mode, check auto_resize checkbox instead
-            if self.mode_buttons.get_mode() == "Max Size":
-                resize_active = params.get('video_auto_resize', False)
+            print(f"[DEBUG] Video tab: mode={current_mode}, resize_mode='{resize_mode_value}', comparison={resize_mode_value != 'No resize'}, final resize_active={resize_active}")
             
             rotate_active = params.get('rotation_angle') not in [None, "No rotation"]
             time_active = params.get('enable_time_cutting', False) or params.get('retime_enabled', False)
@@ -372,12 +373,11 @@ class CommandPanel(QWidget):
             group = self.loop_side_buttons
             
             # Resize is active if resize_mode is NOT "No resize"
-            resize_active = params.get('resize_mode') != "No resize"
+            resize_mode_value = params.get('resize_mode')
+            resize_active = resize_mode_value != "No resize"
+            current_mode = self.mode_buttons.get_mode()
             
-            # In Max Size mode, check auto_resize checkbox instead
-            # Loop tab uses gif_auto_resize for GIF format, video_auto_resize for WebM
-            if self.mode_buttons.get_mode() == "Max Size":
-                resize_active = params.get('gif_auto_resize', False) or params.get('video_auto_resize', False)
+            print(f"[DEBUG] Loop tab: mode={current_mode}, resize_mode='{resize_mode_value}', comparison={resize_mode_value != 'No resize'}, final resize_active={resize_active}")
                 
             rotate_active = params.get('rotation_angle') not in [None, "No rotation"]
             time_active = params.get('enable_time_cutting', False) or params.get('retime_enabled', False)
@@ -388,6 +388,7 @@ class CommandPanel(QWidget):
 
     def _set_btn_active(self, group, btn_id, is_active):
         """Helper to set active state safely."""
+        print(f"[DEBUG] _set_btn_active called: btn_id={btn_id}, is_active={is_active}")
         if hasattr(group, 'set_transform_active'):
             group.set_transform_active(btn_id, bool(is_active))
     

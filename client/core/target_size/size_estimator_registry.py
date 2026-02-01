@@ -33,10 +33,17 @@ def _normalize_image_format(fmt: str) -> str:
 def _normalize_video_codec(codec: str) -> str:
     """Normalize codec preference to estimator key."""
     codec_lower = codec.lower()
-    if 'h.264' in codec_lower or 'h264' in codec_lower or 'mp4' in codec_lower: return 'mp4_h264'
+    
+    # Handle already-normalized keys (mp4_h264, mp4_h265, webm_vp9, webm_av1)
+    if codec_lower in ('mp4_h264', 'mp4_h265', 'webm_vp9', 'webm_av1'):
+        return codec_lower
+    
+    # Check more specific codecs FIRST (order matters!)
     if 'h.265' in codec_lower or 'h265' in codec_lower or 'hevc' in codec_lower: return 'mp4_h265'
     if 'vp9' in codec_lower: return 'webm_vp9'
     if 'av1' in codec_lower: return 'webm_av1'
+    # H.264/MP4 is the fallback (check last since mp4 is too generic)
+    if 'h.264' in codec_lower or 'h264' in codec_lower or 'mp4' in codec_lower: return 'mp4_h264'
     return 'mp4_h264'  # default
 
 def _normalize_loop_format(fmt: str) -> str:
@@ -51,7 +58,7 @@ def _normalize_loop_format(fmt: str) -> str:
 # =============================================================================
 def _load_format_estimator(media_type: str, format_key: str, version: str):
     """
-    Load a format-specific estimator.
+    Load a format-specific estimator FUNCTION (legacy interface).
     
     Args:
         media_type: 'image', 'video', or 'loop'
@@ -78,6 +85,176 @@ def _load_format_estimator(media_type: str, format_key: str, version: str):
         print(f"[Registry] Could not load {format_key} estimator {version}: {e}")
         return None
 
+
+def _load_estimator_class(media_type: str, format_key: str, version: str):
+    """
+    Load a format-specific estimator CLASS (new interface).
+    
+    The new interface expects estimators to be classes with:
+    - estimate(input_path, target_size_bytes, **options) -> dict
+    - execute(input_path, output_path, target_size_bytes, callbacks, **options) -> bool
+    
+    Args:
+        media_type: 'image', 'video', or 'loop'
+        format_key: Normalized format/codec key (e.g., 'jpg', 'mp4_h264', 'gif')
+        version: Version string (e.g., 'v2', 'v5')
+    
+    Returns:
+        Estimator class instance or None if not found
+    """
+    try:
+        module_name = f"client.core.target_size.{media_type}_estimators.{format_key}_estimator_{version}"
+        module = importlib.import_module(module_name)
+        
+        # Try to get the Estimator class
+        estimator_class = getattr(module, 'Estimator', None)
+        if estimator_class:
+            instance = estimator_class()
+            print(f"[Registry] Loaded {format_key} Estimator class {version}")
+            return instance
+        
+        return None
+    except Exception as e:
+        print(f"[Registry] Could not load {format_key} Estimator class {version}: {e}")
+        return None
+
+
+def get_video_estimator(codec_pref: str, version: str = None):
+    """
+    Get a video estimator class instance.
+    
+    Args:
+        codec_pref: Codec preference (e.g., 'H.264 (MP4)', 'H.265/HEVC')
+        version: Optional version override, defaults to active version
+    
+    Returns:
+        Estimator class instance or None
+    """
+    version = version or _active_estimator_version
+    codec_key = _normalize_video_codec(codec_pref)
+    
+    estimator = _load_estimator_class('video', codec_key, version)
+    
+    if not estimator:
+        # Fallback to available versions
+        versions = get_available_versions_for_format('video', codec_key)
+        if versions:
+            fallback_version = versions[-1][1]
+            estimator = _load_estimator_class('video', codec_key, fallback_version)
+    
+    return estimator
+
+
+def run_video_conversion(
+    input_path: str,
+    output_path: str,
+    target_size_bytes: int,
+    codec_pref: str,
+    status_callback=None,
+    stop_check=None,
+    **options
+) -> bool:
+    """
+    Run video conversion using new self-contained estimator.
+    
+    This is the preferred entry point for video conversions.
+    The estimator handles the complete encoding pipeline.
+    
+    Args:
+        input_path: Source video file
+        output_path: Destination file
+        target_size_bytes: Target size in bytes
+        codec_pref: Codec preference string
+        status_callback: Optional status update callback
+        stop_check: Optional stop check callback
+        **options: Additional options (rotation, allow_downscale, etc.)
+    
+    Returns:
+        True if conversion succeeded
+    """
+    estimator = get_video_estimator(codec_pref)
+    
+    if not estimator:
+        if status_callback:
+            status_callback(f"No estimator found for {codec_pref}")
+        return False
+    
+    return estimator.execute(
+        input_path=input_path,
+        output_path=output_path,
+        target_size_bytes=target_size_bytes,
+        status_callback=status_callback,
+        stop_check=stop_check,
+        **options
+    )
+
+
+def get_image_estimator(output_format: str, version: str = None):
+    """
+    Get an image estimator class instance.
+    
+    Args:
+        output_format: Output format (JPG, WebP, PNG, etc.)
+        version: Optional version override, defaults to active version
+    
+    Returns:
+        Estimator class instance or None
+    """
+    version = version or _active_estimator_version
+    format_key = _normalize_image_format(output_format)
+    
+    estimator = _load_estimator_class('image', format_key, version)
+    
+    if not estimator:
+        # Fallback to available versions
+        versions = get_available_versions_for_format('image', format_key)
+        if versions:
+            fallback_version = versions[-1][1]
+            estimator = _load_estimator_class('image', format_key, fallback_version)
+    
+    return estimator
+
+
+def run_image_conversion(
+    input_path: str,
+    output_path: str,
+    target_size_bytes: int,
+    output_format: str,
+    status_callback=None,
+    stop_check=None,
+    **options
+) -> bool:
+    """
+    Run image conversion using new self-contained estimator.
+    
+    Args:
+        input_path: Source image file
+        output_path: Destination file
+        target_size_bytes: Target size in bytes
+        output_format: Output format (JPG, WebP, PNG)
+        status_callback: Optional status update callback
+        stop_check: Optional stop check callback
+        **options: Additional options (rotation, allow_downscale, etc.)
+    
+    Returns:
+        True if conversion succeeded
+    """
+    estimator = get_image_estimator(output_format)
+    
+    if not estimator:
+        if status_callback:
+            status_callback(f"No estimator found for {output_format}")
+        return False
+    
+    return estimator.execute(
+        input_path=input_path,
+        output_path=output_path,
+        target_size_bytes=target_size_bytes,
+        status_callback=status_callback,
+        stop_check=stop_check,
+        **options
+    )
+
 # =============================================================================
 # PUBLIC API
 # =============================================================================
@@ -100,12 +277,22 @@ def optimize_image_params(file_path: str, output_format: str, target_size_bytes:
     # Try to load format-specific estimator
     estimator = _load_format_estimator('image', format_key, version)
     
+    if not estimator:
+        # Fallback: try to find any available version
+        print(f"[Registry] {version} estimator not found for {format_key}, attempting fallback...")
+        versions = get_available_versions_for_format('image', format_key)
+        if versions:
+            # Use the highest version available (last in the sorted list)
+            fallback_version = versions[-1][1]
+            print(f"[Registry] Falling back to {fallback_version} for {format_key}")
+            estimator = _load_format_estimator('image', format_key, fallback_version)
+    
     if estimator:
         downscale = kwargs.pop('allow_downscale', kwargs.pop('auto_resize', False))
         return estimator(file_path, target_size_bytes, allow_downscale=downscale, **kwargs)
     
     # Fallback: return empty dict
-    print(f"[Registry] No {format_key} estimator available for {version}")
+    print(f"[Registry] No {format_key} estimator available (tried {version} and fallbacks)")
     return {}
 
 def optimize_video_params(file_path: str, target_size_bytes: int, **kwargs):
@@ -127,12 +314,21 @@ def optimize_video_params(file_path: str, target_size_bytes: int, **kwargs):
     # Try to load codec-specific estimator
     estimator = _load_format_estimator('video', codec_key, version)
     
+    if not estimator:
+        # Fallback: try to find any available version
+        print(f"[Registry] {version} estimator not found for {codec_key}, attempting fallback...")
+        versions = get_available_versions_for_format('video', codec_key)
+        if versions:
+            fallback_version = versions[-1][1]
+            print(f"[Registry] Falling back to {fallback_version} for {codec_key}")
+            estimator = _load_format_estimator('video', codec_key, fallback_version)
+
     if estimator:
         downscale = kwargs.pop('allow_downscale', kwargs.pop('auto_resize', False))
         return estimator(file_path, target_size_bytes, allow_downscale=downscale, **kwargs)
     
     # Fallback: return empty dict
-    print(f"[Registry] No {codec_key} estimator available for {version}")
+    print(f"[Registry] No {codec_key} estimator available (tried {version} and fallbacks)")
     return {}
 
 def optimize_gif_params(file_path: str, target_size_bytes: int, **kwargs):
@@ -154,12 +350,21 @@ def optimize_gif_params(file_path: str, target_size_bytes: int, **kwargs):
     # Try to load format-specific estimator
     estimator = _load_format_estimator('loop', format_key, version)
     
+    if not estimator:
+        # Fallback: try to find any available version
+        print(f"[Registry] {version} estimator not found for {format_key}, attempting fallback...")
+        versions = get_available_versions_for_format('loop', format_key)
+        if versions:
+            fallback_version = versions[-1][1]
+            print(f"[Registry] Falling back to {fallback_version} for {format_key}")
+            estimator = _load_format_estimator('loop', format_key, fallback_version)
+
     if estimator:
         downscale = kwargs.pop('allow_downscale', kwargs.pop('auto_resize', False))
         return estimator(file_path, target_size_bytes, allow_downscale=downscale, **kwargs)
     
     # Fallback: return empty dict
-    print(f"[Registry] No {format_key} estimator available for {version}")
+    print(f"[Registry] No {format_key} estimator available (tried {version} and fallbacks)")
     return {}
 
 # =============================================================================
@@ -222,6 +427,20 @@ def get_available_versions(type_prefix: str = 'image') -> List[Tuple[str, str]]:
     
     versions.sort(key=lambda x: x[1])
     return versions
+
+def get_available_video_estimator_versions(codec_key: str) -> List[str]:
+    """
+    Get available estimator versions for a specific video codec.
+    
+    Args:
+        codec_key: Normalized codec key (e.g., 'mp4_h264', 'mp4_h265', 'webm_vp9')
+    
+    Returns:
+        List of version strings (e.g., ['v2', 'v5'])
+    """
+    versions_with_display = get_available_versions_for_format('video', codec_key)
+    # Extract just the version keys (e.g., 'v2', 'v5')
+    return [version_key for _, version_key in versions_with_display]
 
 # =============================================================================
 # LEGACY ADAPTERS (Used by Conversion Engine)

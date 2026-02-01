@@ -5,7 +5,7 @@ Handles file drag and drop operations for the graphics converter
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QListWidget, QListWidgetItem,
-    QLabel, QPushButton, QFileDialog, QMessageBox, QStyledItemDelegate
+    QLabel, QPushButton, QFileDialog, QMessageBox, QStyledItemDelegate, QAbstractItemView
 )
 from PyQt6.QtCore import Qt, pyqtSignal, QEvent, QSize, QByteArray, QObject
 from PyQt6.QtGui import QDragEnterEvent, QDropEvent, QPixmap, QIcon, QAction, QPainter, QColor, QCursor, QBrush
@@ -100,6 +100,10 @@ class DragDropArea(QWidget):
         self.file_list_widget = QListWidget()
         self.file_list_widget.setObjectName("DropZone")  # V4.0 branding
         self.file_list_widget.setMinimumHeight(300)
+        
+        # Disable Selection! (Allow only highlight)
+        self.file_list_widget.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
+        
         
         # Disable dashed focus rectangle
         self.file_list_widget.setFocusPolicy(Qt.FocusPolicy.NoFocus)
@@ -914,21 +918,40 @@ class DragDropArea(QWidget):
             from PyQt6.QtWidgets import QMenu
             
             menu = QMenu(self)
+            remove_action = menu.addAction("Remove File")
+            show_action = menu.addAction("Show in Explorer")
             
-            # Remove action
-            remove_action = QAction("Remove File", self)
-            remove_action.triggered.connect(lambda: self.remove_file_item(item))
-            menu.addAction(remove_action)
+            # Themed styling
+            is_dark = self.theme_manager and self.theme_manager.current_theme == 'dark'
+            Theme.set_dark_mode(is_dark)
             
-            # Show file location action
-            show_action = QAction("Show in Explorer", self)
-            show_action.triggered.connect(lambda: self.show_in_explorer(item))
-            menu.addAction(show_action)
+            # CSS with first-child (red) and last-child (blue)
+            menu.setStyleSheet(f"""
+                QMenu {{
+                    background-color: {Theme.surface_element()};
+                    color: {Theme.text()};
+                    border: 1px solid {Theme.border()};
+                    border-radius: {Theme.RADIUS_SM}px;
+                    padding: 4px;
+                }}
+                QMenu::item {{
+                    padding: 6px 24px;
+                    border-radius: {Theme.RADIUS_SM}px;
+                }}
+                QMenu::item:selected {{
+                    background-color: #666666;
+                    color: white;
+                }}
+            """)
             
-            menu.exec(self.file_list_widget.mapToGlobal(position))
+            action = menu.exec(self.file_list_widget.mapToGlobal(position))
+            if action == remove_action:
+                self.remove_file_item(item)
+            elif action == show_action:
+                self.show_in_explorer(item)
             
     def show_in_explorer(self, item):
-        """Open file location in Windows Explorer"""
+        """Open file location in Windows Explorer and select the file"""
         if item and item.data(Qt.ItemDataRole.UserRole) != "PLACEHOLDER":
             row = self.file_list_widget.row(item)
             if 0 <= row < len(self.file_list):
@@ -936,21 +959,31 @@ class DragDropArea(QWidget):
                 
                 import subprocess
                 try:
-                    # Use the file_path with proper formatting for Windows Explorer
-                    folder_path = os.path.dirname(file_path)
-                    if os.path.isdir(folder_path):
-                        # Open Explorer and highlight the file
-                        subprocess.Popen(['explorer', '/select,', os.path.normpath(file_path)])
+                    # Verify file exists
+                    if not os.path.exists(file_path):
+                        print(f"File not found: {file_path}")
+                        return
+                    
+                    # Normalize path for Windows
+                    normalized_path = os.path.normpath(file_path)
+                    
+                    # Open Explorer and select the file in a new window
+                    # The /select, parameter highlights the file
+                    subprocess.Popen(['explorer', '/select,', normalized_path])
+                    print(f"Opened Explorer for: {normalized_path}")
+                    
                 except Exception as e:
                     print(f"Error opening Explorer: {e}")
                     # Fallback: just open the folder
                     try:
                         folder_path = os.path.dirname(file_path)
-                        if os.path.isdir(folder_path):
+                        if os.path.exists(folder_path):
                             subprocess.Popen(['explorer', os.path.normpath(folder_path)])
                     except Exception as e2:
                         print(f"Error opening folder: {e2}")
             
+
+
     def get_files(self):
         """Return the list of selected files"""
         return self.file_list.copy()
