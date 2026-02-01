@@ -694,7 +694,7 @@ class MainWindow(QMainWindow):
         size_mode = params.get('video_size_mode') or params.get('image_size_mode') or params.get('gif_size_mode')
         
         if size_mode == 'max_size':
-            from client.core.size_estimator_registry import get_estimator_version
+            from client.core.target_size.size_estimator_registry import get_estimator_version
             if get_estimator_version() == 'v2':
                 use_target_size_engine = True
                 print("[MainWindow] Using TargetSizeConversionEngine (v2 active)")

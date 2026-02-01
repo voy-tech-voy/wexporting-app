@@ -321,32 +321,6 @@ def get_subprocess_kwargs():
     return kwargs
 
 
-
-
-# Import size estimation functions from unified registry (supports v1/v2 switching)
-from client.core.size_estimator_registry import (
-    get_video_frame_rate,
-    estimate_gif_size_fast_preview,
-    estimate_gif_size_heuristic,
-    QUALITY_PRESETS_STANDARD,
-    QUALITY_PRESETS_AUTORESIZE,
-    REFERENCE_PRESET_IDX,
-    DITHER_MAP,
-    estimate_all_preset_sizes,
-    find_optimal_gif_params_for_size,
-    IMAGE_QUALITY_PRESETS_STANDARD,
-    IMAGE_QUALITY_PRESETS_AUTORESIZE,
-    IMAGE_REFERENCE_PRESET_IDX,
-    estimate_all_image_preset_sizes,
-    find_optimal_image_params_for_size,
-    VIDEO_QUALITY_PRESETS_STANDARD,
-    VIDEO_QUALITY_PRESETS_AUTORESIZE,
-    VIDEO_REFERENCE_PRESET_IDX,
-    estimate_all_video_preset_sizes,
-    find_optimal_video_params_for_size
-)
-# Note: estimate_image_size_at_preset and estimate_video_size_at_preset 
-# are internal to size_estimator and not exported through registry
 from client.core.ffmpeg_utils import (
     map_ui_quality_to_crf,
     get_image_dimensions,

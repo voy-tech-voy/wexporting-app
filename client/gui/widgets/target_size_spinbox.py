@@ -179,9 +179,9 @@ class CustomTargetSizeSpinBox(QWidget):
         self.custom_line_edit.enterPressed.connect(self._on_enter_pressed)
         self.custom_line_edit.escapePressed.connect(self._on_escape_pressed)
         
-        self.spinbox.setRange(0.1, 100.0)
+        self.spinbox.setRange(0.001, 10000.0)
         self.spinbox.setValue(default_value)
-        self.spinbox.setDecimals(1)
+        self.spinbox.setDecimals(3)
         self.spinbox.setSingleStep(0.1)
         self.spinbox.setSuffix("")
         self.spinbox.setMinimumWidth(120)

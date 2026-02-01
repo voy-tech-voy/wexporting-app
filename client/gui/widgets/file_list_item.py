@@ -24,14 +24,17 @@ class FileListItemWidget(QWidget):
         from PyQt6.QtGui import QCursor
         
         self.setAttribute(Qt.WidgetAttribute.WA_Hover)
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)  # Enable stylesheet rendering
         self.installEventFilter(self)
         self._hovered = False
         self.file_path = file_path
         self._is_completed = False  # Track if conversion is complete
         self._QEvent = QEvent  # Store for eventFilter
         
+        self._is_dark = True # Default
+        
         # Set transparent background
-        self.setStyleSheet("background-color: transparent;")
+        self.setStyleSheet("FileListItemWidget { background-color: transparent; }")
         
         layout = QHBoxLayout(self)
         layout.setContentsMargins(8, 8, 8, 8)
@@ -66,7 +69,7 @@ class FileListItemWidget(QWidget):
         self.remove_btn.clicked.connect(self.remove_clicked.emit)
         layout.addWidget(self.remove_btn, 0, Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight)
         
-        self.update_button_style(False)
+        self.update_button_style(self._is_dark)
     
     def set_completed(self):
         """Mark item as completed"""
@@ -74,14 +77,39 @@ class FileListItemWidget(QWidget):
     
     def update_theme(self, is_dark):
         """Update widget colors based on theme"""
+        self._is_dark = is_dark
         Theme.set_dark_mode(is_dark)
         
         text_color = Theme.text()
         thumb_bg = Theme.color("input_bg") if is_dark else "#f5f5f5"
         thumb_border = Theme.border()
         
+        # Update labels
         self.text_label.setStyleSheet(f"background: transparent; border: none; color: {text_color};")
         self.thumbnail_label.setStyleSheet(f"background: {thumb_bg}; border: 1px solid {thumb_border}; border-radius: {Theme.RADIUS_SM}px;")
+        
+        # Update remove button
+        self.update_button_style(is_dark)
+        
+        # Update background if currently hovered
+        self._update_background_style()
+        
+    def _update_background_style(self):
+        """Update the main widget background based on hover state"""
+        if self._hovered:
+            # Highlight style
+            Theme.set_dark_mode(self._is_dark)
+            bg_color = Theme.color_with_alpha('surface_element', 0.5) if self._is_dark else "rgba(0, 0, 0, 0.05)"
+            radius = Theme.RADIUS_MD
+            
+            self.setStyleSheet(f"""
+                FileListItemWidget {{
+                    background-color: {bg_color};
+                    border-radius: {radius}px;
+                }}
+            """)
+        else:
+            self.setStyleSheet("FileListItemWidget { background-color: transparent; }")
         
     def sizeHint(self):
         """Return the recommended size for the widget"""
@@ -96,9 +124,11 @@ class FileListItemWidget(QWidget):
             if event.type() == self._QEvent.Type.Enter:
                 self._hovered = True
                 self.remove_btn.setVisible(True)
+                self._update_background_style()
             elif event.type() == self._QEvent.Type.Leave:
                 self._hovered = False
                 self.remove_btn.setVisible(False)
+                self._update_background_style()
         return super().eventFilter(obj, event)
     
     def load_thumbnail(self, file_path):

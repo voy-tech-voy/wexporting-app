@@ -5,11 +5,11 @@ This module provides dedicated size estimation and conversion for target file si
 Separate from the main conversion engine, optimized for 2-pass bitrate encoding.
 """
 
-from .video_estimator import optimize_video_params
-from .image_estimator import optimize_image_params
-from .loop_estimator import optimize_gif_params
+from .size_estimator_registry import optimize_video_params
+from .size_estimator_registry import optimize_image_params
+from .size_estimator_registry import optimize_gif_params
 from .suffix_manager import generate_target_size_suffix, get_output_path
-from .conversion_engine import TargetSizeConversionEngine
+from .target_size_conversion_engine import TargetSizeConversionEngine
 
 __all__ = [
     'optimize_video_params',

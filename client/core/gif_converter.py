@@ -11,7 +11,6 @@ from client.core.ffmpeg_utils import (
     clamp_resize_width,
     calculate_longer_edge_resize
 )
-from client.core.size_estimator_registry import find_optimal_gif_params_for_size
 
 class GifConverter:
     def __init__(self, engine):
@@ -32,62 +31,9 @@ class GifConverter:
         try:
             self.engine.status_updated.emit(f"Converting video to GIF: {os.path.basename(file_path)}")
             
-            # Check for Max Size mode
-            gif_size_mode = self.params.get('gif_size_mode', 'manual')
-            if gif_size_mode == 'max_size':
-                target_size_mb = self.params.get('gif_max_size_mb', 5.0)
-                target_size_bytes = int(target_size_mb * 1024 * 1024)
-                self.engine.status_updated.emit(f"Max Size mode: Optimizing for ≤{target_size_mb} MB")
-                
-                # Check if auto-resize is enabled
-                auto_resize = self.params.get('gif_auto_resize', False)
-                if auto_resize:
-                    self.engine.status_updated.emit("Auto-resize enabled: will try resolution scaling before low quality")
-                
-                # Find optimal parameters
-                def status_log(msg):
-                    self.engine.status_updated.emit(msg)
-                
-                optimized_params = find_optimal_gif_params_for_size(
-                    file_path, self.params, target_size_bytes, 
-                    status_callback=status_log, auto_resize=auto_resize
-                )
-                
-                # Update params with optimized values
-                self.params.update(optimized_params)
-                
-                # Calculate and store actual output resolution for suffix
-                if '_resolution_scale' in optimized_params:
-                    scale = optimized_params['_resolution_scale']
-                    try:
-                        orig_width, orig_height = get_video_dimensions(file_path)
-                        if orig_width > 0 and orig_height > 0:
-                            out_width = int(orig_width * scale)
-                            out_height = int(orig_height * scale)
-                            # Ensure even dimensions (FFmpeg requirements often prefer even)
-                            out_width = out_width - (out_width % 2)
-                            out_height = out_height - (out_height % 2)
-                            self.params['_output_resolution'] = (out_width, out_height)
-                    except:
-                        pass
-                else:
-                    # No scaling - output resolution is same as input
-                    try:
-                         orig_width, orig_height = get_video_dimensions(file_path)
-                         if orig_width > 0 and orig_height > 0:
-                             self.params['_output_resolution'] = (orig_width, orig_height)
-                    except:
-                        pass
-                
-                # Check if target was exceeded
-                if optimized_params.get('_target_exceeded'):
-                    self.engine.status_updated.emit(
-                        f"Warning: Cannot achieve {target_size_mb} MB with minimum settings. "
-                        f"Estimated: {optimized_params.get('_estimated_size', 0) / (1024*1024):.2f} MB"
-                    )
-                else:
-                    estimated_mb = optimized_params.get('_estimated_size', 0) / (1024*1024)
-                    self.engine.status_updated.emit(f"Optimized settings found. Estimated size: {estimated_mb:.2f} MB")
+            # Note: Max Size mode is now handled by TargetSizeConversionEngine
+            # This converter only handles standard CRF-based GIF conversion
+
             
             # Check if GIF variants are requested
             gif_variants = self.params.get('gif_variants', {})

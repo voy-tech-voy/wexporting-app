@@ -47,19 +47,40 @@ def optimize_video_params(
         
     vid_bps = max(vid_bits / meta['duration'], 50000)
     
-    # Codec selection and efficiency
+    # 2. Select Codec (Strict Mapping)
+    # Normalized input to lowercase for safe comparison
+    c_pref = codec_pref.lower()
+    
+    # Defaults
     codec = "libx264"
     efficiency = 1.0
-    c_pref = codec_pref.lower()
+
+    # A. Explicit Selection (Highest Priority)
     if "av1" in c_pref:
-        codec, efficiency = "libaom-av1", 1.8
+        codec = "libaom-av1"
+        efficiency = 1.8
     elif "vp9" in c_pref:
-        codec, efficiency = "libvpx-vp9", 1.4
-    elif "265" in c_pref:
-        codec, efficiency = "libx265", 1.5
-    
-    if vid_bps < 300000 and "auto" in c_pref:
-        codec, efficiency = "libaom-av1", 1.8
+        codec = "libvpx-vp9"
+        efficiency = 1.4
+    elif "265" in c_pref or "hevc" in c_pref:
+        codec = "libx265"
+        efficiency = 1.5
+    elif "264" in c_pref:
+        codec = "libx264"
+        efficiency = 1.0
+        
+    # B. Auto Mode (Only if user selected 'Auto')
+    elif "auto" in c_pref:
+        # Smart logic: Use AV1 for low bitrates, H.264 for high compatibility
+        if vid_bps < 350000: # Below 350kbps
+             codec = "libaom-av1"
+             efficiency = 1.8
+        else:
+             codec = "libx264"
+             efficiency = 1.0
+
+    # Debug Log to verify selection
+    print(f"[Estimator] Input: '{codec_pref}' -> Selected Codec: '{codec}' (Eff: {efficiency})")
     
     # BPP-based resolution scaling
     curr_w = meta['width']

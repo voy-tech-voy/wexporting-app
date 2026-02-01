@@ -105,8 +105,7 @@ class LoopTab(BaseTab):
         
         # --- Estimator Version Dropdown (Dev Mode Only) ---
         self.estimator_version_combo = QComboBox()
-        self.estimator_version_combo.addItem("v1 (Preset-Based)", "v1")
-        self.estimator_version_combo.addItem("v2 (Sample Encode)", "v2")
+        self._populate_estimator_versions('loop')
         self.estimator_version_combo.setToolTip("[DEV] Switch size estimation algorithm")
         self.estimator_version_combo.setVisible(False)
         self.estimator_version_combo.currentIndexChanged.connect(self._on_estimator_version_changed)
@@ -514,9 +513,30 @@ class LoopTab(BaseTab):
         except:
             return []
     
+    def _populate_estimator_versions(self, type_prefix: str):
+        """Populate estimator version dropdown with available versions."""
+        from client.core.target_size.size_estimator_registry import get_available_versions, get_estimator_version
+        
+        self.estimator_version_combo.clear()
+        
+        versions = get_available_versions(type_prefix)
+        if not versions:
+            # Fallback to default if no versions found
+            self.estimator_version_combo.addItem("v2 (Deterministic 2-Pass)", "v2")
+        else:
+            for display_name, version_key in versions:
+                self.estimator_version_combo.addItem(display_name, version_key)
+        
+        # Set current selection to active version
+        current_version = get_estimator_version()
+        for i in range(self.estimator_version_combo.count()):
+            if self.estimator_version_combo.itemData(i) == current_version:
+                self.estimator_version_combo.setCurrentIndex(i)
+                break
+    
     def _on_estimator_version_changed(self, index: int):
         """Handle estimator version dropdown change."""
-        from client.core.size_estimator_registry import set_estimator_version
+        from client.core.target_size.size_estimator_registry import set_estimator_version
         version = self.estimator_version_combo.itemData(index)
         if version:
             set_estimator_version(version)

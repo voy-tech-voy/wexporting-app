@@ -12,11 +12,13 @@ from pathlib import Path
 from typing import Dict, Optional, Callable
 from PyQt6.QtCore import QThread, pyqtSignal
 
-from .video_estimator import optimize_video_params
-from .image_estimator import optimize_image_params
-from .loop_estimator import optimize_gif_params
-from ._common import get_media_metadata
+from .size_estimator_registry import (
+    optimize_video_params,
+    optimize_image_params,
+    optimize_gif_params
+)
 from .suffix_manager import get_output_path
+from ._common import get_media_metadata
 from client.core.ffmpeg_utils import (
     get_video_dimensions,
     get_video_duration,
@@ -103,15 +105,7 @@ class TargetSizeConversionEngine(QThread):
             auto_resize = self.params.get('video_auto_resize', False)
             
             # Get codec preference
-            codec_map = {
-                'H.264 (MP4)': 'libx264',
-                'H.265 (MP4)': 'libx265',
-                'WebM (VP9, faster)': 'libvpx-vp9',
-                'WebM (AV1, slower)': 'libaom-av1',
-                'AV1 (MP4)': 'libaom-av1'
-            }
             selected_codec = self.params.get('codec', 'H.264 (MP4)')
-            codec = codec_map.get(selected_codec, 'libx264')
             
             # Determine output format
             output_ext = 'webm' if 'WebM' in selected_codec else 'mp4'
@@ -129,13 +123,14 @@ class TargetSizeConversionEngine(QThread):
             video_bitrate = optimal['video_bitrate_kbps']
             audio_bitrate = optimal['audio_bitrate_kbps']
             resolution_scale = optimal.get('resolution_scale', 1.0)
+            codec = optimal['codec']  # CRITICAL: Use codec from estimator
             
             # Generate output path with optimal params for suffix
             output_path = self._get_output_path(file_path, output_ext, optimal_params=optimal)
             
-            self.status_updated.emit(f"[v2] Using {video_bitrate}kbps video, {audio_bitrate}kbps audio")
+            self.status_updated.emit(f"[v2] Using codec: {codec}, {video_bitrate}kbps video, {audio_bitrate}kbps audio")
             
-            # Build FFmpeg command
+            # Build FFmpeg filter chain
             input_stream = ffmpeg.input(file_path)
             video_stream = input_stream.video
             
@@ -157,42 +152,68 @@ class TargetSizeConversionEngine(QThread):
                     video_stream = ffmpeg.filter(video_stream, 'transpose', 2)
                 elif rotation == "270° clockwise":
                     video_stream = ffmpeg.filter(video_stream, 'transpose', 2)
-                    
-            # Output arguments - 2-pass bitrate encoding
-            output_args = {
-                'vcodec': codec,
+            
+            # Prepare common encoding arguments
+            encode_args = {
+                'vcodec': codec,  # CRITICAL: Use codec from estimator
                 'b:v': f'{video_bitrate}k',
                 'maxrate': f'{int(video_bitrate * 1.5)}k',
                 'bufsize': f'{int(video_bitrate * 2)}k',
             }
             
-            # Handle audio
-            has_audio = has_audio_stream(file_path)
-            if 'WebM' in selected_codec:
-                # WebM: no audio
-                output_args['an'] = None
-                audio_stream = None
-            elif has_audio:
-                audio_stream = input_stream.audio
-                output_args['b:a'] = f'{audio_bitrate}k'
-                output_args['acodec'] = 'aac'
-            else:
-                audio_stream = None
-                
             # AV1 speed optimization
             if codec == 'libaom-av1':
-                output_args['cpu-used'] = 4
-                
-            # Run conversion
-            self.status_updated.emit(f"[v2] Encoding with {video_bitrate}kbps bitrate...")
+                encode_args['cpu-used'] = 4
+            
+            # Handle audio
+            has_audio = has_audio_stream(file_path)
+            audio_stream = None
+            if 'WebM' in selected_codec:
+                # WebM: no audio
+                encode_args['an'] = None
+            elif has_audio:
+                audio_stream = input_stream.audio
+                encode_args['b:a'] = f'{audio_bitrate}k'
+                encode_args['acodec'] = 'aac'
+            
+            # 2-Pass Encoding
+            self.status_updated.emit(f"[v2] Pass 1/2: Analyzing video...")
+            
+            # PASS 1: Analyze and create log file
+            pass1_args = encode_args.copy()
+            pass1_args['f'] = 'null'
+            pass1_args.update({'pass': 1})  # Use dict to avoid Python keyword conflict
+            
+            # Pass 1 output to null device
+            if audio_stream:
+                pass1_stream = ffmpeg.output(video_stream, audio_stream, 'NUL' if os.name == 'nt' else '/dev/null', **pass1_args)
+            else:
+                pass1_stream = ffmpeg.output(video_stream, 'NUL' if os.name == 'nt' else '/dev/null', **pass1_args)
+            
+            pass1_stream = ffmpeg.overwrite_output(pass1_stream)
+            ffmpeg.run(pass1_stream, quiet=True)
+            
+            # PASS 2: Encode final output
+            self.status_updated.emit(f"[v2] Pass 2/2: Encoding final video...")
+            
+            pass2_args = encode_args.copy()
+            pass2_args.update({'pass': 2})  # Use dict to avoid Python keyword conflict
             
             if audio_stream:
-                stream = ffmpeg.output(video_stream, audio_stream, output_path, **output_args)
+                pass2_stream = ffmpeg.output(video_stream, audio_stream, output_path, **pass2_args)
             else:
-                stream = ffmpeg.output(video_stream, output_path, **output_args)
+                pass2_stream = ffmpeg.output(video_stream, output_path, **pass2_args)
                 
-            stream = ffmpeg.overwrite_output(stream)
-            ffmpeg.run(stream, quiet=True)
+            pass2_stream = ffmpeg.overwrite_output(pass2_stream)
+            ffmpeg.run(pass2_stream, quiet=True)
+            
+            # Clean up pass log files
+            try:
+                for log_file in ['ffmpeg2pass-0.log', 'ffmpeg2pass-0.log.mbtree']:
+                    if os.path.exists(log_file):
+                        os.remove(log_file)
+            except Exception:
+                pass  # Ignore cleanup errors
             
             # Report result
             if os.path.exists(output_path):

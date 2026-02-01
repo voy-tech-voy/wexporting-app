@@ -430,7 +430,8 @@ class DragDropArea(QWidget):
                 border: none;
             }}
             QListWidget::item:hover:!selected {{
-                background-color: {item_hover_bg};
+                background-color: transparent;
+                border-radius: {Theme.RADIUS_MD}px;
             }}
             QScrollBar:vertical {{
                 background: {scrollbar_bg};

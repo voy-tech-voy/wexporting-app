@@ -138,7 +138,7 @@ class SuffixManager:
                 if is_dev_mode:
                     # Get current estimator version
                     try:
-                        from client.core.size_estimator_registry import get_estimator_version
+                        from client.core.target_size.size_estimator_registry import get_estimator_version
                         version = get_estimator_version()
                         parts.append(f"_{version}TargetSize{size_str}{resolution_str}")
                     except:
