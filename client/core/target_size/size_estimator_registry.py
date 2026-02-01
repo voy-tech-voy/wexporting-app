@@ -1,279 +1,237 @@
 """
-Size Estimator Registry - Unified API for Size Estimation Algorithms
-
-This registry provides version switching capability for size estimation algorithms.
-Currently only v2 is active. The version switching is kept for future development.
-
-Note: Max Size mode is now handled by the TargetSizeConversionEngine from target_size module.
-This registry is primarily for version management and backward compatibility.
-
-Usage:
-    from client.core.size_estimator_registry import (
-        set_estimator_version,
-        get_estimator_version
-    )
+Size Estimator Registry - Format-Aware Dynamic Loading
+Supports independent versioning per format/codec.
 """
-
-from typing import Callable
+from typing import Callable, List, Tuple
+import importlib
+from pathlib import Path
 
 # =============================================================================
 # VERSION STATE
 # =============================================================================
+_active_estimator_version = 'v2'
 
-_active_estimator_version = 'v2'  # Default to v2 (deterministic)
-_version_change_callbacks = []  # Callbacks to notify on version change
-
-def get_estimator_version() -> str:
-    """Get the currently active estimator version."""
+def get_estimator_version(): 
     return _active_estimator_version
 
-def set_estimator_version(version: str) -> bool:
-    """
-    Set the active estimator version and reload estimators.
-    
-    Args:
-        version: Version identifier (e.g., 'v2', 'v3')
-    
-    Returns:
-        True if version was changed successfully
-    """
-    global _active_estimator_version, _active_functions
-    
-    # Validate version format
-    if not version.startswith('v'):
-        print(f"[SizeEstimatorRegistry] Invalid version format: {version}")
-        return False
-    
-    old_version = _active_estimator_version
+def set_estimator_version(version: str):
+    global _active_estimator_version
     _active_estimator_version = version
-    
-    # Force reload of estimators for new version
-    _active_functions = {}
-    
-    if old_version != version:
-        print(f"[SizeEstimatorRegistry] Switched from {old_version} to {version}")
-        
-        # Try to load the new version immediately to validate it exists
-        try:
-            _load_active_estimators(version)
-        except Exception as e:
-            print(f"[SizeEstimatorRegistry] Failed to load {version}: {e}")
-            # Revert to old version
-            _active_estimator_version = old_version
-            _active_functions = {}
-            return False
-        
-        # Notify callbacks
-        for callback in _version_change_callbacks:
-            try:
-                callback(version)
-            except Exception as e:
-                print(f"[SizeEstimatorRegistry] Callback error: {e}")
-    
     return True
 
-def register_version_change_callback(callback: Callable[[str], None]):
-    """Register a callback to be notified when version changes."""
-    if callback not in _version_change_callbacks:
-        _version_change_callbacks.append(callback)
+# =============================================================================
+# FORMAT NORMALIZATION
+# =============================================================================
+def _normalize_image_format(fmt: str) -> str:
+    """Normalize image format to estimator key."""
+    fmt_lower = fmt.lower()
+    if 'jpg' in fmt_lower or 'jpeg' in fmt_lower: return 'jpg'
+    if 'webp' in fmt_lower: return 'webp'
+    if 'png' in fmt_lower: return 'png'
+    return 'jpg'  # default
 
-def unregister_version_change_callback(callback: Callable[[str], None]):
-    """Unregister a version change callback."""
-    if callback in _version_change_callbacks:
-        _version_change_callbacks.remove(callback)
+def _normalize_video_codec(codec: str) -> str:
+    """Normalize codec preference to estimator key."""
+    codec_lower = codec.lower()
+    if 'h.264' in codec_lower or 'h264' in codec_lower or 'mp4' in codec_lower: return 'mp4_h264'
+    if 'h.265' in codec_lower or 'h265' in codec_lower or 'hevc' in codec_lower: return 'mp4_h265'
+    if 'vp9' in codec_lower: return 'webm_vp9'
+    if 'av1' in codec_lower: return 'webm_av1'
+    return 'mp4_h264'  # default
+
+def _normalize_loop_format(fmt: str) -> str:
+    """Normalize loop format to estimator key."""
+    fmt_lower = fmt.lower()
+    if 'gif' in fmt_lower: return 'gif'
+    if 'webm' in fmt_lower: return 'webm_loop'
+    return 'gif'  # default
 
 # =============================================================================
-# AVAILABLE VERSIONS
+# DYNAMIC LOADING
 # =============================================================================
-
-AVAILABLE_VERSIONS = {
-    'v2': 'Deterministic 2-Pass (Active)'
-}
-
-def get_available_versions(type_prefix: str) -> list:
+def _load_format_estimator(media_type: str, format_key: str, version: str):
     """
-    Discover available estimator versions for a given type by scanning the filesystem.
+    Load a format-specific estimator.
     
     Args:
-        type_prefix: Type prefix ('video', 'image', 'loop')
-        
-    Returns:
-        List of tuples: [(display_name, version_key), ...]
-        Example: [('video_estimator_v2.py', 'v2')]
-    """
-    import os
-    import re
-    from pathlib import Path
+        media_type: 'image', 'video', or 'loop'
+        format_key: Normalized format/codec key (e.g., 'jpg', 'mp4_h264', 'gif')
+        version: Version string (e.g., 'v2', 'v5')
     
+    Returns:
+        Estimator function or None if not found
+    """
+    try:
+        module_name = f"client.core.target_size.{media_type}_estimators.{format_key}_estimator_{version}"
+        module = importlib.import_module(module_name)
+        
+        if media_type == 'image':
+            func = getattr(module, 'optimize_image_params')
+        elif media_type == 'video':
+            func = getattr(module, 'optimize_video_params')
+        else:  # loop
+            func = getattr(module, 'optimize_gif_params')
+        
+        print(f"[Registry] Loaded {format_key} estimator {version}")
+        return func
+    except Exception as e:
+        print(f"[Registry] Could not load {format_key} estimator {version}: {e}")
+        return None
+
+# =============================================================================
+# PUBLIC API
+# =============================================================================
+def optimize_image_params(file_path: str, output_format: str, target_size_bytes: int, **kwargs):
+    """
+    Optimize image for target size using format-specific estimator.
+    
+    Args:
+        file_path: Input image path
+        output_format: Output format (JPG, WebP, PNG, etc.)
+        target_size_bytes: Target file size in bytes
+        **kwargs: Additional parameters (allow_downscale, auto_resize, etc.)
+    
+    Returns:
+        Dict with optimization parameters
+    """
+    version = _active_estimator_version
+    format_key = _normalize_image_format(output_format)
+    
+    # Try to load format-specific estimator
+    estimator = _load_format_estimator('image', format_key, version)
+    
+    if estimator:
+        downscale = kwargs.pop('allow_downscale', kwargs.pop('auto_resize', False))
+        return estimator(file_path, target_size_bytes, allow_downscale=downscale, **kwargs)
+    
+    # Fallback: return empty dict
+    print(f"[Registry] No {format_key} estimator available for {version}")
+    return {}
+
+def optimize_video_params(file_path: str, target_size_bytes: int, **kwargs):
+    """
+    Optimize video for target size using codec-specific estimator.
+    
+    Args:
+        file_path: Input video path
+        target_size_bytes: Target file size in bytes
+        **kwargs: Additional parameters (codec_pref, allow_downscale, etc.)
+    
+    Returns:
+        Dict with optimization parameters
+    """
+    version = _active_estimator_version
+    codec_pref = kwargs.pop('codec_pref', kwargs.pop('codec', 'H.264 (MP4)'))
+    codec_key = _normalize_video_codec(codec_pref)
+    
+    # Try to load codec-specific estimator
+    estimator = _load_format_estimator('video', codec_key, version)
+    
+    if estimator:
+        downscale = kwargs.pop('allow_downscale', kwargs.pop('auto_resize', False))
+        return estimator(file_path, target_size_bytes, allow_downscale=downscale, **kwargs)
+    
+    # Fallback: return empty dict
+    print(f"[Registry] No {codec_key} estimator available for {version}")
+    return {}
+
+def optimize_gif_params(file_path: str, target_size_bytes: int, **kwargs):
+    """
+    Optimize loop/GIF for target size using format-specific estimator.
+    
+    Args:
+        file_path: Input video/image path
+        target_size_bytes: Target file size in bytes
+        **kwargs: Additional parameters (format, allow_downscale, etc.)
+    
+    Returns:
+        Dict with optimization parameters
+    """
+    version = _active_estimator_version
+    loop_format = kwargs.pop('format', 'GIF')
+    format_key = _normalize_loop_format(loop_format)
+    
+    # Try to load format-specific estimator
+    estimator = _load_format_estimator('loop', format_key, version)
+    
+    if estimator:
+        downscale = kwargs.pop('allow_downscale', kwargs.pop('auto_resize', False))
+        return estimator(file_path, target_size_bytes, allow_downscale=downscale, **kwargs)
+    
+    # Fallback: return empty dict
+    print(f"[Registry] No {format_key} estimator available for {version}")
+    return {}
+
+# =============================================================================
+# VERSION DETECTION
+# =============================================================================
+def get_available_versions_for_format(media_type: str, format_or_codec: str) -> List[Tuple[str, str]]:
+    """
+    Get available versions for a specific format/codec.
+    
+    Args:
+        media_type: 'image', 'video', or 'loop'
+        format_or_codec: Format (JPG, WebP) or codec (H.264, VP9)
+    
+    Returns:
+        List of (display_name, version_key) tuples
+    """
+    # Normalize format/codec
+    if media_type == 'image':
+        format_key = _normalize_image_format(format_or_codec)
+        search_dir = Path(__file__).parent / "image_estimators"
+    elif media_type == 'video':
+        format_key = _normalize_video_codec(format_or_codec)
+        search_dir = Path(__file__).parent / "video_estimators"
+    else:  # loop
+        format_key = _normalize_loop_format(format_or_codec)
+        search_dir = Path(__file__).parent / "loop_estimators"
+    
+    # Scan for estimator files
+    pattern = f"{format_key}_estimator_v*.py"
     versions = []
     
-    try:
-        # Get the target_size directory path (current directory since we are in it now)
-        target_size_dir = Path(__file__).parent
-        
-        if not target_size_dir.exists():
-            print(f"[SizeEstimatorRegistry] target_size directory not found: {target_size_dir}")
-            return versions
-        
-        # Pattern to match: {type_prefix}_estimator_v{version}.py
-        pattern = re.compile(rf'^{type_prefix}_estimator_v(\d+)\.py$')
-        
-        # Scan directory for matching files
-        for file in os.listdir(target_size_dir):
-            match = pattern.match(file)
-            if match:
-                version_num = match.group(1)
-                version_key = f'v{version_num}'
-                display_name = file  # Show the actual filename
-                versions.append((display_name, version_key))
-        
-        # Sort by version number
-        versions.sort(key=lambda x: int(x[1][1:]))  # Sort by numeric part of version
-        
-    except Exception as e:
-        print(f"[SizeEstimatorRegistry] Error discovering versions for {type_prefix}: {e}")
+    if search_dir.exists():
+        for file_path in search_dir.glob(pattern):
+            version_part = file_path.stem.split('_')[-1]  # e.g., "v5"
+            if version_part.startswith('v'):
+                version_num = version_part[1:]
+                display_name = f"{version_part} ({format_key.upper()})"
+                versions.append((display_name, version_part))
     
+    # Sort by version number
+    versions.sort(key=lambda x: int(x[1][1:]))
     return versions
 
-
-# =============================================================================
-# DYNAMIC VERSION LOADING
-# =============================================================================
-
-_active_functions = {}
-
-def _load_active_estimators(version: str = None):
+def get_available_versions(type_prefix: str = 'image') -> List[Tuple[str, str]]:
     """
-    Dynamically load estimator functions for the specified version.
-    
-    Args:
-        version: Version to load (e.g., 'v2'). If None, uses current active version.
+    Legacy function for backward compatibility.
+    Scans for old-style unified estimators.
     """
-    global _active_functions
+    pattern = f"{type_prefix}_estimator_v*.py"
+    target_size_dir = Path(__file__).parent
+    versions = []
     
-    if version is None:
-        version = _active_estimator_version
-    
-    # Check if already loaded
-    if _active_functions.get('_loaded_version') == version:
-        return _active_functions
-    
-    try:
-        import importlib
+    for file_path in target_size_dir.glob(pattern):
+        filename = file_path.stem
+        version_part = filename.split('_')[-1]
         
-        # Dynamically import estimator modules
-        video_module = importlib.import_module(f"client.core.target_size.video_estimator_{version}")
-        image_module = importlib.import_module(f"client.core.target_size.image_estimator_{version}")
-        loop_module = importlib.import_module(f"client.core.target_size.loop_estimator_{version}")
-        
-        _active_functions = {
-            'video': video_module.optimize_video_params,
-            'image': image_module.optimize_image_params,
-            'gif': loop_module.optimize_gif_params,
-            '_loaded_version': version
-        }
-        
-        print(f"[SizeEstimatorRegistry] Loaded estimators for {version}")
-        
-    except ImportError as e:
-        print(f"[SizeEstimatorRegistry] Failed to load {version}: {e}")
-        # Try fallback to v2
-        if version != 'v2':
-            print(f"[SizeEstimatorRegistry] Falling back to v2")
-            return _load_active_estimators('v2')
-        _active_functions = {}
+        if version_part.startswith('v'):
+            display_name = f"{version_part} ({filename})"
+            versions.append((display_name, version_part))
     
-    return _active_functions
+    versions.sort(key=lambda x: x[1])
+    return versions
 
 # =============================================================================
-# PUBLIC API FUNCTIONS
+# LEGACY ADAPTERS (Used by Conversion Engine)
 # =============================================================================
+def find_optimal_video_params_for_size(file_path, codec, params, target_size_bytes, callback=None, auto_resize=False):
+    return optimize_video_params(file_path, target_size_bytes, codec=codec, auto_resize=auto_resize, legacy_params=params)
 
-def optimize_video_params(file_path: str, target_size_bytes: int, 
-                          codec_pref: str = 'H.264 (MP4)', 
-                          allow_downscale: bool = False):
-    """
-    Calculate optimal video encoding parameters for target file size.
-    Uses the currently active estimator version.
-    
-    Args:
-        file_path: Path to input video
-        target_size_bytes: Target output size in bytes
-        codec_pref: Preferred codec
-        allow_downscale: Whether to allow resolution downscaling
-        
-    Returns:
-        Dict with video_bitrate_kbps, audio_bitrate_kbps, resolution_scale, etc.
-    """
-    funcs = _load_active_estimators()
-    if 'video' in funcs:
-        return funcs['video'](file_path, target_size_bytes, codec_pref, allow_downscale)
-    return {}
+def find_optimal_image_params_for_size(file_path, output_format, target_size_bytes, callback=None, auto_resize=False):
+    return optimize_image_params(file_path, output_format, target_size_bytes, auto_resize=auto_resize)
 
-def optimize_image_params(file_path: str, output_format: str, target_size_bytes: int,
-                          allow_downscale: bool = False):
-    """
-    Calculate optimal image parameters for target file size.
-    Uses the currently active estimator version.
-    
-    Args:
-        file_path: Path to input image
-        output_format: Output format (e.g., 'jpg', 'webp')
-        target_size_bytes: Target output size in bytes
-        allow_downscale: Whether to allow resolution downscaling
-        
-    Returns:
-        Dict with quality, scale_factor, etc.
-    """
-    funcs = _load_active_estimators()
-    if 'image' in funcs:
-        return funcs['image'](file_path, output_format, target_size_bytes, allow_downscale)
-    return {}
-
-def optimize_gif_params(file_path: str, target_size_bytes: int,
-                       allow_downscale: bool = False):
-    """
-    Calculate optimal GIF parameters for target file size.
-    Uses the currently active estimator version.
-    
-    Args:
-        file_path: Path to input video
-        target_size_bytes: Target output size in bytes
-        allow_downscale: Whether to allow resolution downscaling
-        
-    Returns:
-        Dict with fps, colors, dither, resolution_scale, etc.
-    """
-    funcs = _load_active_estimators()
-    if 'gif' in funcs:
-        return funcs['gif'](file_path, target_size_bytes, allow_downscale)
-    return {}
-
-# =============================================================================
-# LEGACY COMPATIBILITY (for old ConversionEngine)
-# =============================================================================
-
-def find_optimal_image_params_for_size(file_path: str, output_format: str, target_size_bytes: int,
-                                       status_callback=None, auto_resize: bool = False):
-    """
-    Legacy wrapper for optimize_image_params.
-    Kept for backward compatibility with ConversionEngine.
-    """
-    return optimize_image_params(file_path, output_format, target_size_bytes, auto_resize)
-
-# =============================================================================
-# MODULE __getattr__ FOR DYNAMIC EXPORTS
-# =============================================================================
-
-def __getattr__(name: str):
-    """
-    Dynamic attribute access for backward compatibility.
-    Raises AttributeError for unknown attributes.
-    """
-    # Check if it's a function we support
-    if name in ('find_optimal_gif_params', 'find_optimal_image_params', 'find_optimal_video_params',
-                'find_optimal_gif_params_for_size', 'find_optimal_image_params_for_size', 
-                'find_optimal_video_params_for_size'):
-        return globals()[name]
-    
-    raise AttributeError(f"module 'size_estimator_registry' has no attribute '{name}'")
+def find_optimal_gif_params_for_size(file_path, params, target_size_bytes, callback=None, auto_resize=False):
+    loop_format = params.get('format', 'GIF') if isinstance(params, dict) else 'GIF'
+    return optimize_gif_params(file_path, target_size_bytes, format=loop_format, auto_resize=auto_resize, legacy_params=params)

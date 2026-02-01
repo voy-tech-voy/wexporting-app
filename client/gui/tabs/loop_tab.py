@@ -105,7 +105,7 @@ class LoopTab(BaseTab):
         
         # --- Estimator Version Dropdown (Dev Mode Only) ---
         self.estimator_version_combo = QComboBox()
-        self._populate_estimator_versions('loop')
+        self._populate_estimator_versions()
         self.estimator_version_combo.setToolTip("[DEV] Switch size estimation algorithm")
         self.estimator_version_combo.setVisible(False)
         self.estimator_version_combo.currentIndexChanged.connect(self._on_estimator_version_changed)
@@ -471,6 +471,9 @@ class LoopTab(BaseTab):
     
     def _on_format_changed(self, format_name: str):
         """Handle format change between GIF and WebM."""
+        # Refresh estimator versions for new format
+        self._populate_estimator_versions()
+        
         # Delegate all visibility logic to centralized method
         self._update_format_visibility()
         
@@ -513,16 +516,20 @@ class LoopTab(BaseTab):
         except:
             return []
     
-    def _populate_estimator_versions(self, type_prefix: str):
-        """Populate estimator version dropdown with available versions."""
-        from client.core.target_size.size_estimator_registry import get_available_versions, get_estimator_version
+    def _populate_estimator_versions(self):
+        """Populate estimator version dropdown with available versions for current format."""
+        from client.core.target_size.size_estimator_registry import get_available_versions_for_format, get_estimator_version
+        
+        # Get current format (GIF or WebM)
+        current_format = self.format_selector.current_format
         
         self.estimator_version_combo.clear()
         
-        versions = get_available_versions(type_prefix)
+        # Get format-specific versions
+        versions = get_available_versions_for_format('loop', current_format)
         if not versions:
             # Fallback to default if no versions found
-            self.estimator_version_combo.addItem("v2 (Deterministic 2-Pass)", "v2")
+            self.estimator_version_combo.addItem(f"v2 ({current_format})", "v2")
         else:
             for display_name, version_key in versions:
                 self.estimator_version_combo.addItem(display_name, version_key)

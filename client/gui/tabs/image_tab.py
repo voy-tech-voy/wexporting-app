@@ -72,40 +72,36 @@ class ImageTab(BaseTab):
         
         layout.addWidget(settings_row)
         
-        # --- Format Selection ---
+        # Format Selection
         self.format = FormatButtonRow(["WebP", "JPG", "PNG"])
         self.format_group.get_content_layout().insertRow(0, self.format)
         
-        # --- Max Size (for Max Size mode) ---
-        self.max_size_spinbox = CustomTargetSizeSpinBox(
-            default_value=0.2,
-            on_enter_callback=self._focus_callback
-        )
-        self.max_size_spinbox.setRange(0.01, 100.0)
-        self.max_size_spinbox.setDecimals(2)
-        self.max_size_spinbox.setSensitivity(0.0025)
-        self.max_size_spinbox.setToolTip("Target maximum file size in megabytes")
-        self.max_size_spinbox.setVisible(False)
-        self.max_size_label = QLabel("Max Size")
-        self.max_size_label.setVisible(False)
+        # Connect format change to refresh estimator versions
+        self.format.currentTextChanged.connect(self._on_format_changed)
+        
+        # Target Size Controls
+        self.size_mode_label = QLabel("Size Mode:")
+        self.size_mode = QComboBox()
+        self.size_mode.addItems(["Quality", "Target Size"])
+        self.format_group.add_row(self.size_mode_label, self.size_mode)
+        
+        self.max_size_label = QLabel("Target Size (MB):")
+        self.max_size_spinbox = QDoubleSpinBox()
+        self.max_size_spinbox.setRange(0.001, 100.0)
+        self.max_size_spinbox.setValue(0.5)
+        self.max_size_spinbox.setDecimals(3)
+        self.max_size_spinbox.setSingleStep(0.1)
         self.format_group.add_row(self.max_size_label, self.max_size_spinbox)
         
-        # --- Auto-resize checkbox ---
-        self.auto_resize_checkbox = ThemedCheckBox("Auto-resize")
-        self.auto_resize_checkbox.setChecked(True)
-        self.auto_resize_checkbox.setToolTip(
-            "Change the resolution in pixels (width×height) to match desired file size in MB."
-        )
-        self.auto_resize_checkbox.setVisible(False)
+        self.auto_resize_checkbox = QCheckBox("Auto-resize if needed")
+        self.auto_resize_checkbox.setChecked(False)
         self.format_group.add_row(self.auto_resize_checkbox)
         
-        # --- Estimator Version Dropdown (Dev Mode Only) ---
+        # Estimator Version Selection
+        self.estimator_version_label = QLabel("Estimator Version:")
         self.estimator_version_combo = QComboBox()
-        self._populate_estimator_versions('image')
-        self.estimator_version_combo.setToolTip("[DEV] Switch size estimation algorithm")
-        self.estimator_version_combo.setVisible(False)
+        self._populate_estimator_versions()  # Populate based on current format
         self.estimator_version_combo.currentIndexChanged.connect(self._on_estimator_version_changed)
-        self.estimator_version_label = QLabel("Estimator [DEV]")
         self.estimator_version_label.setVisible(False)
         self.format_group.add_row(self.estimator_version_label, self.estimator_version_combo)
         
@@ -309,16 +305,20 @@ class ImageTab(BaseTab):
         except:
             return []
     
-    def _populate_estimator_versions(self, type_prefix: str):
-        """Populate estimator version dropdown with available versions."""
-        from client.core.target_size.size_estimator_registry import get_available_versions, get_estimator_version
+    def _populate_estimator_versions(self):
+        """Populate estimator version dropdown with available versions for current format."""
+        from client.core.target_size.size_estimator_registry import get_available_versions_for_format, get_estimator_version
+        
+        # Get current format
+        current_format = self.format.currentText()
         
         self.estimator_version_combo.clear()
         
-        versions = get_available_versions(type_prefix)
+        # Get format-specific versions
+        versions = get_available_versions_for_format('image', current_format)
         if not versions:
             # Fallback to default if no versions found
-            self.estimator_version_combo.addItem("v2 (Deterministic 2-Pass)", "v2")
+            self.estimator_version_combo.addItem(f"v5 ({current_format})", "v5")
         else:
             for display_name, version_key in versions:
                 self.estimator_version_combo.addItem(display_name, version_key)
@@ -329,6 +329,11 @@ class ImageTab(BaseTab):
             if self.estimator_version_combo.itemData(i) == current_version:
                 self.estimator_version_combo.setCurrentIndex(i)
                 break
+    
+    def _on_format_changed(self, new_format: str):
+        """Handle format change - refresh available estimator versions."""
+        print(f"[ImageTab] Format changed to: {new_format}")
+        self._populate_estimator_versions()
     
     def _on_estimator_version_changed(self, index: int):
         """Handle estimator version dropdown change."""

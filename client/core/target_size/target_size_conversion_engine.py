@@ -231,16 +231,25 @@ class TargetSizeConversionEngine(QThread):
             
     def _convert_image(self, file_path: str) -> bool:
         """Convert image to target file size."""
+        print(f"[TargetSizeEngine] _convert_image called for: {file_path}")
+        print(f"[TargetSizeEngine] Params: {self.params}")
+        
         try:
+            print(f"[TargetSizeEngine] Step 1: Getting params...")
             target_mb = self.params.get('image_max_size_mb', 1.0)
             target_bytes = int(target_mb * 1024 * 1024)
             auto_resize = self.params.get('image_auto_resize', False)
+            print(f"[TargetSizeEngine] target_mb={target_mb}, target_bytes={target_bytes}, auto_resize={auto_resize}")
             
             # Get output format
+            print(f"[TargetSizeEngine] Step 2: Getting output format...")
             output_format = self.params.get('format', 'jpg').lower()
+            print(f"[TargetSizeEngine] output_format={output_format}")
             
-            self.status_updated.emit(f"[v2] Optimizing image for {target_mb:.1f} MB target...")
+            print(f"[TargetSizeEngine] Step 3: Emitting status...")
+            self.status_updated.emit(f"[v2] Optimizing image for {target_mb:.3f} MB target...")
             
+            print(f"[TargetSizeEngine] Step 4: Calling optimize_image_params...")
             # Call v2 estimator
             optimal = optimize_image_params(
                 file_path,
@@ -249,25 +258,31 @@ class TargetSizeConversionEngine(QThread):
                 allow_downscale=auto_resize
             )
             
+            print(f"[TargetSizeEngine] Step 5: Got optimal params: {optimal}")
             quality = optimal['quality']
             scale_factor = optimal.get('scale_factor', 1.0)
             
+            print(f"[TargetSizeEngine] Step 6: Generating output path...")
             # Generate output path with optimal params for suffix
             output_path = self._get_output_path(file_path, output_format, optimal_params=optimal)
+            print(f"[TargetSizeEngine] output_path={output_path}")
             
             self.status_updated.emit(f"[v2] Using quality {quality}, scale {int(scale_factor * 100)}%")
             
+            print(f"[TargetSizeEngine] Step 7: Building FFmpeg command...")
             # Build FFmpeg command
             input_stream = ffmpeg.input(file_path)
             stream = input_stream
             
             # Apply scale if needed
             if scale_factor < 1.0:
+                print(f"[TargetSizeEngine] Applying scale factor {scale_factor}...")
                 meta = get_media_metadata(file_path)
                 new_width = int(meta['width'] * scale_factor)
                 stream = ffmpeg.filter(stream, 'scale', new_width, -1)
                 
             # Output with quality
+            print(f"[TargetSizeEngine] Step 8: Setting output params for format {output_format}...")
             if output_format in ['jpg', 'jpeg']:
                 q_val = max(1, min(31, int((100 - quality) * 31 / 100)))
                 stream = ffmpeg.output(stream, output_path, **{'q:v': q_val})
@@ -276,18 +291,27 @@ class TargetSizeConversionEngine(QThread):
             else:
                 stream = ffmpeg.output(stream, output_path)
                 
+            print(f"[TargetSizeEngine] Step 9: Running FFmpeg...")
             stream = ffmpeg.overwrite_output(stream)
             ffmpeg.run(stream, quiet=True)
             
+            print(f"[TargetSizeEngine] Step 10: Checking output...")
             if os.path.exists(output_path):
                 actual_size = os.path.getsize(output_path)
                 actual_mb = actual_size / (1024 * 1024)
                 self.status_updated.emit(f"[v2] ✓ Complete: {actual_mb:.2f} MB")
+                print(f"[TargetSizeEngine] SUCCESS! File created: {output_path}, size: {actual_mb:.2f} MB")
                 return True
-            return False
+            else:
+                print(f"[TargetSizeEngine] FAILED! Output file not created: {output_path}")
+                return False
             
         except Exception as e:
-            self.status_updated.emit(f"[v2] Image error: {str(e)}")
+            import traceback
+            error_msg = f"[v2] Image error: {str(e)}"
+            print(f"[TargetSizeEngine] EXCEPTION: {error_msg}")
+            print(f"[TargetSizeEngine] Traceback:\n{traceback.format_exc()}")
+            self.status_updated.emit(error_msg)
             return False
             
     def _convert_gif(self, file_path: str) -> bool:

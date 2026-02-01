@@ -103,7 +103,7 @@ class VideoTab(BaseTab):
         
         # --- Estimator Version Dropdown (Dev Mode Only) ---
         self.estimator_version_combo = QComboBox()
-        self._populate_estimator_versions('video')
+        self._populate_estimator_versions()
         self.estimator_version_combo.setToolTip("[DEV] Switch size estimation algorithm")
         self.estimator_version_combo.setVisible(False)
         self.estimator_version_combo.currentIndexChanged.connect(self._on_estimator_version_changed)
@@ -309,8 +309,21 @@ class VideoTab(BaseTab):
     # -------------------------------------------------------------------------
     
     def _on_codec_changed(self, codec: str):
-        """Handle codec selection change."""
-        # Could adjust quality ranges based on codec
+        """Handle codec change - update UI and refresh estimator versions."""
+        print(f"[VideoTab] Codec changed to: {codec}")
+        
+        # Refresh estimator versions for new codec
+        self._populate_estimator_versions()
+        
+        # Update UI based on codec
+        if "H.265" in codec or "HEVC" in codec:
+            self.quality_label.setText("CRF (0-51, lower=better):")
+        elif "VP9" in codec or "AV1" in codec:
+            self.quality_label.setText("CRF (0-63, lower=better):")
+        else:  # H.264
+            self.quality_label.setText("CRF (0-51, lower=better):")
+        self.quality_variants.setVisible(multiple)
+        self.quality_variants_label.setVisible(multiple)
         self._notify_param_change()
     
     def _toggle_quality_mode(self, multiple: bool):
@@ -340,16 +353,20 @@ class VideoTab(BaseTab):
         except:
             return []
     
-    def _populate_estimator_versions(self, type_prefix: str):
-        """Populate estimator version dropdown with available versions."""
-        from client.core.target_size.size_estimator_registry import get_available_versions, get_estimator_version
+    def _populate_estimator_versions(self):
+        """Populate estimator version dropdown with available versions for current codec."""
+        from client.core.target_size.size_estimator_registry import get_available_versions_for_format, get_estimator_version
+        
+        # Get current codec
+        current_codec = self.codec.currentText()
         
         self.estimator_version_combo.clear()
         
-        versions = get_available_versions(type_prefix)
+        # Get codec-specific versions
+        versions = get_available_versions_for_format('video', current_codec)
         if not versions:
             # Fallback to default if no versions found
-            self.estimator_version_combo.addItem("v2 (Deterministic 2-Pass)", "v2")
+            self.estimator_version_combo.addItem(f"v2 ({current_codec})", "v2")
         else:
             for display_name, version_key in versions:
                 self.estimator_version_combo.addItem(display_name, version_key)

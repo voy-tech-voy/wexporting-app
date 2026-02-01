@@ -69,7 +69,7 @@ class SegmentedPill(QWidget):
                         color: {Theme.bg()};
                         border: none;
                         font-weight: bold;
-                        font-size: {Theme.FONT_SIZE_SM}px;
+                        font-size: {Theme.FONT_SIZE_BASE}px;
                         border-radius: {Theme.RADIUS_MD}px;
                     }}
                 """)
@@ -79,7 +79,7 @@ class SegmentedPill(QWidget):
                         background-color: {Theme.surface()};
                         color: {Theme.text_muted()};
                         border: 1px solid {Theme.border()};
-                        font-size: {Theme.FONT_SIZE_SM}px;
+                        font-size: {Theme.FONT_SIZE_BASE}px;
                         border-radius: {Theme.RADIUS_MD}px;
                     }}
                     QPushButton:hover {{
@@ -179,56 +179,72 @@ class ParameterForm(QWidget):
                 item.widget().deleteLater()
     
     def _create_parameter_widget(self, param: ParameterDefinition) -> QWidget:
-        """Create a widget container for a parameter."""
+        """Create a widget container for a parameter with horizontal layout."""
         container = QFrame()
         container.setObjectName(f"param_{param.id}")
-        layout = QVBoxLayout(container)
+        layout = QHBoxLayout(container)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(4)
+        layout.setSpacing(12)
         
-        # Show top label only for non-toggle widgets
-        if param.type != ParameterType.TOGGLE:
-            label = QLabel(param.label)
-            label.setStyleSheet("font-weight: bold;")
-            layout.addWidget(label)
-            
-            # Tooltip
-            if param.tooltip:
-                label.setToolTip(param.tooltip)
+        # Create label (always shown, positioned first)
+        label = QLabel(param.label)
+        label.setStyleSheet("font-weight: bold;")
+        label.setMinimumWidth(140)
+        label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        if param.tooltip:
+            label.setToolTip(param.tooltip)
+        
+        layout.addWidget(label)
         
         # Widget based on type
         widget = None
         
         if param.type == ParameterType.TOGGLE:
-            # Use ThemedCheckBox for consistent styling
-            # Display label inline next to checkbox
-            widget = ThemedCheckBox(param.label)
+            # For toggles: swap order - checkbox first, then label
+            # Remove the label from the main layout and add toggle first
+            layout.removeWidget(label)
+            
+            # Update label for toggle (left-aligned relative to checkbox)
+            # Reset min width since it's now a suffix
+            label.setMinimumWidth(0)
+            label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+            label.setContentsMargins(8, 0, 0, 0)  # Add left padding
+            
+            # Use ThemedCheckBox without text (label is separate)
+            widget = ThemedCheckBox("")
             widget.setChecked(bool(param.default))
             if param.tooltip:
                 widget.setToolTip(param.tooltip)
-            
-            # ThemedCheckBox uses toggled signal, but stateChanged logic remains compatible 
-            # if we use lambda or connect properly
             widget.toggled.connect(lambda: self._on_value_changed())
             
+            # Add toggle first, then label, then stretch to push left
+            layout.insertWidget(0, widget)
+            layout.addWidget(label)
+            layout.addStretch()
+            # Don't add widget again at the end
+            
         elif param.type == ParameterType.SLIDER:
-            row = QHBoxLayout()
+            # Create horizontal slider with value label
+            slider_container = QWidget()
+            slider_layout = QHBoxLayout(slider_container)
+            slider_layout.setContentsMargins(0, 0, 0, 0)
+            slider_layout.setSpacing(8)
+            
             slider = QSlider(Qt.Orientation.Horizontal)
             slider.setMinimum(int(param.min_value or 0))
             slider.setMaximum(int(param.max_value or 100))
             slider.setValue(int(param.default or 50))
             
             value_label = QLabel(str(slider.value()))
-            value_label.setMinimumWidth(30)
+            value_label.setMinimumWidth(40)
+            value_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
             slider.valueChanged.connect(lambda v: value_label.setText(str(v)))
             slider.valueChanged.connect(lambda: self._on_value_changed())
             
-            row.addWidget(slider, 1)
-            row.addWidget(value_label)
+            slider_layout.addWidget(slider, 1)
+            slider_layout.addWidget(value_label)
             
-            row_widget = QWidget()
-            row_widget.setLayout(row)
-            widget = row_widget
+            widget = slider_container
             # Store slider for value retrieval
             widget._slider = slider
             
@@ -244,7 +260,9 @@ class ParameterForm(QWidget):
             widget.currentTextChanged.connect(lambda: self._on_value_changed())
         
         if widget:
-            layout.addWidget(widget)
+            # For toggles, widget is already added in special order
+            if param.type != ParameterType.TOGGLE:
+                layout.addWidget(widget, 1)  # Stretch factor 1 for input
             self._widgets[param.id] = widget
         
         return container

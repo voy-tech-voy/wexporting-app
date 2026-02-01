@@ -148,7 +148,7 @@ class CustomTargetSizeSpinBox(QWidget):
     
     valueChanged = pyqtSignal(float)  # Emit when value changes
     
-    def __init__(self, parent=None, default_value=1.0, on_enter_callback=None):
+    def __init__(self, parent=None, default_value=1.0, on_enter_callback=None, decimals=2):
         super().__init__(parent)
         self.is_dark = True
         self.on_enter_callback = on_enter_callback  # Callback when Enter is pressed
@@ -181,7 +181,7 @@ class CustomTargetSizeSpinBox(QWidget):
         
         self.spinbox.setRange(0.001, 10000.0)
         self.spinbox.setValue(default_value)
-        self.spinbox.setDecimals(3)
+        self.spinbox.setDecimals(decimals)
         self.spinbox.setSingleStep(0.1)
         self.spinbox.setSuffix("")
         self.spinbox.setMinimumWidth(120)

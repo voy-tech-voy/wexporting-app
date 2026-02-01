@@ -689,15 +689,15 @@ class MainWindow(QMainWindow):
         if hasattr(self, 'output_footer'):
             self.output_footer.set_converting(True)
         
-        # Check if we should use TargetSizeConversionEngine (v2 + max_size mode)
+        # Check if we should use TargetSizeConversionEngine (max_size mode with any estimator version)
         use_target_size_engine = False
         size_mode = params.get('video_size_mode') or params.get('image_size_mode') or params.get('gif_size_mode')
         
         if size_mode == 'max_size':
             from client.core.target_size.size_estimator_registry import get_estimator_version
-            if get_estimator_version() == 'v2':
-                use_target_size_engine = True
-                print("[MainWindow] Using TargetSizeConversionEngine (v2 active)")
+            current_version = get_estimator_version()
+            use_target_size_engine = True
+            print(f"[MainWindow] Using TargetSizeConversionEngine ({current_version} active)")
         
         # Create appropriate engine
         if use_target_size_engine:
