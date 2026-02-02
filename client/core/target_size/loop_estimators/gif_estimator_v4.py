@@ -100,7 +100,8 @@ class Estimator(EstimatorProtocol):
         valid = [p for p in self.GIF_PRESETS if allow_downscale or p[3] == 1.0]
         
         # Binary search for optimal preset
-        left, right, best = 0, len(valid) - 1, len(valid) - 1
+        # Start with best=0 (highest quality). If all presets fit, we want the best one.
+        left, right, best = 0, len(valid) - 1, 0
         
         while left <= right:
             mid = (left + right) // 2
