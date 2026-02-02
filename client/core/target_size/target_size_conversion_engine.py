@@ -45,6 +45,7 @@ class TargetSizeConversionEngine(QThread):
         
         # Determine conversion mode from params
         conversion_mode = self._determine_conversion_mode()
+        print(f"[Engine] Conversion mode: {conversion_mode}")
         
         for i, file_path in enumerate(self.files):
             if self.should_stop:
@@ -61,15 +62,15 @@ class TargetSizeConversionEngine(QThread):
                 self.skipped_files += 1
                 continue
             
-            # Determine file type and convert
+            # Determine file type and convert based on CONVERSION MODE (not file type!)
+            # The user explicitly chooses the conversion type (Image/Video/Loop tab)
             try:
-                if is_video_file(file_path):
-                    success = self._convert_video(file_path)
-                elif is_image_file(file_path):
-                    success = self._convert_image(file_path)
-                else:
-                    # Assume GIF/loop
+                if conversion_mode == 'loop':
                     success = self._convert_loop(file_path)
+                elif conversion_mode == 'image':
+                    success = self._convert_image(file_path)
+                else:  # 'video' or default
+                    success = self._convert_video(file_path)
                 
                 if success:
                     self.successful_conversions += 1
@@ -155,17 +156,19 @@ class TargetSizeConversionEngine(QThread):
         return get_output_path(file_path, self.params, extension, params, target_mb)
     
     def _convert_video(self, file_path: str) -> bool:
-        """Convert video using self-contained estimator."""
+        """Convert to video format using self-contained estimator."""
         from .size_estimator_registry import run_video_conversion, get_video_estimator
+        from .transform_filter_builder import build_transform_filters
         
         try:
             target_sizes = self._get_target_sizes('video')
             codec = self.params.get('codec', 'MP4 (H.264)')
             auto_resize = self.params.get('video_auto_resize', False)
             rotation = self.params.get('rotation_angle', None)
+            estimator_version = self.params.get('estimator_version', None)  # Get version from UI
             
             # Get estimator to determine output extension
-            estimator = get_video_estimator(codec)
+            estimator = get_video_estimator(codec, version=estimator_version)
             output_ext = estimator.get_output_extension() if estimator else ('webm' if 'WebM' in codec else 'mp4')
             
             all_success = True
@@ -185,16 +188,21 @@ class TargetSizeConversionEngine(QThread):
                     target_mb if multiple_max_sizes else None
                 )
                 
+                # Build transform filters from UI params
+                transform_filters = build_transform_filters(self.params, file_path)
+                
                 # Delegate to self-contained estimator
                 success = run_video_conversion(
                     input_path=file_path,
                     output_path=output_path,
                     target_size_bytes=target_bytes,
                     codec_pref=codec,
+                    estimator_version=estimator_version,  # Pass version to run_video_conversion
                     status_callback=self.status_updated.emit,
                     stop_check=lambda: self.should_stop,
                     rotation=rotation,
-                    allow_downscale=auto_resize
+                    allow_downscale=auto_resize,
+                    transform_filters=transform_filters
                 )
                 
                 if success:
@@ -265,13 +273,18 @@ class TargetSizeConversionEngine(QThread):
             return False
     
     def _convert_loop(self, file_path: str) -> bool:
-        """Convert to loop format by delegating to loop encoder."""
-        from .loop_estimators.loop_encoder import encode_loop
+        """Convert to loop format using self-contained estimator."""
+        from .size_estimator_registry import run_loop_conversion, get_loop_estimator
+        from .transform_filter_builder import build_transform_filters
         
         try:
             target_sizes = self._get_target_sizes('loop')
             output_format = self.params.get('loop_format', 'GIF')  # LoopTab passes 'loop_format'
             auto_resize = self.params.get('loop_auto_resize', False)
+            
+            # Get estimator to determine output extension
+            estimator = get_loop_estimator(output_format)
+            output_ext = estimator.get_output_extension() if estimator else 'gif'
             
             all_success = True
             for target_mb in target_sizes:
@@ -280,19 +293,9 @@ class TargetSizeConversionEngine(QThread):
                 
                 target_bytes = int(target_mb * 1024 * 1024)
                 
-                # Get optimal params from estimator
-                params = optimize_gif_params(
-                    file_path,
-                    target_bytes,
-                    format=output_format,
-                    allow_downscale=auto_resize
-                )
-                
-                # Determine output extension
-                output_ext = 'gif' if 'GIF' in output_format else 'webm'
-                
-                # Generate output path
+                # Generate output path (use estimator estimate for params)
                 multiple_max_sizes = self.params.get('multiple_max_sizes', False)
+                params = estimator.estimate(file_path, target_bytes, allow_downscale=auto_resize) if estimator else {}
                 output_path = self._get_output_path(
                     file_path,
                     output_ext,
@@ -300,14 +303,19 @@ class TargetSizeConversionEngine(QThread):
                     target_mb if multiple_max_sizes else None
                 )
                 
-                # Delegate to encoder
-                success = encode_loop(
+                # Build transform filters from UI params
+                transform_filters = build_transform_filters(self.params, file_path)
+                
+                # Delegate to self-contained estimator
+                success = run_loop_conversion(
                     input_path=file_path,
                     output_path=output_path,
-                    params=params,
-                    output_format=output_format,
+                    target_size_bytes=target_bytes,
+                    loop_format=output_format,
                     status_callback=self.status_updated.emit,
-                    stop_check=lambda: self.should_stop
+                    stop_check=lambda: self.should_stop,
+                    allow_downscale=auto_resize,
+                    transform_filters=transform_filters
                 )
                 
                 if success:

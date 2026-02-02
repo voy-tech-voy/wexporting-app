@@ -110,7 +110,8 @@ def _load_estimator_class(media_type: str, format_key: str, version: str):
         estimator_class = getattr(module, 'Estimator', None)
         if estimator_class:
             instance = estimator_class()
-            print(f"[Registry] Loaded {format_key} Estimator class {version}")
+            # Print full module path for clarity on which estimator file is being used
+            print(f"[ESTIMATOR] Using {media_type}_estimators/{format_key}_estimator_{version}.py")
             return instance
         
         return None
@@ -133,14 +134,19 @@ def get_video_estimator(codec_pref: str, version: str = None):
     version = version or _active_estimator_version
     codec_key = _normalize_video_codec(codec_pref)
     
+    print(f"[Registry] get_video_estimator: codec_pref='{codec_pref}' -> codec_key='{codec_key}', version='{version}'")
+    
     estimator = _load_estimator_class('video', codec_key, version)
     
     if not estimator:
         # Fallback to available versions
+        print(f"[Registry] Estimator not found for {codec_key} {version}, checking available versions...")
         versions = get_available_versions_for_format('video', codec_key)
         if versions:
             fallback_version = versions[-1][1]
+            print(f"[Registry] Falling back to version: {fallback_version}")
             estimator = _load_estimator_class('video', codec_key, fallback_version)
+    
     
     return estimator
 
@@ -150,6 +156,7 @@ def run_video_conversion(
     output_path: str,
     target_size_bytes: int,
     codec_pref: str,
+    estimator_version: str = None,
     status_callback=None,
     stop_check=None,
     **options
@@ -165,6 +172,7 @@ def run_video_conversion(
         output_path: Destination file
         target_size_bytes: Target size in bytes
         codec_pref: Codec preference string
+        estimator_version: Optional estimator version override
         status_callback: Optional status update callback
         stop_check: Optional stop check callback
         **options: Additional options (rotation, allow_downscale, etc.)
@@ -172,7 +180,7 @@ def run_video_conversion(
     Returns:
         True if conversion succeeded
     """
-    estimator = get_video_estimator(codec_pref)
+    estimator = get_video_estimator(codec_pref, version=estimator_version)
     
     if not estimator:
         if status_callback:
@@ -254,6 +262,81 @@ def run_image_conversion(
         stop_check=stop_check,
         **options
     )
+
+
+def get_loop_estimator(loop_format: str, version: str = None):
+    """
+    Get a loop estimator class instance.
+    
+    Args:
+        loop_format: Loop format (GIF, WebM, etc.)
+        version: Optional version override, defaults to active version
+    
+    Returns:
+        Estimator class instance or None
+    """
+    version = version or _active_estimator_version
+    format_key = _normalize_loop_format(loop_format)
+    
+    print(f"[Registry] get_loop_estimator: loop_format='{loop_format}' -> format_key='{format_key}', version='{version}'")
+    
+    estimator = _load_estimator_class('loop', format_key, version)
+    
+    if not estimator:
+        # Fallback to available versions
+        print(f"[Registry] Estimator not found for {format_key} {version}, checking available versions...")
+        versions = get_available_versions_for_format('loop', format_key)
+        if versions:
+            fallback_version = versions[-1][1]
+            print(f"[Registry] Falling back to version: {fallback_version}")
+            estimator = _load_estimator_class('loop', format_key, fallback_version)
+    
+    return estimator
+
+
+def run_loop_conversion(
+    input_path: str,
+    output_path: str,
+    target_size_bytes: int,
+    loop_format: str,
+    status_callback=None,
+    stop_check=None,
+    **options
+) -> bool:
+    """
+    Run loop conversion using new self-contained estimator.
+    
+    This is the preferred entry point for loop conversions.
+    The estimator handles the complete encoding pipeline.
+    
+    Args:
+        input_path: Source video/image file
+        output_path: Destination file
+        target_size_bytes: Target size in bytes
+        loop_format: Loop format (GIF, WebM)
+        status_callback: Optional status update callback
+        stop_check: Optional stop check callback
+        **options: Additional options (allow_downscale, etc.)
+    
+    Returns:
+        True if conversion succeeded
+    """
+    estimator = get_loop_estimator(loop_format)
+    
+    if not estimator:
+        if status_callback:
+            status_callback(f"No estimator found for {loop_format}")
+        return False
+    
+    return estimator.execute(
+        input_path=input_path,
+        output_path=output_path,
+        target_size_bytes=target_size_bytes,
+        status_callback=status_callback,
+        stop_check=stop_check,
+        **options
+    )
+
 
 # =============================================================================
 # PUBLIC API
