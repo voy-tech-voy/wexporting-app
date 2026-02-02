@@ -11,8 +11,8 @@ PRODUCTION_DEFAULTS = {
         'png': 'v5',
     },
     'video': {
-        'mp4_h264': 'v3',
-        'mp4_h265': 'v3',
+        'mp4_h264': 'v4',
+        'mp4_h265': 'v4',
         'webm_vp9': 'v3',
         'webm_av1': 'v6',
     },
