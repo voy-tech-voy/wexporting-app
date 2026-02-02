@@ -299,6 +299,25 @@ def get_all_valid_ffmpeg_paths(timeout=5):
         system_ffmpeg = shutil.which('ffmpeg')
         if system_ffmpeg:
             ffmpeg_paths = [system_ffmpeg]
+
+    # Also check bundled tools directory for any ffmpeg executables
+    try:
+        from client.core.conversion_engine import bundled_tools_dir
+        if os.path.exists(bundled_tools_dir):
+            for filename in os.listdir(bundled_tools_dir):
+                # Check for files starting with ffmpeg
+                if filename.lower().startswith('ffmpeg'):
+                    # specific check for windows .exe extension
+                    if os.name == 'nt' and not filename.lower().endswith('.exe'):
+                        continue
+                    
+                    full_path = os.path.join(bundled_tools_dir, filename)
+                    if os.path.isfile(full_path):
+                        # Avoid duplicates
+                        if full_path not in ffmpeg_paths:
+                            ffmpeg_paths.append(full_path)
+    except Exception:
+        pass
     
     # Validate each path
     results = []

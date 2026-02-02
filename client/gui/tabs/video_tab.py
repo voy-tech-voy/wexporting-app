@@ -251,6 +251,8 @@ class VideoTab(BaseTab):
             'retime_speed': self.retime_slider.value() / 10.0 if self.enable_retime.isChecked() else 1.0,
             'estimator_version': self.estimator_version_combo.currentText() if self.estimator_version_combo.isVisible() else None,
         }
+        # Debug: show what version is being collected
+        print(f"[VideoTab] get_params: estimator_version='{params['estimator_version']}', combo_visible={self.estimator_version_combo.isVisible()}")
         # Merge resize params
         params.update(resize_params)
         return params

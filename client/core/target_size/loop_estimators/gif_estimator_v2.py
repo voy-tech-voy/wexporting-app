@@ -71,16 +71,30 @@ def optimize_gif_params(file_path: str, target_size_bytes: int, allow_downscale:
         tmp = get_temp_filename()
         
         try:
-            # Extract dither type (remove parameters)
-            dither_type = dither.split(':')[0] if ':' in dither else dither
+            # Re-assemble dither string map
+            dither_args = {}
+            if ':' in dither:
+                base, params = dither.split(':', 1)
+                dither_args['dither'] = base
+                for p in params.split(':'):
+                    k, v = p.split('=')
+                    dither_args[k] = v
+            else:
+                dither_args['dither'] = dither
+
+            # Build graph correctly
+            in_stream = ffmpeg.input(file_path, ss=start, t=sample_len)
+            scaled = (
+                in_stream
+                .filter('fps', fps)
+                .filter('scale', w, h)
+            )
+            split = scaled.filter('split')
+            palette = split[0].filter('palettegen', max_colors=colors)
             
-            (ffmpeg.input(file_path, ss=start, t=sample_len)
-             .filter('fps', fps)
-             .filter('scale', w, h)
-             .filter('split')
-             .output(tmp, vframes=int(fps*sample_len), 
-                    filter_complex=f"[0:v]palettegen=max_colors={colors}[p];[0:v][p]paletteuse=dither={dither_type}")
-             .run(quiet=True, overwrite_output=True))
+            out = ffmpeg.filter([split[1], palette], 'paletteuse', **dither_args)
+            
+            out.output(tmp, vframes=int(fps*sample_len)).run(quiet=True, overwrite_output=True)
             
             if os.path.exists(tmp) and (os.path.getsize(tmp) * mult) <= target_size_bytes:
                 best = mid

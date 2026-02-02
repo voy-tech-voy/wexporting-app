@@ -146,7 +146,8 @@ class AdvancedSettingsWindow(QDialog):
         title_layout = QHBoxLayout(title_bar)
         title_layout.setContentsMargins(0, 0, 0, 10)
         
-        title_label = QLabel("Advanced Settings")
+        # Add space after title for better font matching
+        title_label = QLabel("Advanced Settings ")
         title_label.setFont(QFont("Segoe UI", 14, QFont.Weight.Bold))
         title_layout.addWidget(title_label)
         
@@ -198,7 +199,12 @@ class AdvancedSettingsWindow(QDialog):
 
     def browse_ffmpeg(self):
         """Open file dialog to browse for ffmpeg executable"""
-        file_filter = "FFmpeg Executable (ffmpeg.exe);;All Files (*.*)"
+        # Allow any file containing 'ffmpeg' in the name, but only .exe on Windows
+        if os.name == 'nt':  # Windows
+            file_filter = "FFmpeg Executable (*ffmpeg*.exe);;All Files (*.*)"
+        else:  # Unix-like
+            file_filter = "FFmpeg Executable (*ffmpeg*);;All Files (*)"
+        
         file_path, _ = QFileDialog.getOpenFileName(
             self,
             "Select FFmpeg Executable",
@@ -213,6 +219,10 @@ class AdvancedSettingsWindow(QDialog):
                 self.path_input.setText(file_path)
                 self.status_label.setText(f"✓ Valid FFmpeg executable selected")
                 self.status_label.setStyleSheet("color: green;")
+                
+                # Auto-switch to "Use ffmpeg file" if currently in system mode
+                if self.radio_system.isChecked():
+                    self.radio_bundled.setChecked(True)
             else:
                 self.status_label.setText(f"✗ {error_msg}")
                 self.status_label.setStyleSheet("color: red;")
@@ -351,93 +361,68 @@ class AdvancedSettingsWindow(QDialog):
             self.ffmpeg_settings.set_custom_path(self.original_custom_path)
         self.reject()
         
-    def get_toggle_style(self, is_dark):
-        """Get toggle style matching command panel"""
-        bg_color = "#2b2b2b" if is_dark else "#ffffff"
-        text_color = "white" if is_dark else "black"
-        
-        return (
-            f"QCheckBox, QRadioButton {{ color: {text_color}; }} "
-            "QCheckBox::indicator, QRadioButton::indicator { width: 16px; height: 16px; border-radius: 8px;"
-            f" border: 2px solid #43a047; background: {bg_color}; }}"
-            "QCheckBox::indicator:checked, QRadioButton::indicator:checked { background: #43a047; border: 2px solid #2e7d32; }"
-            "QCheckBox::indicator:unchecked:hover, QRadioButton::indicator:unchecked:hover { border: 2px solid #2e7d32; }"
-        )
-    
     def apply_theme(self):
         """Apply theme to the dialog"""
         if not self.theme_manager:
             return
             
-        is_dark = self.theme_manager.get_current_theme() == 'dark'
+        # Get base dialog styles from theme manager (centralized)
+        # This now includes pill-shaped radio button styling
+        base_styles = self.theme_manager.get_dialog_styles()
         
-        if is_dark:
-            bg_color = "#2b2b2b"
-            text_color = "#ffffff"
-            input_bg = "#3c3c3c"
-            input_border = "#555555"
-            btn_bg = "#404040"
-            btn_hover = "#4a4a4a"
-            group_border = "#555555"
-            placeholder_color = "#888888"
-        else:
-            bg_color = "#f5f5f5"
-            text_color = "#000000"
-            input_bg = "#ffffff"
-            input_border = "#d0d0d0"
-            btn_bg = "#e0e0e0"
-            btn_hover = "#d0d0d0"
-            group_border = "#d0d0d0"
-            placeholder_color = "#999999"
+        # Add Advanced Settings-specific styles
+        from client.gui.theme import Theme
         
-        # Get toggle style matching command panel
-        toggle_style = self.get_toggle_style(is_dark)
+        # Ensure theme is set correctly
+        Theme.set_dark_mode(self.theme_manager.is_dark_mode())
         
-        dialog_style = f"""
+        # Additional styles specific to Advanced Settings window
+        advanced_styles = f"""
             QDialog {{
-                background-color: {bg_color};
-                color: {text_color};
-                border: 1px solid #555555;
+                background-color: {Theme.surface()};
                 border-radius: 8px;
             }}
-            QLabel {{
-                color: {text_color};
-            }}
             QGroupBox {{
-                color: {text_color};
-                border: 1px solid {group_border};
+                color: {Theme.text()};
+                border: 1px solid {Theme.border()};
                 border-radius: 5px;
                 margin-top: 10px;
                 padding-top: 10px;
                 font-weight: bold;
+                background-color: transparent;
             }}
             QGroupBox::title {{
                 subcontrol-origin: margin;
                 subcontrol-position: top left;
                 padding: 0 5px;
-                color: {text_color};
+                color: {Theme.text()};
             }}
             QLineEdit {{
-                background-color: {input_bg};
-                color: {text_color};
-                border: 1px solid {input_border};
-                border-radius: 3px;
+                background-color: {Theme.color('input_bg')};
+                color: {Theme.text()};
+                border: 1px solid {Theme.border()};
+                border-radius: {Theme.RADIUS_SM}px;
                 padding: 5px;
+                font-family: '{Theme.FONT_BODY}';
             }}
             QLineEdit::placeholder {{
-                color: {placeholder_color};
+                color: {Theme.text_muted()};
             }}
             QLineEdit:disabled {{
-                color: {placeholder_color};
-                background-color: {bg_color};
+                color: {Theme.text_muted()};
+                background-color: {Theme.surface()};
             }}
             QComboBox {{
-                background-color: {input_bg};
-                color: {text_color};
-                border: 1px solid {input_border};
-                border-radius: 3px;
+                background-color: {Theme.surface_element()};
+                color: {Theme.text()};
+                border: 1px solid {Theme.border()};
+                border-radius: {Theme.RADIUS_SM}px;
                 padding: 5px;
                 min-height: 20px;
+                font-family: '{Theme.FONT_BODY}';
+            }}
+            QComboBox:hover {{
+                border-color: {Theme.success()};
             }}
             QComboBox::drop-down {{
                 border: none;
@@ -449,51 +434,39 @@ class AdvancedSettingsWindow(QDialog):
                 height: 0;
                 border-left: 5px solid transparent;
                 border-right: 5px solid transparent;
-                border-top: 6px solid {text_color};
+                border-top: 6px solid {Theme.text()};
                 margin-right: 5px;
             }}
             QComboBox QAbstractItemView {{
-                background-color: {input_bg};
-                color: {text_color};
-                border: 1px solid {input_border};
-                selection-background-color: {btn_hover};
-                selection-color: {text_color};
+                background-color: {Theme.surface_element()};
+                color: {Theme.text()};
+                border: 1px solid {Theme.border()};
+                selection-background-color: {Theme.color('surface_hover')};
+                selection-color: {Theme.text()};
             }}
             QComboBox:disabled {{
-                color: {placeholder_color};
-                background-color: {bg_color};
-            }}
-            QPushButton {{
-                background-color: {btn_bg};
-                color: {text_color};
-                border: none;
-                border-radius: 3px;
-                padding: 8px 16px;
-                font-weight: bold;
-            }}
-            QPushButton:hover {{
-                background-color: {btn_hover};
+                color: {Theme.text_muted()};
+                background-color: {Theme.surface()};
             }}
             QPushButton:default {{
-                background-color: #0066cc;
+                background-color: {Theme.color('info')};
                 color: white;
+                border: 1px solid {Theme.color('info')};
             }}
             QPushButton:default:hover {{
-                background-color: #0052a3;
+                background-color: {Theme.accent()};
+                border: 1px solid {Theme.accent()};
             }}
         """
         
-        self.setStyleSheet(dialog_style)
+        # Combine base and advanced styles
+        self.setStyleSheet(base_styles + advanced_styles)
         
-        # Apply toggle style to radio buttons
-        self.radio_bundled.setStyleSheet(toggle_style)
-        self.radio_system.setStyleSheet(toggle_style)
-        
-        # Title bar close button
+        # Title bar close button specific styling (red hover)
         close_style = f"""
             QPushButton {{
-                background-color: {btn_bg};
-                color: {text_color};
+                background-color: {Theme.surface_element()};
+                color: {Theme.text()};
                 border: none;
                 border-radius: 3px;
                 padding: 2px;
@@ -505,3 +478,4 @@ class AdvancedSettingsWindow(QDialog):
             }}
         """
         self.title_close_btn.setStyleSheet(close_style)
+

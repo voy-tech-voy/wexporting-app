@@ -388,7 +388,6 @@ class CommandPanel(QWidget):
 
     def _set_btn_active(self, group, btn_id, is_active):
         """Helper to set active state safely."""
-        print(f"[DEBUG] _set_btn_active called: btn_id={btn_id}, is_active={is_active}")
         if hasattr(group, 'set_transform_active'):
             group.set_transform_active(btn_id, bool(is_active))
     

@@ -704,10 +704,12 @@ class MainWindow(QMainWindow):
         size_mode = params.get('video_size_mode') or params.get('image_size_mode') or params.get('gif_size_mode')
         
         if size_mode == 'max_size':
+            # Get version from params (UI selection), fall back to global version
+            ui_version = params.get('estimator_version')
             from client.core.target_size.size_estimator_registry import get_estimator_version
-            current_version = get_estimator_version()
+            current_version = ui_version or get_estimator_version()
             use_target_size_engine = True
-            print(f"[MainWindow] Using TargetSizeConversionEngine ({current_version} active)")
+            print(f"[MainWindow] Using TargetSizeConversionEngine (estimator version: {current_version})")
         
         # Create appropriate engine
         if use_target_size_engine:

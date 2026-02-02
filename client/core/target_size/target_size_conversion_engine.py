@@ -178,18 +178,25 @@ class TargetSizeConversionEngine(QThread):
                 
                 target_bytes = int(target_mb * 1024 * 1024)
                 
+                # Build transform filters from UI params FIRST
+                transform_filters = build_transform_filters(self.params, file_path)
+                
                 # Generate output path (use estimator estimate for params)
                 multiple_max_sizes = self.params.get('multiple_max_sizes', False)
                 params = estimator.estimate(file_path, target_bytes, allow_downscale=auto_resize) if estimator else {}
+                
+                # Inject transformed dimensions into params for suffix generation
+                if transform_filters.get('target_dimensions'):
+                    w, h = transform_filters['target_dimensions']
+                    params['resolution_w'] = w
+                    params['resolution_h'] = h
+                
                 output_path = self._get_output_path(
                     file_path,
                     output_ext,
                     params,
                     target_mb if multiple_max_sizes else None
                 )
-                
-                # Build transform filters from UI params
-                transform_filters = build_transform_filters(self.params, file_path)
                 
                 # Delegate to self-contained estimator
                 success = run_video_conversion(
@@ -291,20 +298,28 @@ class TargetSizeConversionEngine(QThread):
                 if self.should_stop:
                     return False
                 
+                
                 target_bytes = int(target_mb * 1024 * 1024)
+                
+                # Build transform filters from UI params FIRST
+                transform_filters = build_transform_filters(self.params, file_path)
                 
                 # Generate output path (use estimator estimate for params)
                 multiple_max_sizes = self.params.get('multiple_max_sizes', False)
                 params = estimator.estimate(file_path, target_bytes, allow_downscale=auto_resize) if estimator else {}
+                
+                # Inject transformed dimensions into params for suffix generation
+                if transform_filters.get('target_dimensions'):
+                    w, h = transform_filters['target_dimensions']
+                    params['resolution_w'] = w
+                    params['resolution_h'] = h
+                
                 output_path = self._get_output_path(
                     file_path,
                     output_ext,
                     params,
                     target_mb if multiple_max_sizes else None
                 )
-                
-                # Build transform filters from UI params
-                transform_filters = build_transform_filters(self.params, file_path)
                 
                 # Delegate to self-contained estimator
                 success = run_loop_conversion(

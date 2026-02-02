@@ -11,10 +11,10 @@ PRODUCTION_DEFAULTS = {
         'png': 'v5',
     },
     'video': {
-        'mp4_h264': 'v2',
-        'mp4_h265': 'v2',
-        'webm_vp9': 'v2',
-        'webm_av1': 'v2',
+        'mp4_h264': 'v3',
+        'mp4_h265': 'v3',
+        'webm_vp9': 'v3',
+        'webm_av1': 'v6',
     },
     'loop': {
         'gif': 'v2',

@@ -55,7 +55,7 @@ def _register_default_tools(registry: ToolRegistry) -> None:
         version_args=["-version"],
         version_pattern=r"ffmpeg version (\d+[\.\d]*)",
         validate_capabilities=validate_ffmpeg_codecs,
-        required_capabilities=["libx264", "libx265", "libvpx-vp9", "libaom-av1", "aac", "libopus"],
+        required_capabilities=["libx264", "libx265", "libvpx-vp9", "libaom-av1", "libsvtav1", "aac", "libopus"],
         companions=["ffprobe"],
         is_bundled=True,
         bundle_subpath="tools",

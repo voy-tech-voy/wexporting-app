@@ -383,19 +383,52 @@ class StyleFactory:
             QCheckBox {{
                 color: {Theme.text()};
                 background-color: transparent;
-                spacing: 5px;
+                spacing: 8px;
                 font-family: '{Theme.FONT_BODY}';
             }}
             QCheckBox::indicator {{
-                width: 18px;
+                width: 32px;
                 height: 18px;
-                background-color: {Theme.surface_element()};
+                border-radius: 9px;
+            }}
+            QCheckBox::indicator:unchecked {{
+                background-color: {Theme.border()};
                 border: 1px solid {Theme.border()};
-                border-radius: 3px;
             }}
             QCheckBox::indicator:checked {{
-                background-color: {Theme.color('info')};
-                border: 1px solid {Theme.color('info')};
+                background-color: {Theme.success()};
+                border: 1px solid {Theme.success()};
+            }}
+            QCheckBox::indicator:unchecked:hover {{
+                border: 1px solid {Theme.border_focus()};
+            }}
+            QCheckBox::indicator:checked:hover {{
+                background-color: {Theme.color_with_alpha('accent_success', 0.8)};
+            }}
+            QRadioButton {{
+                color: {Theme.text()};
+                background-color: transparent;
+                spacing: 8px;
+                font-family: '{Theme.FONT_BODY}';
+            }}
+            QRadioButton::indicator {{
+                width: 32px;
+                height: 18px;
+                border-radius: 9px;
+            }}
+            QRadioButton::indicator:unchecked {{
+                background-color: {Theme.border()};
+                border: 1px solid {Theme.border()};
+            }}
+            QRadioButton::indicator:checked {{
+                background-color: {Theme.success()};
+                border: 1px solid {Theme.success()};
+            }}
+            QRadioButton::indicator:unchecked:hover {{
+                border: 1px solid {Theme.border_focus()};
+            }}
+            QRadioButton::indicator:checked:hover {{
+                background-color: {Theme.color_with_alpha('accent_success', 0.8)};
             }}
             QDialogButtonBox {{
                 background-color: transparent;
@@ -418,3 +451,4 @@ class StyleFactory:
                 background-color: {Theme.color('surface_pressed')};
             }}
         """
+
