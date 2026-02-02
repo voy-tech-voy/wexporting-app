@@ -17,7 +17,7 @@ PRODUCTION_DEFAULTS = {
         'webm_av1': 'v6',
     },
     'loop': {
-        'gif': 'v2',
+        'gif': 'v4',
         'webm_loop': 'v2',
     }
 }

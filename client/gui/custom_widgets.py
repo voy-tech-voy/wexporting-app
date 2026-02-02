@@ -730,7 +730,9 @@ class ModeButtonsWidget(QWidget):
             layout.setSpacing(8)
             button_size = None
         
-        icon_size = QSize(32, 32)
+        icon_size = QSize(26, 26)
+        # Target icon is 25% larger in vertical (side button) mode
+        target_icon_size = QSize(28, 28) if orientation == Qt.Orientation.Vertical else icon_size
         
         # Create Buttons
         if orientation == Qt.Orientation.Vertical:
@@ -757,8 +759,8 @@ class ModeButtonsWidget(QWidget):
         self.manual_btn.setToolTip("Manual: Set quality settings yourself")
         self._configure_button_sizing(self.manual_btn, button_size)
         
-        # Set Icons
-        self.max_size_btn.setIconSize(icon_size)
+        # Set Icons (target icon is larger)
+        self.max_size_btn.setIconSize(target_icon_size)
         self.presets_btn.setIconSize(icon_size)
         self.manual_btn.setIconSize(icon_size)
         
@@ -895,11 +897,13 @@ class ModeButtonsWidget(QWidget):
         # The user's issue is "invisible in light mode", meaning white icons on white bg.
         # So changing them to black (Theme.text() in light mode) will fix it for unselected state.
         
-        self.max_size_btn.setIcon(self._create_themed_icon("target_icon.svg"))
-        self.presets_btn.setIcon(self._create_themed_icon("presets.svg"))
-        self.manual_btn.setIcon(self._create_themed_icon("settings.svg"))
+        # Pass icon sizes to creation method
+        target_size = 55 if self.orientation == Qt.Orientation.Vertical else 32
+        self.max_size_btn.setIcon(self._create_themed_icon("target_icon.svg", target_size))
+        self.presets_btn.setIcon(self._create_themed_icon("presets.svg", 32))
+        self.manual_btn.setIcon(self._create_themed_icon("settings.svg", 32))
 
-    def _create_themed_icon(self, icon_name):
+    def _create_themed_icon(self, icon_name, size=64):
         """Create a QIcon from SVG with theme coloring."""
         try:
             icon_path = get_resource_path(f"client/assets/icons/{icon_name}")
@@ -924,7 +928,7 @@ class ModeButtonsWidget(QWidget):
             # svg_content = re.sub(r'fill=["\'](?!none).*?["\']', f'fill="{color}"', svg_content)
             
             renderer = QSvgRenderer(QByteArray(svg_content.encode('utf-8')))
-            pixmap = QPixmap(64, 64) # Render high-res
+            pixmap = QPixmap(size, size) # Render at requested size
             pixmap.fill(Qt.GlobalColor.transparent)
             
             painter = QPainter(pixmap)
@@ -944,7 +948,7 @@ class ModeButtonsWidget(QWidget):
                 if hasattr(btn, 'set_force_hidden'):
                     btn.set_force_hidden(hidden)
 
-    def _get_tinted_icon(self, icon_path, color):
+    def _get_tinted_icon(self, icon_path, color, size=20):
         """Load SVG and apply tint color"""
         abs_path = get_resource_path(icon_path)
         if not os.path.exists(abs_path):
@@ -954,7 +958,7 @@ class ModeButtonsWidget(QWidget):
         if pixmap.isNull():
             return QIcon()
             
-        scaled_pixmap = pixmap.scaled(20, 20, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+        scaled_pixmap = pixmap.scaled(size, size, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
         tinted_pixmap = QPixmap(scaled_pixmap.size())
         tinted_pixmap.fill(Qt.GlobalColor.transparent)
         
@@ -973,9 +977,11 @@ class ModeButtonsWidget(QWidget):
         Theme.set_dark_mode(is_dark)
         icon_color = QColor(255, 255, 255) if is_dark else QColor(0, 0, 0)
         
-        self.max_size_btn.setIcon(self._get_tinted_icon("client/assets/icons/target_icon.svg", icon_color))
-        self.presets_btn.setIcon(self._get_tinted_icon("client/assets/icons/presets.svg", icon_color))
-        self.manual_btn.setIcon(self._get_tinted_icon("client/assets/icons/settings.svg", icon_color))
+        # Pass icon sizes to tinting method
+        target_size = 55 if self.orientation == Qt.Orientation.Vertical else 32
+        self.max_size_btn.setIcon(self._get_tinted_icon("client/assets/icons/target_icon.svg", icon_color, target_size))
+        self.presets_btn.setIcon(self._get_tinted_icon("client/assets/icons/presets.svg", icon_color, 32))
+        self.manual_btn.setIcon(self._get_tinted_icon("client/assets/icons/settings.svg", icon_color, 32))
         
         bg_hover = "rgba(255, 255, 255, 0.1)" if is_dark else "rgba(0, 0, 0, 0.05)"
         border_color = Theme.border()
