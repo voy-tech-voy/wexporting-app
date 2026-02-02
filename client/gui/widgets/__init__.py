@@ -11,6 +11,7 @@ from .dynamic_font_button import DynamicFontButton
 from .target_size_spinbox import CustomTargetSizeSpinBox, DragOverlay, SpinBoxLineEdit
 from .morphing_button import MorphingButton
 from .preset_status_button import PresetStatusButton
+from .estimator_version_selector import EstimatorVersionSelector
 
 __all__ = [
     'FileListItemWidget',
@@ -20,4 +21,5 @@ __all__ = [
     'SpinBoxLineEdit',
     'MorphingButton',
     'PresetStatusButton',
+    'EstimatorVersionSelector',
 ]

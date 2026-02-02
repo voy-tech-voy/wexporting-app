@@ -19,6 +19,7 @@ from client.gui.custom_widgets import (
     CustomTargetSizeSpinBox, VideoCodecSelector, TimeRangeSlider,
     UnifiedVariantInput
 )
+from client.gui.widgets import EstimatorVersionSelector
 from client.gui.sections import ResizeSection, TargetSizeSection
 from client.gui.theme import get_combobox_style
 
@@ -93,15 +94,10 @@ class VideoTab(BaseTab):
         self.target_size_section.setVisible(False)
         self.codec_group.add_row(self.target_size_section)
         
-        # --- Estimator Version Dropdown (Dev Mode Only) ---
-        self.estimator_version_combo = QComboBox()
-        self._populate_estimator_versions()
-        self.estimator_version_combo.setToolTip("[DEV] Switch size estimation algorithm")
-        self.estimator_version_combo.setVisible(False)
-        self.estimator_version_combo.currentIndexChanged.connect(self._on_estimator_version_changed)
-        self.estimator_version_label = QLabel("Estimator [DEV]")
-        self.estimator_version_label.setVisible(False)
-        self.codec_group.add_row(self.estimator_version_label, self.estimator_version_combo)
+        # Estimator Version Selection (reusable component)
+        self.version_selector = EstimatorVersionSelector('video', self)
+        self.version_selector.set_format(self.codec.currentText())
+        self.codec_group.add_row(self.version_selector)
         
         # --- Multiple qualities ---
         self.multiple_qualities = ThemedCheckBox("Multiple variants")
@@ -249,10 +245,9 @@ class VideoTab(BaseTab):
             'time_end': self.time_range_slider.getEndValue() if self.enable_time_cutting.isChecked() else 1.0,
             'retime_enabled': self.enable_retime.isChecked(),
             'retime_speed': self.retime_slider.value() / 10.0 if self.enable_retime.isChecked() else 1.0,
-            'estimator_version': self.estimator_version_combo.currentText() if self.estimator_version_combo.isVisible() else None,
+            'estimator_version': self.version_selector.get_selected_version(),
         }
-        # Debug: show what version is being collected
-        print(f"[VideoTab] get_params: estimator_version='{params['estimator_version']}', combo_visible={self.estimator_version_combo.isVisible()}")
+
         # Merge resize params
         params.update(resize_params)
         return params
@@ -280,10 +275,7 @@ class VideoTab(BaseTab):
         # Target size section (only visible in Max Size mode)
         self.target_size_section.setVisible(is_max_size)
         
-        # Estimator version dropdown (only in dev mode AND max_size mode)
-        is_dev = getattr(self, '_is_dev_mode', False)
-        self.estimator_version_label.setVisible(is_max_size and is_dev)
-        self.estimator_version_combo.setVisible(is_max_size and is_dev)
+        # Estimator version selector visibility handled by component itself
         
         # Quality controls (only visible in Manual mode, hidden in Max Size)
         self.quality_label.setVisible(is_manual and not self.multiple_qualities.isChecked())
@@ -309,8 +301,8 @@ class VideoTab(BaseTab):
         """Handle codec change - update UI and refresh estimator versions."""
         print(f"[VideoTab] Codec changed to: {codec}")
         
-        # Refresh estimator versions for new codec
-        self._populate_estimator_versions()
+        # Update version selector for new codec
+        self.version_selector.set_format(codec)
         
         # Update UI based on codec
         if "H.265" in codec or "HEVC" in codec:
@@ -325,42 +317,7 @@ class VideoTab(BaseTab):
         self.quality_variants_label.setVisible(is_multiple)
         self._notify_param_change()
     
-    def _populate_estimator_versions(self):
-        """Populate estimator version dropdown based on selected codec."""
-        from client.core.target_size.size_estimator_registry import get_available_video_estimator_versions
-        
-        # Map codec display name to format key
-        codec_text = self.codec.currentText()
-        
-        # Determine format key based on codec (must match size_estimator_registry._normalize_video_codec)
-        if "H.264" in codec_text:
-            format_key = "mp4_h264"
-        elif "H.265" in codec_text or "HEVC" in codec_text:
-            format_key = "mp4_h265"
-        elif "AV1" in codec_text:
-            format_key = "webm_av1"  # FIXED: was mp4_av1
-        elif "VP9" in codec_text:
-            format_key = "webm_vp9"
-        else:
-            format_key = "mp4_h264"  # Default
-        
-        # Get available versions for this codec
-        versions = get_available_video_estimator_versions(format_key)
-        
-        # Update dropdown
-        self.estimator_version_combo.blockSignals(True)
-        self.estimator_version_combo.clear()
-        for version in versions:
-            self.estimator_version_combo.addItem(version)
-        self.estimator_version_combo.blockSignals(False)
-        
-        # Select highest version available dynamically
-        if versions:
-            # Sort versions by number (v1, v2, v3, v4, ...) and select the highest
-            sorted_versions = sorted(versions, key=lambda v: int(v[1:]) if v[1:].isdigit() else 0, reverse=True)
-            self.estimator_version_combo.setCurrentText(sorted_versions[0])
-        
-        print(f"[VideoTab] Estimator version changed to: {self.estimator_version_combo.currentText()}")
+
     
     def _toggle_quality_mode(self, multiple: bool):
         """Toggle between single quality slider and multiple variants."""
@@ -399,18 +356,10 @@ class VideoTab(BaseTab):
         except:
             return []
     
-    def _on_estimator_version_changed(self, index: int):
-        """Handle estimator version dropdown change."""
-        from client.core.target_size.size_estimator_registry import set_estimator_version
-        version = self.estimator_version_combo.itemData(index)
-        if version:
-            set_estimator_version(version)
-            print(f"[VideoTab] Estimator version changed to: {version}")
+
     
     def set_dev_mode(self, is_dev: bool):
         """Enable/disable dev mode features like estimator version selector."""
         self._is_dev_mode = is_dev
-        # Estimator dropdown only shows in dev mode AND max_size mode
-        if hasattr(self, '_is_max_size_mode') and self._is_max_size_mode:
-            self.estimator_version_label.setVisible(is_dev)
-            self.estimator_version_combo.setVisible(is_dev)
+        # Version selector handles its own visibility
+        self.version_selector.set_dev_mode(is_dev)

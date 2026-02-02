@@ -52,9 +52,17 @@ class Estimator(EstimatorProtocol):
     ) -> Dict[str, Any]:
         """Find optimal quality/resolution for target size through binary search."""
         allow_downscale = options.get('allow_downscale', False)
+        override_w = options.get('override_width')
+        override_h = options.get('override_height')
         print(f"[JPG_v5] Estimating for {target_size_bytes} bytes, downscale={allow_downscale}")
         
         meta = get_media_metadata(input_path)
+        
+        # Use user override dimensions if provided
+        if override_w and override_h:
+            meta['width'] = override_w
+            meta['height'] = override_h
+        
         scales = [1.0, 0.85, 0.70, 0.55] if allow_downscale else [1.0]
         best_res = None
         
@@ -192,8 +200,13 @@ class Estimator(EstimatorProtocol):
             # Build FFmpeg command
             stream = ffmpeg.input(input_path)
             
-            # Apply scaling if needed
-            if params['scale_factor'] < 1.0:
+            # Get user override dimensions
+            override_w = options.get('override_width')
+            override_h = options.get('override_height')
+            
+            # Apply scale if: user provided override OR auto-resize reduced size
+            needs_scale = (override_w and override_h) or params['scale_factor'] < 1.0
+            if needs_scale:
                 stream = ffmpeg.filter(stream, 'scale', params['resolution_w'], params['resolution_h'])
             
             # Apply rotation if specified

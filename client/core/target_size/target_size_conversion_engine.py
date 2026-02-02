@@ -97,17 +97,22 @@ class TargetSizeConversionEngine(QThread):
         Returns:
             'image', 'video', or 'loop'
         """
+        # First check explicit type param (set by tabs)
+        explicit_type = self.params.get('type')
+        if explicit_type in ('image', 'video', 'loop'):
+            return explicit_type
+        
         # Check for image-specific params
         if 'image_max_size_mb' in self.params or 'output_format' in self.params:
             return 'image'
         
+        # Check for loop/GIF params (check before video since WebM loops use video_max_size_mb)
+        if 'gif_max_size_mb' in self.params or 'loop_format' in self.params:
+            return 'loop'
+        
         # Check for video-specific params
         if 'codec' in self.params or 'video_max_size_mb' in self.params:
             return 'video'
-        
-        # Check for loop/GIF params
-        if 'gif_max_size_mb' in self.params or self.params.get('format', '').upper() == 'GIF':
-            return 'loop'
         
         # Default to video (most common)
         return 'video'

@@ -19,6 +19,7 @@ from client.gui.custom_widgets import (
     CustomTargetSizeSpinBox, LoopFormatSelector, TimeRangeSlider,
     UnifiedVariantInput
 )
+from client.gui.widgets import EstimatorVersionSelector
 from client.gui.sections import ResizeSection
 from client.gui.theme import get_combobox_style
 
@@ -103,15 +104,10 @@ class LoopTab(BaseTab):
         self.auto_resize_checkbox.setVisible(False)
         self.settings_group.add_row(self.auto_resize_checkbox)
         
-        # --- Estimator Version Dropdown (Dev Mode Only) ---
-        self.estimator_version_combo = QComboBox()
-        self._populate_estimator_versions()
-        self.estimator_version_combo.setToolTip("[DEV] Switch size estimation algorithm")
-        self.estimator_version_combo.setVisible(False)
-        self.estimator_version_combo.currentIndexChanged.connect(self._on_estimator_version_changed)
-        self.estimator_version_label = QLabel("Estimator [DEV]")
-        self.estimator_version_label.setVisible(False)
-        self.settings_group.add_row(self.estimator_version_label, self.estimator_version_combo)
+        # Estimator Version Selection (reusable component)
+        self.version_selector = EstimatorVersionSelector('loop', self)
+        self.version_selector.set_format(self.format_selector.currentText())
+        self.settings_group.add_row(self.version_selector)
         
         # ============ GIF CONTROLS CONTAINER ============
         self.gif_controls_container = QWidget()
@@ -327,7 +323,7 @@ class LoopTab(BaseTab):
             'time_end': self.time_range_slider.endValue() if self.enable_time_cutting.isChecked() else 1.0,
             'retime_enabled': self.enable_retime.isChecked(),
             'retime_speed': self.retime_slider.value() / 10.0 if self.enable_retime.isChecked() else 1.0,
-            'estimator_version': self.estimator_version_combo.itemData(self.estimator_version_combo.currentIndex()) if self.estimator_version_combo.isVisible() else None,
+            'estimator_version': self.version_selector.get_selected_version(),
         }
         
         # Add format-specific max size parameters
@@ -452,10 +448,8 @@ class LoopTab(BaseTab):
         self.max_size_spinbox.setVisible(is_max_size)
         self.auto_resize_checkbox.setVisible(is_max_size)
         
-        # Estimator version dropdown (only in dev mode AND max_size mode)
-        is_dev = getattr(self, '_is_dev_mode', False)
-        self.estimator_version_label.setVisible(is_max_size and is_dev)
-        self.estimator_version_combo.setVisible(is_max_size and is_dev)
+        
+        # Estimator version selector visibility handled by component itself
         
         # Delegate format-specific visibility to centralized method
         self._update_format_visibility()
@@ -472,8 +466,8 @@ class LoopTab(BaseTab):
     
     def _on_format_changed(self, format_name: str):
         """Handle format change between GIF and WebM."""
-        # Refresh estimator versions for new format
-        self._populate_estimator_versions()
+        # Update version selector for new format
+        self.version_selector.set_format(format_name)
         
         # Delegate all visibility logic to centralized method
         self._update_format_visibility()
@@ -517,54 +511,12 @@ class LoopTab(BaseTab):
         except:
             return []
     
-    def _populate_estimator_versions(self):
-        """Populate estimator version dropdown with available versions for current format."""
-        from client.core.target_size.size_estimator_registry import get_available_versions_for_format
-        
-        # Get current format (GIF or WebM)
-        current_format = self.format_selector.currentText()
-        
-        self.estimator_version_combo.blockSignals(True)
-        self.estimator_version_combo.clear()
-        
-        # Get format-specific versions
-        versions = get_available_versions_for_format('loop', current_format)
-        if not versions:
-            # Fallback to default if no versions found
-            self.estimator_version_combo.addItem(f"v2 ({current_format})", "v2")
-        else:
-            for display_name, version_key in versions:
-                self.estimator_version_combo.addItem(display_name, version_key)
-        
-        self.estimator_version_combo.blockSignals(False)
-        
-        # Select highest version available dynamically
-        if versions:
-            # Extract version keys and sort by number (v1, v2, v3, ...) to find highest
-            version_keys = [version_key for _, version_key in versions]
-            sorted_versions = sorted(version_keys, key=lambda v: int(v[1:]) if v[1:].isdigit() else 0, reverse=True)
-            highest_version = sorted_versions[0]
-            
-            # Set combo to highest version
-            for i in range(self.estimator_version_combo.count()):
-                if self.estimator_version_combo.itemData(i) == highest_version:
-                    self.estimator_version_combo.setCurrentIndex(i)
-                    break
-        
-        print(f"[LoopTab] Estimator version changed to: {self.estimator_version_combo.currentText()}")
+
     
-    def _on_estimator_version_changed(self, index: int):
-        """Handle estimator version dropdown change."""
-        from client.core.target_size.size_estimator_registry import set_estimator_version
-        version = self.estimator_version_combo.itemData(index)
-        if version:
-            set_estimator_version(version)
-            print(f"[LoopTab] Estimator version changed to: {version}")
+
     
     def set_dev_mode(self, is_dev: bool):
         """Enable/disable dev mode features like estimator version selector."""
         self._is_dev_mode = is_dev
-        # Estimator dropdown only shows in dev mode AND max_size mode
-        if hasattr(self, '_is_max_size_mode') and self._is_max_size_mode:
-            self.estimator_version_label.setVisible(is_dev)
-            self.estimator_version_combo.setVisible(is_dev)
+        # Version selector handles its own visibility
+        self.version_selector.set_dev_mode(is_dev)

@@ -7,17 +7,55 @@ import importlib
 from pathlib import Path
 
 # =============================================================================
-# VERSION STATE
+# VERSION STATE & RESOLUTION
 # =============================================================================
+# DEPRECATED: Global version state - kept for backward compatibility during migration
 _active_estimator_version = 'v3'  # v3: Interruptible encoding with proper error capture
 
 def get_estimator_version(): 
+    """DEPRECATED: Returns global version. Use PRODUCTION_DEFAULTS instead."""
     return _active_estimator_version
 
 def set_estimator_version(version: str):
+    """DEPRECATED: Sets global version. Use per-format version selection instead."""
     global _active_estimator_version
     _active_estimator_version = version
     return True
+
+def _resolve_version(media_type: str, format_key: str, requested_version: str = None) -> str:
+    """
+    Smart version resolution with fallback chain:
+    1. Explicit version from UI (dev mode override)
+    2. PRODUCTION_DEFAULTS for this specific format
+    3. Highest available version for this format
+    4. DEFAULT_VERSION as last resort
+    
+    Args:
+        media_type: 'image', 'video', or 'loop'
+        format_key: Normalized format/codec key
+        requested_version: Optional explicit version from UI
+    
+    Returns:
+        Resolved version string (e.g., 'v6')
+    """
+    from .config import PRODUCTION_DEFAULTS, DEFAULT_VERSION
+    
+    # 1. Explicit version (dev mode override)
+    if requested_version:
+        return requested_version
+    
+    # 2. Production default for this specific format
+    default = PRODUCTION_DEFAULTS.get(media_type, {}).get(format_key)
+    if default:
+        return default
+    
+    # 3. Highest available version for this format
+    versions = get_available_versions_for_format(media_type, format_key)
+    if versions:
+        return versions[-1][1]  # Highest version
+    
+    # 4. Last resort fallback
+    return DEFAULT_VERSION
 
 # =============================================================================
 # FORMAT NORMALIZATION
@@ -50,7 +88,12 @@ def _normalize_loop_format(fmt: str) -> str:
     """Normalize loop format to estimator key."""
     fmt_lower = fmt.lower()
     if 'gif' in fmt_lower: return 'gif'
-    if 'webm' in fmt_lower: return 'webm_loop'
+    if 'webm' in fmt_lower:
+        # Check if AV1 codec is specified
+        if 'av1' in fmt_lower:
+            return 'webm_av1_loop'
+        else:
+            return 'webm_loop'  # VP9 or unspecified
     return 'gif'  # default
 
 # =============================================================================
@@ -122,31 +165,30 @@ def _load_estimator_class(media_type: str, format_key: str, version: str):
 
 def get_video_estimator(codec_pref: str, version: str = None):
     """
-    Get a video estimator class instance.
+    Get a video estimator class instance with smart version resolution.
     
     Args:
         codec_pref: Codec preference (e.g., 'H.264 (MP4)', 'H.265/HEVC')
-        version: Optional version override, defaults to active version
+        version: Optional version override (dev mode), defaults to PRODUCTION_DEFAULTS
     
     Returns:
         Estimator class instance or None
     """
-    version = version or _active_estimator_version
     codec_key = _normalize_video_codec(codec_pref)
+    resolved_version = _resolve_version('video', codec_key, version)
     
-    print(f"[Registry] get_video_estimator: codec_pref='{codec_pref}' -> codec_key='{codec_key}', version='{version}'")
+    print(f"[Registry] get_video_estimator: codec_pref='{codec_pref}' -> codec_key='{codec_key}', version='{resolved_version}'")
     
-    estimator = _load_estimator_class('video', codec_key, version)
+    estimator = _load_estimator_class('video', codec_key, resolved_version)
     
     if not estimator:
-        # Fallback to available versions
-        print(f"[Registry] Estimator not found for {codec_key} {version}, checking available versions...")
+        # Fallback to highest available version
+        print(f"[Registry] Estimator not found for {codec_key} {resolved_version}, checking available versions...")
         versions = get_available_versions_for_format('video', codec_key)
         if versions:
             fallback_version = versions[-1][1]
             print(f"[Registry] Falling back to version: {fallback_version}")
             estimator = _load_estimator_class('video', codec_key, fallback_version)
-    
     
     return estimator
 
@@ -199,22 +241,22 @@ def run_video_conversion(
 
 def get_image_estimator(output_format: str, version: str = None):
     """
-    Get an image estimator class instance.
+    Get an image estimator class instance with smart version resolution.
     
     Args:
         output_format: Output format (JPG, WebP, PNG, etc.)
-        version: Optional version override, defaults to active version
+        version: Optional version override (dev mode), defaults to PRODUCTION_DEFAULTS
     
     Returns:
         Estimator class instance or None
     """
-    version = version or _active_estimator_version
     format_key = _normalize_image_format(output_format)
+    resolved_version = _resolve_version('image', format_key, version)
     
-    estimator = _load_estimator_class('image', format_key, version)
+    estimator = _load_estimator_class('image', format_key, resolved_version)
     
     if not estimator:
-        # Fallback to available versions
+        # Fallback to highest available version
         versions = get_available_versions_for_format('image', format_key)
         if versions:
             fallback_version = versions[-1][1]
@@ -266,25 +308,25 @@ def run_image_conversion(
 
 def get_loop_estimator(loop_format: str, version: str = None):
     """
-    Get a loop estimator class instance.
+    Get a loop estimator class instance with smart version resolution.
     
     Args:
         loop_format: Loop format (GIF, WebM, etc.)
-        version: Optional version override, defaults to active version
+        version: Optional version override (dev mode), defaults to PRODUCTION_DEFAULTS
     
     Returns:
         Estimator class instance or None
     """
-    version = version or _active_estimator_version
     format_key = _normalize_loop_format(loop_format)
+    resolved_version = _resolve_version('loop', format_key, version)
     
-    print(f"[Registry] get_loop_estimator: loop_format='{loop_format}' -> format_key='{format_key}', version='{version}'")
+    print(f"[Registry] get_loop_estimator: loop_format='{loop_format}' -> format_key='{format_key}', version='{resolved_version}'")
     
-    estimator = _load_estimator_class('loop', format_key, version)
+    estimator = _load_estimator_class('loop', format_key, resolved_version)
     
     if not estimator:
-        # Fallback to available versions
-        print(f"[Registry] Estimator not found for {format_key} {version}, checking available versions...")
+        # Fallback to highest available version
+        print(f"[Registry] Estimator not found for {format_key} {resolved_version}, checking available versions...")
         versions = get_available_versions_for_format('loop', format_key)
         if versions:
             fallback_version = versions[-1][1]

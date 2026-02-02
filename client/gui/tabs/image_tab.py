@@ -18,6 +18,7 @@ from client.gui.custom_widgets import (
     FormatButtonRow, RotationButtonRow, 
     ThemedCheckBox, CustomTargetSizeSpinBox, UnifiedVariantInput
 )
+from client.gui.widgets import EstimatorVersionSelector
 from client.gui.sections import ResizeSection, TargetSizeSection
 from client.gui.theme import get_combobox_style
 
@@ -97,13 +98,10 @@ class ImageTab(BaseTab):
         self.target_size_section.paramChanged.connect(self._notify_param_change)
         self.format_group.add_row(self.target_size_section)
         
-        # Estimator Version Selection
-        self.estimator_version_label = QLabel("Estimator Version:")
-        self.estimator_version_combo = QComboBox()
-        self._populate_estimator_versions()  # Populate based on current format
-        self.estimator_version_combo.currentIndexChanged.connect(self._on_estimator_version_changed)
-        self.estimator_version_label.setVisible(False)
-        self.format_group.add_row(self.estimator_version_label, self.estimator_version_combo)
+        # Estimator Version Selection (reusable component)
+        self.version_selector = EstimatorVersionSelector('image', self)
+        self.version_selector.set_format(self.format.currentText())
+        self.format_group.add_row(self.version_selector)
         
         # --- Multiple qualities ---
         self.multiple_qualities = ThemedCheckBox("Multiple variants")
@@ -197,7 +195,7 @@ class ImageTab(BaseTab):
             'multiple_max_sizes': target_params['multiple_variants'],
             'max_size_variants': target_params['size_variants'],
             'rotation_angle': self.rotation_angle.currentText(),
-            'estimator_version': self.estimator_version_combo.currentText() if self.estimator_version_combo.isVisible() else None,
+            'estimator_version': self.version_selector.get_selected_version(),
         }
         # Merge resize params
         params.update(resize_params)
@@ -227,10 +225,7 @@ class ImageTab(BaseTab):
         # Target size section (only visible in Max Size mode)
         self.target_size_section.setVisible(is_max_size)
         
-        # Estimator version dropdown (only in dev mode AND max_size mode)
-        is_dev = getattr(self, '_is_dev_mode', False)
-        self.estimator_version_label.setVisible(is_max_size and is_dev)
-        self.estimator_version_combo.setVisible(is_max_size and is_dev)
+        # Estimator version selector visibility handled by component itself
         
         # Quality controls (only visible in Manual mode, hidden in Max Size)
         self.quality_row_label.setVisible(is_manual and not self.multiple_qualities.isChecked())
@@ -312,63 +307,23 @@ class ImageTab(BaseTab):
         except:
             return []
     
-    def _populate_estimator_versions(self):
-        """Populate estimator version dropdown with available versions for current format."""
-        from client.core.target_size.size_estimator_registry import get_available_versions_for_format
-        
-        # Get current format
-        current_format = self.format.currentText()
-        
-        self.estimator_version_combo.blockSignals(True)
-        self.estimator_version_combo.clear()
-        
-        # Get format-specific versions
-        versions = get_available_versions_for_format('image', current_format)
-        if not versions:
-            # Fallback to default if no versions found
-            self.estimator_version_combo.addItem(f"v5 ({current_format})", "v5")
-        else:
-            for display_name, version_key in versions:
-                self.estimator_version_combo.addItem(display_name, version_key)
-        
-        self.estimator_version_combo.blockSignals(False)
-        
-        # Select highest version available dynamically
-        if versions:
-            # Extract version keys and sort by number (v1, v2, v3, ...) to find highest
-            version_keys = [version_key for _, version_key in versions]
-            sorted_versions = sorted(version_keys, key=lambda v: int(v[1:]) if v[1:].isdigit() else 0, reverse=True)
-            highest_version = sorted_versions[0]
-            
-            # Set combo to highest version
-            for i in range(self.estimator_version_combo.count()):
-                if self.estimator_version_combo.itemData(i) == highest_version:
-                    self.estimator_version_combo.setCurrentIndex(i)
-                    break
-        
-        print(f"[ImageTab] Estimator version changed to: {self.estimator_version_combo.currentText()}")
+
     
     def _on_format_changed(self, new_format: str):
         """Handle format dropdown change."""
         print(f"[ImageTab] Format changed to: {new_format}")
-        self._populate_estimator_versions()
+        
+        # Update version selector for new format
+        self.version_selector.set_format(new_format)
         
         # Update target size variant defaults based on format
         if hasattr(self, 'target_size_section'):
             self.target_size_section.update_variant_defaults(new_format)
     
-    def _on_estimator_version_changed(self, index: int):
-        """Handle estimator version dropdown change."""
-        from client.core.target_size.size_estimator_registry import set_estimator_version
-        version = self.estimator_version_combo.itemData(index)
-        if version:
-            set_estimator_version(version)
-            print(f"[ImageTab] Estimator version changed to: {version}")
+
     
     def set_dev_mode(self, is_dev: bool):
         """Enable/disable dev mode features like estimator version selector."""
         self._is_dev_mode = is_dev
-        # Estimator dropdown only shows in dev mode AND max_size mode
-        if hasattr(self, '_is_max_size_mode') and self._is_max_size_mode:
-            self.estimator_version_label.setVisible(is_dev)
-            self.estimator_version_combo.setVisible(is_dev)
+        # Version selector handles its own visibility
+        self.version_selector.set_dev_mode(is_dev)
