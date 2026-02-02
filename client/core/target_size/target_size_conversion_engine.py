@@ -234,6 +234,8 @@ class TargetSizeConversionEngine(QThread):
     def _convert_image(self, file_path: str) -> bool:
         """Convert image using self-contained estimator."""
         from .size_estimator_registry import run_image_conversion, get_image_estimator
+        from client.core.dimension_utils import calculate_target_dimensions
+        from client.core.ffmpeg_utils import get_video_dimensions
         
         try:
             target_sizes = self._get_target_sizes('image')
@@ -241,44 +243,94 @@ class TargetSizeConversionEngine(QThread):
             auto_resize = self.params.get('image_auto_resize', False)
             rotation = self.params.get('rotation_angle', None)
             
+            # Get original dimensions for resize calculation (ffprobe works for images too)
+            try:
+                orig_w, orig_h = get_video_dimensions(file_path)
+            except:
+                orig_w, orig_h = 0, 0
+            
+            # Check if multi-variant resize is enabled
+            multiple_resize = self.params.get('multiple_resize', False) or self.params.get('multiple_size_variants', False)
+            resize_variants = self.params.get('resize_variants', []) or self.params.get('video_variants', [])
+            current_resize = self.params.get('current_resize')
+            allow_upscale = self.params.get('allow_upscaling', False)
+            
+            # Build list of resize specs to process
+            resize_specs = []
+            if multiple_resize and resize_variants:
+                # Multi-variant mode: use all variants
+                resize_specs = resize_variants
+            elif current_resize and current_resize != "No resize":
+                # Single resize mode: use current_resize
+                resize_specs = [current_resize]
+            else:
+                # No resize: process once with None
+                resize_specs = [None]
+            
             # Get estimator to determine output extension
             estimator = get_image_estimator(output_format)
             output_ext = estimator.get_output_extension() if estimator else 'webp'
             
             all_success = True
+            
+            # Iterate over target sizes
             for target_mb in target_sizes:
                 if self.should_stop:
                     return False
                 
                 target_bytes = int(target_mb * 1024 * 1024)
                 
-                # Generate output path (use estimator estimate for params info)
-                multiple_max_sizes = self.params.get('multiple_max_sizes', False)
-                params = estimator.estimate(file_path, target_bytes, allow_downscale=auto_resize) if estimator else {}
-                output_path = self._get_output_path(
-                    file_path,
-                    output_ext,
-                    params,
-                    target_mb if multiple_max_sizes else None
-                )
-                
-                # Delegate to self-contained estimator
-                success = run_image_conversion(
-                    input_path=file_path,
-                    output_path=output_path,
-                    target_size_bytes=target_bytes,
-                    output_format=output_format,
-                    status_callback=self.status_updated.emit,
-                    stop_check=lambda: self.should_stop,
-                    rotation=rotation,
-                    allow_downscale=auto_resize
-                )
-                
-                if success:
-                    self.file_completed.emit(file_path, output_path)
-                else:
-                    all_success = False
-                    break
+                # Iterate over resize variants
+                for resize_spec in resize_specs:
+                    if self.should_stop:
+                        return False
+                    
+                    # Calculate override dimensions for this variant
+                    override_dims = None
+                    if resize_spec and orig_w > 0:
+                        override_dims = calculate_target_dimensions(
+                            file_path="",
+                            resize_spec=resize_spec,
+                            original_width=orig_w,
+                            original_height=orig_h,
+                            allow_upscale=allow_upscale
+                        )
+                    
+                    # Prepare estimator kwargs with overrides
+                    est_kwargs = {'allow_downscale': auto_resize}
+                    if override_dims:
+                        est_kwargs['override_width'] = override_dims[0]
+                        est_kwargs['override_height'] = override_dims[1]
+                    
+                    # Generate output path (use estimator estimate for params info)
+                    multiple_max_sizes = self.params.get('multiple_max_sizes', False)
+                    params = estimator.estimate(file_path, target_bytes, **est_kwargs) if estimator else {}
+                    output_path = self._get_output_path(
+                        file_path,
+                        output_ext,
+                        params,
+                        target_mb if multiple_max_sizes else None
+                    )
+                    
+                    # Delegate to self-contained estimator
+                    success = run_image_conversion(
+                        input_path=file_path,
+                        output_path=output_path,
+                        target_size_bytes=target_bytes,
+                        output_format=output_format,
+                        status_callback=self.status_updated.emit,
+                        stop_check=lambda: self.should_stop,
+                        rotation=rotation,
+                        allow_downscale=auto_resize,
+                        override_width=override_dims[0] if override_dims else None,
+                        override_height=override_dims[1] if override_dims else None
+                    )
+                    
+                    if success:
+                        self.file_completed.emit(file_path, output_path)
+                    else:
+                        all_success = False
+                        # Don't break - continue with other variants
             
             return all_success
             
