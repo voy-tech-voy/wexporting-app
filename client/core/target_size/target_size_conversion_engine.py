@@ -167,63 +167,91 @@ class TargetSizeConversionEngine(QThread):
             rotation = self.params.get('rotation_angle', None)
             estimator_version = self.params.get('estimator_version', None)  # Get version from UI
             
+            # Check if multi-variant resize is enabled
+            multiple_resize = self.params.get('multiple_resize', False) or self.params.get('multiple_size_variants', False)
+            resize_variants = self.params.get('resize_variants', []) or self.params.get('video_variants', [])
+            current_resize = self.params.get('current_resize')
+            
+            # Build list of resize specs to process
+            resize_specs = []
+            if multiple_resize and resize_variants:
+                # Multi-variant mode: use all variants
+                resize_specs = resize_variants
+            elif current_resize and current_resize != "No resize":
+                # Single resize mode: use current_resize
+                resize_specs = [current_resize]
+            else:
+                # No resize: process once with None
+                resize_specs = [None]
+            
             # Get estimator to determine output extension
             estimator = get_video_estimator(codec, version=estimator_version)
             output_ext = estimator.get_output_extension() if estimator else ('webm' if 'WebM' in codec else 'mp4')
             
             all_success = True
+            
+            # Iterate over target sizes
             for target_mb in target_sizes:
                 if self.should_stop:
                     return False
                 
                 target_bytes = int(target_mb * 1024 * 1024)
                 
-                # Build transform filters from UI params FIRST
-                transform_filters = build_transform_filters(self.params, file_path)
-                
-                # Prepare estimator overrides from transforms
-                est_kwargs = {}
-                if transform_filters.get('target_dimensions'):
-                    w, h = transform_filters['target_dimensions']
-                    est_kwargs['override_width'] = w
-                    est_kwargs['override_height'] = h
-                
-                # Generate output path (use estimator estimate for params)
-                multiple_max_sizes = self.params.get('multiple_max_sizes', False)
-                params = estimator.estimate(file_path, target_bytes, allow_downscale=auto_resize, **est_kwargs) if estimator else {}
-                
-                # If estimator didn't return resolution (e.g. failure or old version), fallback to transform dims
-                if 'resolution_w' not in params and transform_filters.get('target_dimensions'):
-                    w, h = transform_filters['target_dimensions']
-                    params['resolution_w'] = w
-                    params['resolution_h'] = h
-                
-                output_path = self._get_output_path(
-                    file_path,
-                    output_ext,
-                    params,
-                    target_mb if multiple_max_sizes else None
-                )
-                
-                # Delegate to self-contained estimator
-                success = run_video_conversion(
-                    input_path=file_path,
-                    output_path=output_path,
-                    target_size_bytes=target_bytes,
-                    codec_pref=codec,
-                    estimator_version=estimator_version,  # Pass version to run_video_conversion
-                    status_callback=self.status_updated.emit,
-                    stop_check=lambda: self.should_stop,
-                    rotation=rotation,
-                    allow_downscale=auto_resize,
-                    transform_filters=transform_filters
-                )
-                
-                if success:
-                    self.file_completed.emit(file_path, output_path)
-                else:
-                    all_success = False
-                    break
+                # Iterate over resize variants
+                for resize_spec in resize_specs:
+                    if self.should_stop:
+                        return False
+                    
+                    # Create modified params with current resize spec
+                    variant_params = self.params.copy()
+                    variant_params['current_resize'] = resize_spec
+                    
+                    # Build transform filters for this variant
+                    transform_filters = build_transform_filters(variant_params, file_path)
+                    
+                    # Prepare estimator overrides from transforms
+                    est_kwargs = {}
+                    if transform_filters.get('target_dimensions'):
+                        w, h = transform_filters['target_dimensions']
+                        est_kwargs['override_width'] = w
+                        est_kwargs['override_height'] = h
+                    
+                    # Generate output path (use estimator estimate for params)
+                    multiple_max_sizes = self.params.get('multiple_max_sizes', False)
+                    params = estimator.estimate(file_path, target_bytes, allow_downscale=auto_resize, **est_kwargs) if estimator else {}
+                    
+                    # If estimator didn't return resolution (e.g. failure or old version), fallback to transform dims
+                    if 'resolution_w' not in params and transform_filters.get('target_dimensions'):
+                        w, h = transform_filters['target_dimensions']
+                        params['resolution_w'] = w
+                        params['resolution_h'] = h
+                    
+                    output_path = self._get_output_path(
+                        file_path,
+                        output_ext,
+                        params,
+                        target_mb if multiple_max_sizes else None
+                    )
+                    
+                    # Delegate to self-contained estimator
+                    success = run_video_conversion(
+                        input_path=file_path,
+                        output_path=output_path,
+                        target_size_bytes=target_bytes,
+                        codec_pref=codec,
+                        estimator_version=estimator_version,  # Pass version to run_video_conversion
+                        status_callback=self.status_updated.emit,
+                        stop_check=lambda: self.should_stop,
+                        rotation=rotation,
+                        allow_downscale=auto_resize,
+                        transform_filters=transform_filters
+                    )
+                    
+                    if success:
+                        self.file_completed.emit(file_path, output_path)
+                    else:
+                        all_success = False
+                        # Don't break - continue with other variants
             
             return all_success
             
@@ -348,62 +376,89 @@ class TargetSizeConversionEngine(QThread):
             output_format = self.params.get('loop_format', 'GIF')  # LoopTab passes 'loop_format'
             auto_resize = self.params.get('loop_auto_resize', False)
             
+            # Check if multi-variant resize is enabled
+            multiple_resize = self.params.get('multiple_resize', False) or self.params.get('multiple_size_variants', False)
+            resize_variants = self.params.get('resize_variants', []) or self.params.get('video_variants', [])
+            current_resize = self.params.get('current_resize')
+            
+            # Build list of resize specs to process
+            resize_specs = []
+            if multiple_resize and resize_variants:
+                # Multi-variant mode: use all variants
+                resize_specs = resize_variants
+            elif current_resize and current_resize != "No resize":
+                # Single resize mode: use current_resize
+                resize_specs = [current_resize]
+            else:
+                # No resize: process once with None
+                resize_specs = [None]
+            
             # Get estimator to determine output extension
             estimator = get_loop_estimator(output_format)
             output_ext = estimator.get_output_extension() if estimator else 'gif'
             
             all_success = True
+            
+            # Iterate over target sizes
             for target_mb in target_sizes:
                 if self.should_stop:
                     return False
                 
-                
                 target_bytes = int(target_mb * 1024 * 1024)
                 
-                # Build transform filters from UI params FIRST
-                transform_filters = build_transform_filters(self.params, file_path)
-                
-                # Prepare estimator overrides from transforms
-                est_kwargs = {}
-                if transform_filters.get('target_dimensions'):
-                    w, h = transform_filters['target_dimensions']
-                    est_kwargs['override_width'] = w
-                    est_kwargs['override_height'] = h
-                
-                # Generate output path (use estimator estimate for params)
-                multiple_max_sizes = self.params.get('multiple_max_sizes', False)
-                params = estimator.estimate(file_path, target_bytes, allow_downscale=auto_resize, **est_kwargs) if estimator else {}
-                
-                # If estimator didn't return resolution (e.g. failure or old version), fallback to transform dims
-                if 'resolution_w' not in params and transform_filters.get('target_dimensions'):
-                    w, h = transform_filters['target_dimensions']
-                    params['resolution_w'] = w
-                    params['resolution_h'] = h
-                
-                output_path = self._get_output_path(
-                    file_path,
-                    output_ext,
-                    params,
-                    target_mb if multiple_max_sizes else None
-                )
-                
-                # Delegate to self-contained estimator
-                success = run_loop_conversion(
-                    input_path=file_path,
-                    output_path=output_path,
-                    target_size_bytes=target_bytes,
-                    loop_format=output_format,
-                    status_callback=self.status_updated.emit,
-                    stop_check=lambda: self.should_stop,
-                    allow_downscale=auto_resize,
-                    transform_filters=transform_filters
-                )
-                
-                if success:
-                    self.file_completed.emit(file_path, output_path)
-                else:
-                    all_success = False
-                    break
+                # Iterate over resize variants
+                for resize_spec in resize_specs:
+                    if self.should_stop:
+                        return False
+                    
+                    # Create modified params with current resize spec
+                    variant_params = self.params.copy()
+                    variant_params['current_resize'] = resize_spec
+                    
+                    # Build transform filters for this variant
+                    transform_filters = build_transform_filters(variant_params, file_path)
+                    
+                    # Prepare estimator overrides from transforms
+                    est_kwargs = {}
+                    if transform_filters.get('target_dimensions'):
+                        w, h = transform_filters['target_dimensions']
+                        est_kwargs['override_width'] = w
+                        est_kwargs['override_height'] = h
+                    
+                    # Generate output path (use estimator estimate for params)
+                    multiple_max_sizes = self.params.get('multiple_max_sizes', False)
+                    params = estimator.estimate(file_path, target_bytes, allow_downscale=auto_resize, **est_kwargs) if estimator else {}
+                    
+                    # If estimator didn't return resolution (e.g. failure or old version), fallback to transform dims
+                    if 'resolution_w' not in params and transform_filters.get('target_dimensions'):
+                        w, h = transform_filters['target_dimensions']
+                        params['resolution_w'] = w
+                        params['resolution_h'] = h
+                    
+                    output_path = self._get_output_path(
+                        file_path,
+                        output_ext,
+                        params,
+                        target_mb if multiple_max_sizes else None
+                    )
+                    
+                    # Delegate to self-contained estimator
+                    success = run_loop_conversion(
+                        input_path=file_path,
+                        output_path=output_path,
+                        target_size_bytes=target_bytes,
+                        loop_format=output_format,
+                        status_callback=self.status_updated.emit,
+                        stop_check=lambda: self.should_stop,
+                        allow_downscale=auto_resize,
+                        transform_filters=transform_filters
+                    )
+                    
+                    if success:
+                        self.file_completed.emit(file_path, output_path)
+                    else:
+                        all_success = False
+                        # Don't break - continue with other variants
             
             return all_success
             
