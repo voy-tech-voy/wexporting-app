@@ -47,7 +47,8 @@ class EstimatorVersionSelector(QWidget):
         
         self.combo = QComboBox()
         self.combo.setToolTip("[DEV] Switch size estimation algorithm")
-        self.combo.setMinimumWidth(150)
+        # Let combo box expand to fill available width
+        self.combo.setSizePolicy(self.combo.sizePolicy().horizontalPolicy(), self.combo.sizePolicy().verticalPolicy())
         self.combo.currentIndexChanged.connect(self._on_selection_changed)
         
         # Layout
@@ -55,8 +56,7 @@ class EstimatorVersionSelector(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(8)
         layout.addWidget(self.label)
-        layout.addWidget(self.combo)
-        layout.addStretch()
+        layout.addWidget(self.combo, 1)  # Stretch factor 1 to fill available width
         self.setLayout(layout)
         
         # Start hidden (only visible in dev mode)

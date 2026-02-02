@@ -89,12 +89,16 @@ def _normalize_loop_format(fmt: str) -> str:
     fmt_lower = fmt.lower()
     if 'gif' in fmt_lower: return 'gif'
     if 'webm' in fmt_lower:
-        # Check if AV1 codec is specified
+        # Check codec specification
         if 'av1' in fmt_lower:
             return 'webm_av1_loop'
+        elif 'vp9' in fmt_lower:
+            return 'webm_vp9_loop'
         else:
-            return 'webm_loop'  # VP9 or unspecified
+            # Default to VP9 if codec not specified
+            return 'webm_vp9_loop'
     return 'gif'  # default
+
 
 # =============================================================================
 # DYNAMIC LOADING

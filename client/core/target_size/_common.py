@@ -7,10 +7,41 @@ import ffmpeg
 from typing import Dict
 
 
+def get_ffmpeg_binary() -> str:
+    """
+    Get the configured FFmpeg binary path.
+    
+    Returns the path from FFMPEG_BINARY environment variable if set,
+    otherwise falls back to 'ffmpeg' (system PATH).
+    """
+    return os.environ.get('FFMPEG_BINARY', 'ffmpeg')
+
+
+def get_ffprobe_binary() -> str:
+    """
+    Get the configured FFprobe binary path.
+    
+    Derives ffprobe path from FFMPEG_BINARY by replacing 'ffmpeg' with 'ffprobe'.
+    Falls back to 'ffprobe' (system PATH) if not found.
+    """
+    ffmpeg_path = os.environ.get('FFMPEG_BINARY', 'ffmpeg')
+    
+    # If using custom ffmpeg, try to derive ffprobe path
+    if ffmpeg_path != 'ffmpeg':
+        # Replace 'ffmpeg' with 'ffprobe' in the path
+        ffprobe_path = ffmpeg_path.replace('ffmpeg', 'ffprobe')
+        if os.path.exists(ffprobe_path):
+            return ffprobe_path
+    
+    # Fallback to system ffprobe
+    return 'ffprobe'
+
+
 def get_media_metadata(file_path: str) -> Dict:
     """Extract media metadata using ffprobe."""
     try:
-        probe = ffmpeg.probe(file_path)
+        ffprobe_bin = get_ffprobe_binary()
+        probe = ffmpeg.probe(file_path, cmd=ffprobe_bin)
         video = next((s for s in probe['streams'] if s['codec_type'] == 'video'), None)
         audio = next((s for s in probe['streams'] if s['codec_type'] == 'audio'), None)
         fmt = probe['format']

@@ -20,7 +20,7 @@ import ffmpeg
 from typing import Dict, Optional, Callable, Any
 
 from .._estimator_protocol import EstimatorProtocol
-from .._common import get_media_metadata
+from .._common import get_media_metadata, get_ffmpeg_binary
 from ...ffmpeg_utils import has_audio_stream
 
 
@@ -218,6 +218,11 @@ class Estimator(EstimatorProtocol):
             
             # Get the command and run with subprocess for proper pipe handling
             cmd = ffmpeg.compile(pass1_stream)
+            
+            # Replace cmd[0] with actual FFMPEG_BINARY path
+            ffmpeg_bin = get_ffmpeg_binary()
+            cmd[0] = ffmpeg_bin
+            
             process = subprocess.Popen(
                 cmd,
                 stdout=subprocess.PIPE,
@@ -266,6 +271,11 @@ class Estimator(EstimatorProtocol):
             pass2_stream = ffmpeg.overwrite_output(pass2_stream)
             
             cmd2 = ffmpeg.compile(pass2_stream)
+            
+            # Replace cmd[0] with actual FFMPEG_BINARY path
+            ffmpeg_bin = get_ffmpeg_binary()
+            cmd2[0] = ffmpeg_bin
+            
             process = subprocess.Popen(
                 cmd2,
                 stdout=subprocess.PIPE,

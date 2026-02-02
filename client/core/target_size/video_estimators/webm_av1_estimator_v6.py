@@ -5,6 +5,7 @@ import threading
 import ffmpeg
 from typing import Dict, Optional
 from client.core.target_size._estimator_protocol import EstimatorProtocol
+from client.core.target_size._common import get_ffmpeg_binary
 
 class Estimator(EstimatorProtocol):
     """
@@ -170,6 +171,11 @@ class Estimator(EstimatorProtocol):
                 except: pass
 
             cmd = ffmpeg.compile(stream_obj, overwrite_output=True)
+            
+            # Replace cmd[0] with actual FFMPEG_BINARY path
+            ffmpeg_bin = get_ffmpeg_binary()
+            cmd[0] = ffmpeg_bin
+            
             print(f"[V6 DEBUG] Command: {cmd}")
             
             process = subprocess.Popen(

@@ -5,17 +5,17 @@ import threading
 import ffmpeg
 from typing import Dict, Optional
 from client.core.target_size._estimator_protocol import EstimatorProtocol
-from client.core.target_size._common import get_ffmpeg_binary
 
 class Estimator(EstimatorProtocol):
     """
-    AV1 Loop Estimator v1 (SVT-AV1 for Loopable WebM)
+    VP9 Loop Estimator v6 (VP9 for Loopable WebM)
     Strategy: 2-Pass VBR with constrained VBV Buffering.
     
-    Based on video AV1 estimator v6, adapted for loops:
+    Based on AV1 loop estimator v6, adapted for VP9 codec:
     - No audio processing (loops are video-only)
     - WebM container output
     - Optimized for loopable content
+    - Uses libvpx-vp9 instead of libsvtav1
     """
 
     def get_output_extension(self) -> str:
@@ -55,7 +55,7 @@ class Estimator(EstimatorProtocol):
 
     def estimate(self, input_path: str, target_size_bytes: int, **options) -> Dict:
         """
-        Calculates strict parameters to force SVT-AV1 into the target box (no audio for loops).
+        Calculates strict parameters to force VP9 into the target box (no audio for loops).
         """
         meta = self.get_media_metadata(input_path)
         if meta['duration'] == 0:
@@ -81,16 +81,15 @@ class Estimator(EstimatorProtocol):
         video_bits = total_bits
         video_bps = max(video_bits / meta['duration'], 5000) # Floor 5kbps
         
-        print(f"[AV1_LOOP_v1] target_size_bytes={target_size_bytes}, duration={meta['duration']}, video_bps={video_bps}, bitrate_kbps={int(video_bps/1000)}")
+        print(f"[VP9_LOOP_v6] target_size_bytes={target_size_bytes}, duration={meta['duration']}, video_bps={video_bps}, bitrate_kbps={int(video_bps/1000)}")
         
         # --- 3. RESOLUTION & BPP OPTIMIZATION ---
         # Check for overrides (e.g. from user transforms)
         width = options.get('override_width', meta['width'])
         height = options.get('override_height', meta['height'])
         
-        # SVT-AV1 target BPP. 
-        # Since we might have squeezed audio tight, we need to be careful with video resolution.
-        target_bpp = 0.065 
+        # VP9 target BPP (slightly higher than AV1 since VP9 is less efficient)
+        target_bpp = 0.08  # VP9 needs more bits per pixel than AV1
         
         def get_bpp(w, h):
             pixels = w * h
@@ -104,15 +103,11 @@ class Estimator(EstimatorProtocol):
                 width = width - (width % 2)
                 height = height - (height % 2)
             
-        # If explicit height override wasn't provided but width was, recalculate height based on aspect ratio of the *overridden* width
-        # But wait, above logic updates width/height in tandem.
-        # If overrides were provided, they are the starting point.
-        
         return {
             'video_bitrate_kbps': int(video_bps / 1000),
             'resolution_w': width,
             'resolution_h': height,
-            'codec': 'libsvtav1',
+            'codec': 'libvpx-vp9',
             # Derived Params for Execute (VBV Constraints)
             'maxrate_kbps': int((video_bps / 1000) * 1.2), 
             'bufsize_kbps': int((video_bps / 1000) * 2.0),
@@ -123,7 +118,7 @@ class Estimator(EstimatorProtocol):
     def execute(self, input_path: str, output_path: str, target_size_bytes: int, 
                 status_callback=None, stop_check=None, **options) -> bool:
         """
-        Execute 2-Pass SVT-AV1 conversion with VBV Constraints.
+        Execute 2-Pass VP9 conversion with VBV Constraints.
         """
         
         def emit(msg: str):
@@ -143,11 +138,11 @@ class Estimator(EstimatorProtocol):
 
             cmd = ffmpeg.compile(stream_obj, overwrite_output=True)
             
-            # Replace cmd[0] with actual FFMPEG_BINARY path
-            ffmpeg_bin = get_ffmpeg_binary()
+            # Replace cmd[0] with actual FFMPEG_BINARY path (ffmpeg.compile returns just 'ffmpeg')
+            ffmpeg_bin = os.environ.get('FFMPEG_BINARY', 'ffmpeg')
             cmd[0] = ffmpeg_bin
             
-            print(f"[AV1_LOOP_v1 DEBUG] Command: {cmd}")
+            print(f"[VP9_LOOP_v6 DEBUG] Command: {cmd}")
             
             process = subprocess.Popen(
                 cmd,
@@ -174,7 +169,7 @@ class Estimator(EstimatorProtocol):
 
             if process.returncode != 0:
                 error_msg = b''.join(stderr_chunks).decode('utf-8', errors='ignore')
-                print(f"[AV1_LOOP_v1 ERROR] FFmpeg failed. Command: {cmd}\nError Output:\n{error_msg}")
+                print(f"[VP9_LOOP_v6 ERROR] FFmpeg failed. Command: {cmd}\nError Output:\n{error_msg}")
                 emit(f"FFmpeg Error: {error_msg[-300:]}")
                 return False
             return True
@@ -215,9 +210,9 @@ class Estimator(EstimatorProtocol):
         null_output = "NUL" if os.name == 'nt' else "/dev/null"
         
         pass1_args = {
-            'vcodec': 'libsvtav1',
+            'vcodec': 'libvpx-vp9',
             'b:v': bitrate,
-            'preset': 8,
+            'cpu-used': 4,  # VP9 speed preset (0-5, higher=faster)
             'pass': 1,
             'f': 'null',
             'an': None
@@ -234,9 +229,9 @@ class Estimator(EstimatorProtocol):
 
         # PASS 2 - No audio for loops
         pass2_args = {
-            'vcodec': 'libsvtav1',
+            'vcodec': 'libvpx-vp9',
             'b:v': bitrate,
-            'preset': 5,
+            'cpu-used': 1,  # Slower for better quality in pass 2
             'pass': 2,
             'an': None  # No audio in loops
         }

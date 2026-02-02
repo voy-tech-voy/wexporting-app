@@ -20,8 +20,9 @@ from client.gui.custom_widgets import (
     UnifiedVariantInput
 )
 from client.gui.widgets import EstimatorVersionSelector
-from client.gui.sections import ResizeSection
+from client.gui.sections import ResizeSection, TargetSizeSection
 from client.gui.theme import get_combobox_style
+from client.gui.components.codec_tooltip import TooltipHoverFilter
 
 COMBOBOX_STYLE = get_combobox_style(True)
 
@@ -87,22 +88,24 @@ class LoopTab(BaseTab):
         self.format_selector.formatChanged.connect(self._on_format_changed)
         self.settings_group.get_content_layout().insertRow(0, self.format_selector)
         
-        # --- Max Size ---
-        self.max_size_spinbox = CustomTargetSizeSpinBox(
-            default_value=2.0,
-            on_enter_callback=self._focus_callback
-        )
-        self.max_size_spinbox.setToolTip("Target maximum file size in megabytes")
-        self.max_size_spinbox.setVisible(False)
-        self.max_size_label = QLabel("Max Size")
-        self.max_size_label.setVisible(False)
-        self.settings_group.add_row(self.max_size_label, self.max_size_spinbox)
+        # Add efficiency tooltip
+        self.format_tooltip = TooltipHoverFilter(self.format_selector, mode="loop")
         
-        # --- Auto-resize ---
-        self.auto_resize_checkbox = ThemedCheckBox("Auto-resize")
-        self.auto_resize_checkbox.setChecked(True)
-        self.auto_resize_checkbox.setVisible(False)
-        self.settings_group.add_row(self.auto_resize_checkbox)
+        # Target Size Section (includes spinbox, auto-resize, and variants)
+        self.target_size_section = TargetSizeSection(
+            parent=self,
+            focus_callback=self._focus_callback,
+            default_value=2.0,
+            sensitivity=0.01,
+            variant_defaults_map={
+                'GIF': '1.5, 2.0, 3.0',
+                'WebM': '0.5, 1.0, 2.0',
+                '_default': '1.0, 2.0, 3.0'
+            }
+        )
+        self.target_size_section.paramChanged.connect(self._notify_param_change)
+        self.target_size_section.setVisible(False)
+        self.settings_group.add_row(self.target_size_section)
         
         # Estimator Version Selection (reusable component)
         self.version_selector = EstimatorVersionSelector('loop', self)
@@ -310,8 +313,11 @@ class LoopTab(BaseTab):
         # Get resize params from ResizeSection
         resize_params = self.resize_section.get_params()
         
+        # Get target size params from TargetSizeSection
+        target_params = self.target_size_section.get_params()
+        
         # Determine if Max Size mode is active
-        is_max_size_mode = self.max_size_spinbox.isVisible()
+        is_max_size_mode = self.target_size_section.isVisible()
         
         # Common parameters for both formats
         params = {
@@ -330,17 +336,31 @@ class LoopTab(BaseTab):
         if is_gif:
             # GIF format uses gif_ prefix
             params.update({
-                'gif_max_size_mb': self.max_size_spinbox.value() if is_max_size_mode else None,
-                'gif_auto_resize': self.auto_resize_checkbox.isChecked(),
+                'gif_max_size_mb': target_params['target_size_mb'],
+                'gif_auto_resize': target_params['auto_resize'],
                 'gif_size_mode': 'max_size' if is_max_size_mode else 'manual',
+                'gif_multiple_max_sizes': target_params['multiple_variants'],
+                'gif_max_size_variants': target_params['size_variants'],
             })
         else:
             # WebM format uses video_ prefix (processed as video)
             params.update({
-                'video_max_size_mb': self.max_size_spinbox.value() if is_max_size_mode else None,
-                'video_auto_resize': self.auto_resize_checkbox.isChecked(),
+                'video_max_size_mb': target_params['target_size_mb'],
+                'video_auto_resize': target_params['auto_resize'],
                 'video_size_mode': 'max_size' if is_max_size_mode else 'manual',
+                'video_multiple_max_sizes': target_params['multiple_variants'],
+                'video_max_size_variants': target_params['size_variants'],
             })
+            
+            # Add codec parameter for suffix generation (loop_format already includes codec)
+            # e.g., "WebM (AV1)" or "WebM (VP9)"
+            params['codec'] = params['loop_format']
+        
+        # Add generic parameters for engine compatibility (matches Video/Image tab pattern)
+        params.update({
+            'multiple_max_sizes': target_params['multiple_variants'],
+            'max_size_variants': target_params['size_variants'],
+        })
         
         # Merge resize params
         params.update(resize_params)
@@ -372,15 +392,16 @@ class LoopTab(BaseTab):
         """Apply theme styling to all elements."""
         self._is_dark_theme = is_dark
         
-        # Update ResizeSection (doesn't auto-connect to ThemeManager)
+        # Update sections (don't auto-connect to ThemeManager)
         self.resize_section.update_theme(is_dark)
+        self.target_size_section.update_theme(is_dark)
         
         # Note: CustomComboBox widgets auto-update via ThemeManager signal
         # No need to manually update: gif_fps, gif_colors
         
         # Note: ThemedCheckBox widgets auto-update via ThemeManager signal
-        # No need to manually update: auto_resize_checkbox, gif_variants_checkbox, 
-        # gif_blur, webm_variants_checkbox, enable_time_cutting, enable_retime
+        # No need to manually update: gif_variants_checkbox, gif_blur, 
+        # webm_variants_checkbox, enable_time_cutting, enable_retime
         
         # Update time range slider (doesn't auto-connect to ThemeManager)
         if hasattr(self.time_range_slider, 'update_theme'):
@@ -443,11 +464,8 @@ class LoopTab(BaseTab):
         
         is_max_size = (mode == "Max Size")
         
-        # Max size controls (only these visible in Max Size mode)
-        self.max_size_label.setVisible(is_max_size)
-        self.max_size_spinbox.setVisible(is_max_size)
-        self.auto_resize_checkbox.setVisible(is_max_size)
-        
+        # Target size section (only visible in Max Size mode)
+        self.target_size_section.setVisible(is_max_size)
         
         # Estimator version selector visibility handled by component itself
         
@@ -468,6 +486,9 @@ class LoopTab(BaseTab):
         """Handle format change between GIF and WebM."""
         # Update version selector for new format
         self.version_selector.set_format(format_name)
+        
+        # Update target size variant defaults for new format
+        self.target_size_section.update_variant_defaults(format_name)
         
         # Delegate all visibility logic to centralized method
         self._update_format_visibility()

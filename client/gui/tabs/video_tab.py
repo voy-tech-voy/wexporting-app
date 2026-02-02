@@ -22,6 +22,7 @@ from client.gui.custom_widgets import (
 from client.gui.widgets import EstimatorVersionSelector
 from client.gui.sections import ResizeSection, TargetSizeSection
 from client.gui.theme import get_combobox_style
+from client.gui.components.codec_tooltip import TooltipHoverFilter
 
 COMBOBOX_STYLE = get_combobox_style(True)  # Default dark mode
 
@@ -81,6 +82,9 @@ class VideoTab(BaseTab):
         self.codec = VideoCodecSelector()
         self.codec.codecChanged.connect(self._on_codec_changed)
         self.codec_group.get_content_layout().insertRow(0, self.codec)
+        
+        # Add efficiency tooltip
+        self.codec_tooltip = TooltipHoverFilter(self.codec, mode="video")
         
         # Target Size Section
         self.target_size_section = TargetSizeSection(

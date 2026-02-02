@@ -18,6 +18,7 @@ import threading
 import ffmpeg
 from typing import Dict, Optional, Callable
 from client.core.target_size._estimator_protocol import EstimatorProtocol
+from client.core.target_size._common import get_ffmpeg_binary
 
 
 class Estimator(EstimatorProtocol):
@@ -99,13 +100,15 @@ class Estimator(EstimatorProtocol):
         # Filter presets based on downscale permission
         valid = [p for p in self.GIF_PRESETS if allow_downscale or p[3] == 1.0]
         
-        # Binary search for optimal preset
-        # Start with best=0 (highest quality). If all presets fit, we want the best one.
-        left, right, best = 0, len(valid) - 1, 0
+        # Track the best preset that fits under target (if any)
+        # Also track the smallest file size seen (for fallback)
+        best_fit_idx = None
+        smallest_idx = len(valid) - 1  # Default to lowest quality preset
+        smallest_size = float('inf')
         
-        while left <= right:
-            mid = (left + right) // 2
-            fps, colors, dither, scale = valid[mid]
+        # Linear search from highest quality to lowest
+        # This ensures we find the best quality that fits
+        for idx, (fps, colors, dither, scale) in enumerate(valid):
             w, h = int(meta['width'] * scale), int(meta['height'] * scale)
             tmp = self._get_temp_filename()
             
@@ -115,31 +118,66 @@ class Estimator(EstimatorProtocol):
                 
                 # Build FFmpeg graph - USE FULL VIDEO
                 in_stream = ffmpeg.input(input_path)
-                scaled = (
-                    in_stream
-                    .filter('fps', fps)
-                    .filter('scale', w, h)
+                
+                # Apply fps and scale filters
+                scaled = in_stream.video.filter('fps', fps).filter('scale', w, h)
+                
+                # Split into two streams for palette generation
+                split_streams = scaled.split()
+                
+                # Generate palette from first stream
+                palette = split_streams[0].filter('palettegen', max_colors=colors)
+                
+                # Apply palette to second stream
+                out = ffmpeg.filter([split_streams[1], palette], 'paletteuse', **dither_args)
+                
+                # Run encoding on FULL video using configured FFmpeg binary
+                stream_obj = out.output(tmp)
+                cmd = ffmpeg.compile(stream_obj, overwrite_output=True)
+                
+                # Replace cmd[0] with actual FFMPEG_BINARY path
+                ffmpeg_bin = get_ffmpeg_binary()
+                cmd[0] = ffmpeg_bin
+                
+                # Run the command
+                import subprocess
+                process = subprocess.run(
+                    cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
                 )
-                split = scaled.filter('split')
-                palette = split[0].filter('palettegen', max_colors=colors)
                 
-                out = ffmpeg.filter([split[1], palette], 'paletteuse', **dither_args)
-                
-                # Run encoding on FULL video
-                out.output(tmp).run(quiet=True, overwrite_output=True)
-                
-                if os.path.exists(tmp) and os.path.getsize(tmp) <= target_size_bytes:
-                    best = mid
-                    right = mid - 1  # Try higher quality
+                if os.path.exists(tmp):
+                    actual_size = os.path.getsize(tmp)
+                    print(f"[GIF_v4 SEARCH] Preset {idx}: {fps}fps, {colors}colors -> {actual_size} bytes (target: {target_size_bytes})")
+                    
+                    # Track smallest file seen
+                    if actual_size < smallest_size:
+                        smallest_size = actual_size
+                        smallest_idx = idx
+                    
+                    # If this preset fits under target, use it (first fit = highest quality)
+                    if actual_size <= target_size_bytes:
+                        best_fit_idx = idx
+                        print(f"[GIF_v4 SEARCH] ✓ Preset {idx} fits! Using this preset.")
+                        break  # Found a good fit, stop searching
                 else:
-                    left = mid + 1  # File too big, reduce quality
-            except:
-                left = mid + 1
+                    print(f"[GIF_v4 SEARCH] Preset {idx} failed to produce output")
+            except Exception as e:
+                print(f"[GIF_v4 SEARCH] Preset {idx} exception: {e}")
             finally:
                 if os.path.exists(tmp):
                     os.remove(tmp)
         
-        p = valid[best]
+        # Use best fitting preset, or fallback to smallest (lowest quality)
+        if best_fit_idx is not None:
+            chosen_idx = best_fit_idx
+        else:
+            chosen_idx = smallest_idx
+            print(f"[GIF_v4] WARNING: No preset fits target {target_size_bytes} bytes. Using lowest quality preset {chosen_idx}.")
+        
+        p = valid[chosen_idx]
         print(f"[GIF_v4] Result: {p[0]}fps, {p[1]} colors, scale {int(p[3]*100)}%")
         
         return {
@@ -175,6 +213,8 @@ class Estimator(EstimatorProtocol):
         if not params:
             emit("Estimation failed")
             return False
+        
+        # print(f"[GIF_v4 EXECUTE] Estimated params: {params}")
         
         fps = params['fps']
         colors = params['colors']
@@ -275,6 +315,11 @@ class Estimator(EstimatorProtocol):
                 pass
         
         cmd = ffmpeg.compile(stream_obj, overwrite_output=True)
+        
+        # Replace cmd[0] with actual FFMPEG_BINARY path
+        ffmpeg_bin = get_ffmpeg_binary()
+        cmd[0] = ffmpeg_bin
+        
         print(f"[GIF_v4 DEBUG] Command: {' '.join(cmd)}")
         
         process = subprocess.Popen(

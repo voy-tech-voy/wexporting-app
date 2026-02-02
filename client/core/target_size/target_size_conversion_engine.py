@@ -148,12 +148,21 @@ class TargetSizeConversionEngine(QThread):
             return [float(v) for v in max_size_variants if v is not None]
         else:
             # Get appropriate default based on media type
-            key_map = {
-                'image': 'image_max_size_mb',
-                'video': 'video_max_size_mb',
-                'loop': 'gif_max_size_mb',  # LoopTab uses gif_max_size_mb for GIF
-            }
-            default_key = key_map.get(media_type, 'video_max_size_mb')
+            if media_type == 'loop':
+                # Loop mode: check format to determine which parameter to use
+                # GIF loops use gif_max_size_mb, WebM loops use video_max_size_mb
+                loop_format = self.params.get('loop_format', 'GIF')
+                if 'webm' in loop_format.lower():
+                    default_key = 'video_max_size_mb'
+                else:
+                    default_key = 'gif_max_size_mb'
+            else:
+                key_map = {
+                    'image': 'image_max_size_mb',
+                    'video': 'video_max_size_mb',
+                }
+                default_key = key_map.get(media_type, 'video_max_size_mb')
+            
             return [self.params.get(default_key, 1.0)]
     
     def _get_output_path(self, file_path: str, extension: str, params: Dict = None, target_mb: float = None) -> str:
@@ -379,7 +388,12 @@ class TargetSizeConversionEngine(QThread):
         try:
             target_sizes = self._get_target_sizes('loop')
             output_format = self.params.get('loop_format', 'GIF')  # LoopTab passes 'loop_format'
-            auto_resize = self.params.get('loop_auto_resize', False)
+            
+            # Get auto_resize based on loop format (GIF vs WebM)
+            if 'webm' in output_format.lower():
+                auto_resize = self.params.get('video_auto_resize', False)
+            else:
+                auto_resize = self.params.get('gif_auto_resize', False)
             
             # Check if multi-variant resize is enabled
             multiple_resize = self.params.get('multiple_resize', False) or self.params.get('multiple_size_variants', False)
