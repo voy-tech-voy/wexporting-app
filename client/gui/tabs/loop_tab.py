@@ -519,11 +519,12 @@ class LoopTab(BaseTab):
     
     def _populate_estimator_versions(self):
         """Populate estimator version dropdown with available versions for current format."""
-        from client.core.target_size.size_estimator_registry import get_available_versions_for_format, get_estimator_version
+        from client.core.target_size.size_estimator_registry import get_available_versions_for_format
         
         # Get current format (GIF or WebM)
         current_format = self.format_selector.currentText()
         
+        self.estimator_version_combo.blockSignals(True)
         self.estimator_version_combo.clear()
         
         # Get format-specific versions
@@ -535,12 +536,22 @@ class LoopTab(BaseTab):
             for display_name, version_key in versions:
                 self.estimator_version_combo.addItem(display_name, version_key)
         
-        # Set current selection to active version
-        current_version = get_estimator_version()
-        for i in range(self.estimator_version_combo.count()):
-            if self.estimator_version_combo.itemData(i) == current_version:
-                self.estimator_version_combo.setCurrentIndex(i)
-                break
+        self.estimator_version_combo.blockSignals(False)
+        
+        # Select highest version available dynamically
+        if versions:
+            # Extract version keys and sort by number (v1, v2, v3, ...) to find highest
+            version_keys = [version_key for _, version_key in versions]
+            sorted_versions = sorted(version_keys, key=lambda v: int(v[1:]) if v[1:].isdigit() else 0, reverse=True)
+            highest_version = sorted_versions[0]
+            
+            # Set combo to highest version
+            for i in range(self.estimator_version_combo.count()):
+                if self.estimator_version_combo.itemData(i) == highest_version:
+                    self.estimator_version_combo.setCurrentIndex(i)
+                    break
+        
+        print(f"[LoopTab] Estimator version changed to: {self.estimator_version_combo.currentText()}")
     
     def _on_estimator_version_changed(self, index: int):
         """Handle estimator version dropdown change."""
