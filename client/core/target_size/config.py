@@ -7,7 +7,7 @@ Easy selection of estimator versions per tab/codec for production.
 PRODUCTION_DEFAULTS = {
     'image': {
         'jpg': 'v5',
-        'webp': 'v5', 
+        'webp': 'v6', 
         'png': 'v5',
     },
     'video': {

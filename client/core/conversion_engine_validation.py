@@ -99,7 +99,7 @@ def validate_ffmpeg_codecs(ffmpeg_path, timeout=5):
     """
     Validate if ffmpeg has all required codecs for the application
     
-    Required codecs:
+    Required encoders:
     - Video: libx264, libx265, libvpx-vp9, libaom-av1
     - Audio: aac, libopus
     
@@ -110,7 +110,7 @@ def validate_ffmpeg_codecs(ffmpeg_path, timeout=5):
     Returns:
         tuple: (has_all_codecs: bool, missing_codecs: list)
     """
-    required_codecs = {
+    required_encoders = {
         'libx264': 'video',
         'libx265': 'video',
         'libvpx-vp9': 'video',
@@ -120,8 +120,9 @@ def validate_ffmpeg_codecs(ffmpeg_path, timeout=5):
     }
     
     try:
+        # Use -encoders instead of -codecs to check for encoder implementations
         result = subprocess.run(
-            [ffmpeg_path, '-codecs'],
+            [ffmpeg_path, '-encoders'],
             capture_output=True,
             text=True,
             timeout=timeout,
@@ -129,21 +130,21 @@ def validate_ffmpeg_codecs(ffmpeg_path, timeout=5):
         )
         
         if result.returncode != 0:
-            return False, list(required_codecs.keys())
+            return False, list(required_encoders.keys())
         
-        codec_output = result.stdout.lower()
+        encoder_output = result.stdout.lower()
         missing_codecs = []
         
-        for codec_name in required_codecs.keys():
-            # Check if codec name appears in the output
-            if codec_name.lower() not in codec_output:
-                missing_codecs.append(codec_name)
+        for encoder_name in required_encoders.keys():
+            # Check if encoder name appears in the output
+            if encoder_name.lower() not in encoder_output:
+                missing_codecs.append(encoder_name)
         
         return len(missing_codecs) == 0, missing_codecs
         
     except Exception as e:
         print(f"DEBUG: Codec validation error: {e}")
-        return False, list(required_codecs.keys())
+        return False, list(required_encoders.keys())
 
 
 def validate_system_ffmpeg(timeout=5):

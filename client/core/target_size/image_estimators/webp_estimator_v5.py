@@ -6,6 +6,7 @@ Direct quality mapping - no conversion needed.
 This is a self-contained estimator that owns its complete encoding strategy.
 """
 import os
+import subprocess
 import tempfile
 import ffmpeg
 from typing import Dict, Optional, Callable, Any
@@ -41,9 +42,17 @@ class Estimator(EstimatorProtocol):
         **options
     ) -> Dict[str, Any]:
         allow_downscale = options.get('allow_downscale', False)
+        override_w = options.get('override_width')
+        override_h = options.get('override_height')
         print(f"[WebP_v5] Estimating for {target_size_bytes} bytes, downscale={allow_downscale}")
         
         meta = get_media_metadata(input_path)
+        
+        # Use user override dimensions if provided
+        if override_w and override_h:
+            meta['width'] = override_w
+            meta['height'] = override_h
+        
         scales = [1.0, 0.85, 0.70, 0.55] if allow_downscale else [1.0]
         best_res = None
         
@@ -58,7 +67,7 @@ class Estimator(EstimatorProtocol):
                 
                 try:
                     (ffmpeg.input(input_path).filter('scale', target_w, target_h)
-                     .output(tmp, quality=mid).run(quiet=True, overwrite_output=True))
+                     .output(tmp, **{'c:v': 'libwebp', 'quality': mid}).run(quiet=True, overwrite_output=True))
                     
                     if os.path.exists(tmp):
                         size = os.path.getsize(tmp)
@@ -68,7 +77,7 @@ class Estimator(EstimatorProtocol):
                                 'quality': mid, 'scale_factor': scale,
                                 'resolution_w': target_w, 'resolution_h': target_h,
                                 'estimated_size': size,
-                                'ffmpeg_out_args': {'quality': mid}
+                                'ffmpeg_out_args': {'c:v': 'libwebp', 'quality': mid}
                             }
                             low = mid + 1
                         else:
@@ -103,7 +112,7 @@ class Estimator(EstimatorProtocol):
                 'quality': 0, 'scale_factor': 1.0,
                 'resolution_w': meta['width'], 'resolution_h': meta['height'],
                 'estimated_size': floor_size,
-                'ffmpeg_out_args': {'quality': 0}
+                'ffmpeg_out_args': {'c:v': 'libwebp', 'quality': 0}
             }
         else:
             print("[WebP_v5] ⚠ Emergency downscaling")
@@ -123,13 +132,13 @@ class Estimator(EstimatorProtocol):
                             'quality': 5, 'scale_factor': current_scale,
                             'resolution_w': current_w, 'resolution_h': current_h,
                             'estimated_size': size,
-                            'ffmpeg_out_args': {'quality': 5}
+                            'ffmpeg_out_args': {'c:v': 'libwebp', 'quality': 5}
                         }
                 except: pass
                 finally:
                     if os.path.exists(tmp): os.remove(tmp)
             return {'quality': 0, 'scale_factor': 0.1, 'resolution_w': 16, 'resolution_h': 16,
-                    'estimated_size': 0, 'ffmpeg_out_args': {'quality': 0}}
+                    'estimated_size': 0, 'ffmpeg_out_args': {'c:v': 'libwebp', 'quality': 0}}
     
     def execute(
         self,
@@ -148,7 +157,14 @@ class Estimator(EstimatorProtocol):
             emit(f"WebP Q{params['quality']}, scale {int(params['scale_factor']*100)}%")
             
             stream = ffmpeg.input(input_path)
-            if params['scale_factor'] < 1.0:
+            
+            # Get user override dimensions
+            override_w = options.get('override_width')
+            override_h = options.get('override_height')
+            
+            # Apply scale if: user provided override OR auto-resize reduced size
+            needs_scale = (override_w and override_h) or params['scale_factor'] < 1.0
+            if needs_scale:
                 stream = ffmpeg.filter(stream, 'scale', params['resolution_w'], params['resolution_h'])
             
             rotation = options.get('rotation')
@@ -163,7 +179,29 @@ class Estimator(EstimatorProtocol):
             
             stream = ffmpeg.output(stream, output_path, **params.get('ffmpeg_out_args', {}))
             stream = ffmpeg.overwrite_output(stream)
-            ffmpeg.run(stream, quiet=True)
+            
+            # Use compile + subprocess like video estimators for proper FFmpeg binary selection
+            cmd = ffmpeg.compile(stream)
+            
+            # Replace cmd[0] with actual FFMPEG_BINARY path (ffmpeg.compile returns just 'ffmpeg')
+            ffmpeg_bin = os.environ.get('FFMPEG_BINARY', 'ffmpeg')
+            if ffmpeg_bin and os.path.exists(ffmpeg_bin):
+                cmd = [ffmpeg_bin] + list(cmd[1:])
+            
+            print(f"[WebP_v5 DEBUG] Using FFmpeg: {cmd[0]}")
+            
+            result = subprocess.run(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
+            )
+            
+            if result.returncode != 0:
+                stderr_output = result.stderr.decode('utf-8') if result.stderr else 'No stderr'
+                print(f"[WebP_v5 FFMPEG ERROR] {stderr_output}")
+                emit(f"FFmpeg error (code {result.returncode})")
+                return False
             
             if os.path.exists(output_path):
                 actual_kb = os.path.getsize(output_path) / 1024
@@ -172,7 +210,9 @@ class Estimator(EstimatorProtocol):
             emit("✗ Output file not created")
             return False
         except Exception as e:
+            import traceback
             emit(f"Error: {str(e)}")
+            print(f"[WebP_v5 ERROR] {traceback.format_exc()}")
             return False
 
 
