@@ -81,14 +81,27 @@ class Estimator(EstimatorProtocol):
         efficiency = 1.0  # Baseline efficiency
         
         # 3. Resolution Scaling Based on BPP (Bits Per Pixel)
-        curr_w = meta['width']
+        # Check for overrides (e.g. from user transforms)
+        curr_w = options.get('override_width', meta['width'])
+        curr_h = options.get('override_height', meta['height'])
+        
+        # If we have overrides, use them as the baseline
         if allow_downscale:
             target_bpp = 0.08 / efficiency  # Target 0.08 BPP for H.264
-            while (vid_bps / (curr_w * (curr_w * meta['height'] / meta['width']) * meta['fps'])) < target_bpp and curr_w > 480:
+            
+            # Use curr_h if available, otherwise calculate from aspect ratio
+            h_for_calc = curr_h if curr_h else (curr_w * meta['height'] / meta['width'])
+            
+            while (vid_bps / (curr_w * h_for_calc * meta['fps'])) < target_bpp and curr_w > 480:
                 curr_w = int(curr_w * 0.85)
                 curr_w -= (curr_w % 2)  # Ensure even width
+                h_for_calc = curr_w * (curr_h / curr_w) if curr_h else (curr_w * meta['height'] / meta['width'])
         
-        print(f"[H264_v4] Estimated: {int(vid_bps/1000)}kbps, {curr_w}x{int(meta['height'] * (curr_w / meta['width'])) & ~1}")
+        # Calculate final height
+        final_h = int(curr_h * (curr_w / options.get('override_width', meta['width']))) if options.get('override_width') else int(meta['height'] * (curr_w / meta['width']))
+        final_h = final_h & ~1
+        
+        print(f"[H264_v4] Estimated: {int(vid_bps/1000)}kbps, {curr_w}x{final_h}")
         
         return {
             'video_bitrate_kbps': int(vid_bps / 1000),
@@ -150,8 +163,14 @@ class Estimator(EstimatorProtocol):
         input_args = transform_filters.get('input_args', {})
         vf_filters = list(transform_filters.get('vf_filters', []))
         
-        # Add auto-resize scaling filter if needed
-        if resolution_scale < 1.0:
+        # Determine effective input width (user override or original)
+        target_dims = transform_filters.get('target_dimensions')
+        effective_input_w = target_dims[0] if target_dims else params.get('original_width', 0)
+        
+        # Add auto-resize scaling filter ONLY if further downscaling occurred
+        if effective_input_w > 0 and params['resolution_w'] < effective_input_w:
+            vf_filters.append(f"scale={params['resolution_w']}:{params['resolution_h']}")
+        elif resolution_scale < 1.0 and not target_dims:
             vf_filters.append(f"scale={params['resolution_w']}:{params['resolution_h']}")
         
         # Build vf argument

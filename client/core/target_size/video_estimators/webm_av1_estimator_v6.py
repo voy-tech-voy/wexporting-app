@@ -111,8 +111,9 @@ class Estimator(EstimatorProtocol):
         video_bps = max(video_bits / meta['duration'], 5000) # Floor 5kbps
         
         # --- 3. RESOLUTION & BPP OPTIMIZATION ---
-        width = meta['width']
-        height = meta['height']
+        # Check for overrides (e.g. from user transforms)
+        width = options.get('override_width', meta['width'])
+        height = options.get('override_height', meta['height'])
         
         # SVT-AV1 target BPP. 
         # Since we might have squeezed audio tight, we need to be careful with video resolution.
@@ -129,6 +130,10 @@ class Estimator(EstimatorProtocol):
                 height = int(height * 0.80)
                 width = width - (width % 2)
                 height = height - (height % 2)
+            
+        # If explicit height override wasn't provided but width was, recalculate height based on aspect ratio of the *overridden* width
+        # But wait, above logic updates width/height in tandem.
+        # If overrides were provided, they are the starting point.
         
         return {
             'video_bitrate_kbps': int(video_bps / 1000),
@@ -138,7 +143,9 @@ class Estimator(EstimatorProtocol):
             'codec': 'libsvtav1',
             # Derived Params for Execute (VBV Constraints)
             'maxrate_kbps': int((video_bps / 1000) * 1.2), 
-            'bufsize_kbps': int((video_bps / 1000) * 2.0)
+            'bufsize_kbps': int((video_bps / 1000) * 2.0),
+            'original_width': meta['width'],
+            'original_height': meta['height']
         }
 
     def execute(self, input_path: str, output_path: str, target_size_bytes: int, 
@@ -210,8 +217,14 @@ class Estimator(EstimatorProtocol):
         input_args = transform_filters.get('input_args', {})
         vf_filters = list(transform_filters.get('vf_filters', []))
         
-        # Add scaling filter if resolution changed
-        if params['resolution_w'] != params.get('original_width', params['resolution_w']):
+        # Determine effective input width (user override or original)
+        target_dims = transform_filters.get('target_dimensions')
+        effective_input_w = target_dims[0] if target_dims else params.get('original_width', 0)
+        
+        # Add scaling filter if resolution changed further than transforms
+        if effective_input_w > 0 and params['resolution_w'] < effective_input_w:
+            vf_filters.append(f"scale={params['resolution_w']}:{params['resolution_h']}")
+        elif params['resolution_w'] != params.get('original_width', params['resolution_w']) and not target_dims:
             vf_filters.append(f"scale={params['resolution_w']}:{params['resolution_h']}")
         
         # Build vf argument

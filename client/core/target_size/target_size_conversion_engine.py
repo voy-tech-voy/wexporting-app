@@ -181,12 +181,19 @@ class TargetSizeConversionEngine(QThread):
                 # Build transform filters from UI params FIRST
                 transform_filters = build_transform_filters(self.params, file_path)
                 
+                # Prepare estimator overrides from transforms
+                est_kwargs = {}
+                if transform_filters.get('target_dimensions'):
+                    w, h = transform_filters['target_dimensions']
+                    est_kwargs['override_width'] = w
+                    est_kwargs['override_height'] = h
+                
                 # Generate output path (use estimator estimate for params)
                 multiple_max_sizes = self.params.get('multiple_max_sizes', False)
-                params = estimator.estimate(file_path, target_bytes, allow_downscale=auto_resize) if estimator else {}
+                params = estimator.estimate(file_path, target_bytes, allow_downscale=auto_resize, **est_kwargs) if estimator else {}
                 
-                # Inject transformed dimensions into params for suffix generation
-                if transform_filters.get('target_dimensions'):
+                # If estimator didn't return resolution (e.g. failure or old version), fallback to transform dims
+                if 'resolution_w' not in params and transform_filters.get('target_dimensions'):
                     w, h = transform_filters['target_dimensions']
                     params['resolution_w'] = w
                     params['resolution_h'] = h
@@ -304,12 +311,19 @@ class TargetSizeConversionEngine(QThread):
                 # Build transform filters from UI params FIRST
                 transform_filters = build_transform_filters(self.params, file_path)
                 
+                # Prepare estimator overrides from transforms
+                est_kwargs = {}
+                if transform_filters.get('target_dimensions'):
+                    w, h = transform_filters['target_dimensions']
+                    est_kwargs['override_width'] = w
+                    est_kwargs['override_height'] = h
+                
                 # Generate output path (use estimator estimate for params)
                 multiple_max_sizes = self.params.get('multiple_max_sizes', False)
-                params = estimator.estimate(file_path, target_bytes, allow_downscale=auto_resize) if estimator else {}
+                params = estimator.estimate(file_path, target_bytes, allow_downscale=auto_resize, **est_kwargs) if estimator else {}
                 
-                # Inject transformed dimensions into params for suffix generation
-                if transform_filters.get('target_dimensions'):
+                # If estimator didn't return resolution (e.g. failure or old version), fallback to transform dims
+                if 'resolution_w' not in params and transform_filters.get('target_dimensions'):
                     w, h = transform_filters['target_dimensions']
                     params['resolution_w'] = w
                     params['resolution_h'] = h

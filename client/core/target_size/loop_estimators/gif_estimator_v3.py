@@ -76,6 +76,10 @@ class Estimator(EstimatorProtocol):
                 'height': meta.get('height', 0)
             }
         
+        # Check for overrides
+        meta['width'] = options.get('override_width', meta['width'])
+        meta['height'] = options.get('override_height', meta['height'])
+        
         # Filter presets based on downscale permission
         valid = [p for p in self.GIF_PRESETS if allow_downscale or p[3] == 1.0]
         

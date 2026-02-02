@@ -354,13 +354,11 @@ class VideoTab(BaseTab):
             self.estimator_version_combo.addItem(version)
         self.estimator_version_combo.blockSignals(False)
         
-        # Select highest version available (v3 > v2 > v1)
-        if 'v3' in versions:
-            self.estimator_version_combo.setCurrentText('v3')
-        elif 'v2' in versions:
-            self.estimator_version_combo.setCurrentText('v2')
-        elif versions:
-            self.estimator_version_combo.setCurrentIndex(0)
+        # Select highest version available dynamically
+        if versions:
+            # Sort versions by number (v1, v2, v3, v4, ...) and select the highest
+            sorted_versions = sorted(versions, key=lambda v: int(v[1:]) if v[1:].isdigit() else 0, reverse=True)
+            self.estimator_version_combo.setCurrentText(sorted_versions[0])
         
         print(f"[VideoTab] Estimator version changed to: {self.estimator_version_combo.currentText()}")
     
