@@ -172,9 +172,10 @@ class DevPanel(QWidget):
             combo.addItems(options)
             if current_str in options:
                 combo.setCurrentText(current_str)
-                
-            def on_combo_change(text):
-                self._apply_value(section, attr_name, text)
+            
+            # Use default args to capture values (avoid closure late-binding issue)
+            def on_combo_change(text, sec=section, attr=attr_name):
+                self._apply_value(sec, attr, text)
                 
             combo.currentTextChanged.connect(on_combo_change)
             
@@ -228,18 +229,19 @@ class DevPanel(QWidget):
             spinbox.setValue(int(current))
         spinbox.setFixedWidth(70)
         
-        def on_slider_change(val):
-            actual = val / 100.0 if is_float else val
-            spinbox.blockSignals(True)
-            spinbox.setValue(actual)
-            spinbox.blockSignals(False)
-            self._apply_value(section, attr_name, actual)
+        # Use default args to capture values (avoid closure late-binding issue)
+        def on_slider_change(val, sec=section, attr=attr_name, flt=is_float, spin=spinbox):
+            actual = val / 100.0 if flt else val
+            spin.blockSignals(True)
+            spin.setValue(actual)
+            spin.blockSignals(False)
+            self._apply_value(sec, attr, actual)
             
-        def on_spinbox_change(val):
-            slider.blockSignals(True)
-            slider.setValue(int(val * 100) if is_float else int(val))
-            slider.blockSignals(False)
-            self._apply_value(section, attr_name, val)
+        def on_spinbox_change(val, sec=section, attr=attr_name, flt=is_float, sldr=slider):
+            sldr.blockSignals(True)
+            sldr.setValue(int(val * 100) if flt else int(val))
+            sldr.blockSignals(False)
+            self._apply_value(sec, attr, val)
         
         slider.valueChanged.connect(on_slider_change)
         spinbox.valueChanged.connect(on_spinbox_change)
@@ -257,10 +259,18 @@ class DevPanel(QWidget):
         if hasattr(section['target'], 'update'): section['target'].update()
             
     def _reset_all(self):
+        """Reset all widgets to initial values"""
+        from PyQt6.QtWidgets import QComboBox
         for section in self._sections:
             for attr_name, initial in section['initial_values'].items():
-                slider, spinbox, is_float = section['widgets'][attr_name]
-                spinbox.setValue(initial)
+                widget_data = section['widgets'][attr_name]
+                # Check if it's a combo box (stored as single widget) or slider/spinbox tuple
+                if isinstance(widget_data, QComboBox):
+                    widget_data.setCurrentText(str(initial))
+                else:
+                    # Tuple of (slider, spinbox, is_float)
+                    slider, spinbox, is_float = widget_data
+                    spinbox.setValue(initial)
             
     def _print_values(self):
         print("\n# Current Dev Panel Values:")

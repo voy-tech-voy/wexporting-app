@@ -78,11 +78,17 @@ class CustomSpinBox(QWidget):
         self.is_dark = True
         self.on_enter_callback = on_enter_callback
         
+        # Connect to ThemeManager for automatic theme updates
+        from client.gui.theme_manager import ThemeManager
+        theme_manager = ThemeManager.instance()
+        theme_manager.theme_changed.connect(self.update_theme)
+        self.is_dark = theme_manager.is_dark_mode()
+        
         # Drag sensitivity: value change per pixel dragged
         self.drag_sensitivity = 1.0  # 1 pixel = 1 unit change
         
         # Create custom cursor
-        self.custom_drag_cursor = self._create_custom_cursor(is_dark=True)
+        self.custom_drag_cursor = self._create_custom_cursor(is_dark=self.is_dark)
         
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -120,18 +126,20 @@ class CustomSpinBox(QWidget):
         self.up_arrow = QLabel("˄")
         self.up_arrow.setFont(arrow_font)
         self.up_arrow.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.up_arrow.setFixedSize(24, 14)
+        self.up_arrow.setFixedSize(24, 21)
         self.up_arrow.mousePressEvent = lambda e: self.spinbox.stepUp()
         
         self.down_arrow = QLabel("˅")
         self.down_arrow.setFont(arrow_font)
         self.down_arrow.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.down_arrow.setFixedSize(24, 14)
+        self.down_arrow.setFixedSize(24, 21)
         self.down_arrow.mousePressEvent = lambda e: self.spinbox.stepDown()
         
         arrow_layout.addWidget(self.up_arrow)
         arrow_layout.addWidget(self.down_arrow)
-        arrow_container.setFixedHeight(28)
+        arrow_container.setFixedHeight(42)
+        arrow_container.setContentsMargins(0, 0, 0, 0)
+        arrow_layout.setContentsMargins(0, 0, 0, 0)
         
         self.spinbox.valueChanged.connect(self.valueChanged.emit)
         
@@ -316,8 +324,8 @@ class CustomSpinBox(QWidget):
                 border-right: none;
                 border-top-left-radius: 4px;
                 border-bottom-left-radius: 4px;
-                padding: 4px 8px;
-                min-height: 20px;
+                padding: 6px 8px;
+                min-height: 28px;
             }}
             QSpinBox:hover {{
                 border-color: {hover_color};
@@ -334,6 +342,9 @@ class CustomSpinBox(QWidget):
                 color: {arrow_color};
                 border: 1px solid {border_color};
                 border-left: none;
+                padding: 0px;
+                margin: 0px;
+                min-height: 20px;
             }}
             QLabel:hover {{
                 background-color: {'#3d3d3d' if is_dark else '#f0f0f0'};

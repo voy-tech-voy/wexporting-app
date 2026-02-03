@@ -318,6 +318,9 @@ class PresetGallery(QWidget):
     
     def _on_card_clicked(self, preset: PresetDefinition):
         """Handle card click with smooth animations."""
+        # Save scroll position before any changes
+        scroll_pos = self._scroll.verticalScrollBar().value()
+        
         if preset.parameters:
             self._parameter_form.set_parameters(preset.parameters, self._meta)
             self._param_panel.set_content(
@@ -327,6 +330,9 @@ class PresetGallery(QWidget):
             self._param_panel.show_animated()
         else:
             self._param_panel.hide_animated()
+        
+        # Restore scroll position after layout changes
+        QTimer.singleShot(0, lambda: self._scroll.verticalScrollBar().setValue(scroll_pos))
         
         self.preset_selected.emit(preset)
     
@@ -466,6 +472,7 @@ class PresetGallery(QWidget):
         if self._dev_panel is None:
             from client.gui.effects.dev_panel import DevPanel
             from client.gui.animators.animation_driver import AnimationDriver
+            import os
             
             self._dev_panel = DevPanel(title="Preset Gallery Animation Tuning")
             
@@ -473,15 +480,23 @@ class PresetGallery(QWidget):
             easing_options = list(AnimationDriver.EASING_MAP.keys())
             
             params = {
-                'ANIM_DURATION': (50, 1000, 50),
-                'EASING_CURVE': (easing_options,),  # Dropdown
+                'ANIM_DURATION': (50, 600, 10),
+                'EASING_CURVE': (easing_options,),  # Dropdown for open animation
+                'CLOSE_EASING': (easing_options,),  # Dropdown for close animation
+                'LAYOUT_SETTLE_DELAY': (10, 150, 10),  # Layout delay tuning
             }
+            
+            # Point to the actual file that contains the constants
+            dynamic_panel_file = os.path.join(
+                os.path.dirname(__file__), 
+                'dynamic_parameter_panel.py'
+            )
             
             self._dev_panel.add_section(
                 target=self._param_panel,
                 params=params,
                 title="Parameter Panel Animations",
-                source_file=__file__,
+                source_file=dynamic_panel_file,
                 on_change=None
             )
         

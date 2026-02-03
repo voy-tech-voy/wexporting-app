@@ -255,6 +255,7 @@ class UnifiedVariantInput(QLineEdit):
                 border: 1px solid {border_color};
                 border-radius: {Theme.RADIUS_SM}px;
                 padding: 6px 8px;
+                min-height: 20px;
                 font-family: '{Theme.FONT_BODY}';
                 font-size: {Theme.FONT_SIZE_XL}px;
             }}
@@ -2721,9 +2722,9 @@ class LoopFormatSelector(QWidget):
         codec_layout.addStretch()
         main_layout.addWidget(self.codec_row)
         
-        # Tooltip setup
-        install_app_tooltip(self.av1_btn, "Smaller file size. Slower encoding time.\nBest for performance.")
-        install_app_tooltip(self.vp9_btn, "Bigger file size. Faster encoding.")
+        # Tooltip setup - disabled, now using CodecEfficiencyTooltip in loop_tab
+        # install_app_tooltip(self.av1_btn, "Smaller file size. Slower encoding time.\nBest for performance.")
+        # install_app_tooltip(self.vp9_btn, "Bigger file size. Faster encoding.")
         
         # Set defaults
         self.codec_row.setVisible(False)

@@ -153,6 +153,12 @@ class CustomTargetSizeSpinBox(QWidget):
         self.is_dark = True
         self.on_enter_callback = on_enter_callback  # Callback when Enter is pressed
         
+        # Connect to ThemeManager for automatic theme updates
+        from client.gui.theme_manager import ThemeManager
+        theme_manager = ThemeManager.instance()
+        theme_manager.theme_changed.connect(self.update_theme)
+        self.is_dark = theme_manager.is_dark_mode()
+        
         # Drag state tracking
         self.drag_sensitivity = 0.01  # Value change per pixel dragged (10px = 0.1 value change)
         self._drag_start_pos = 0.0
@@ -161,7 +167,7 @@ class CustomTargetSizeSpinBox(QWidget):
         self._is_possible_drag = False
         
         # Create custom cursor (horizontal arrows with I-beam)
-        self.custom_drag_cursor = self._create_custom_cursor(is_dark=True)
+        self.custom_drag_cursor = self._create_custom_cursor(is_dark=self.is_dark)
         
         # Create layout
         layout = QHBoxLayout(self)
@@ -217,18 +223,20 @@ class CustomTargetSizeSpinBox(QWidget):
         self.up_arrow = QLabel("˄")
         self.up_arrow.setFont(arrow_font)
         self.up_arrow.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.up_arrow.setFixedSize(24, 14)  # Fixed height to match half of spinbox
+        self.up_arrow.setFixedSize(24, 21)  # Fixed height to match half of spinbox total height
         self.up_arrow.mousePressEvent = lambda e: self.spinbox.stepUp()
         
         self.down_arrow = QLabel("˅")
         self.down_arrow.setFont(arrow_font)
         self.down_arrow.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.down_arrow.setFixedSize(24, 14)  # Fixed height to match half of spinbox
+        self.down_arrow.setFixedSize(24, 21)  # Fixed height to match half of spinbox total height
         self.down_arrow.mousePressEvent = lambda e: self.spinbox.stepDown()
         
         arrow_layout.addWidget(self.up_arrow)
         arrow_layout.addWidget(self.down_arrow)
-        arrow_container.setFixedHeight(28)  # Match spinbox height (padding included)
+        arrow_container.setFixedHeight(42)  # Match spinbox total height
+        arrow_container.setContentsMargins(0, 0, 0, 0)
+        arrow_layout.setContentsMargins(0, 0, 0, 0)
         
         # Connect signal
         self.spinbox.valueChanged.connect(self.valueChanged.emit)
@@ -441,8 +449,8 @@ class CustomTargetSizeSpinBox(QWidget):
                 border-bottom-left-radius: 4px;
                 border-top-right-radius: 0px;
                 border-bottom-right-radius: 0px;
-                padding: 4px 8px;
-                min-height: 20px;
+                padding: 6px 8px;
+                min-height: 28px;
             }}
             QDoubleSpinBox:hover {{
                 border-color: {hover_color};
@@ -461,6 +469,7 @@ class CustomTargetSizeSpinBox(QWidget):
                 border: 1px solid {border_color};
                 padding: 0px;
                 margin: 0px;
+                min-height: 20px;
             }}
             QLabel:hover {{
                 color: {hover_color};

@@ -131,8 +131,8 @@ class ParameterForm(QWidget):
         self._is_dark = True  # Default to dark mode
         
         self._layout = QVBoxLayout(self)
-        self._layout.setContentsMargins(0, 8, 0, 8)  # Let parent handle horizontal
-        self._layout.setSpacing(16)  # More space between parameters
+        self._layout.setContentsMargins(0, 4, 0, 4)  # Minimal vertical margins
+        self._layout.setSpacing(12)  # Consistent spacing between parameters
         
         self._apply_styles()
     
@@ -184,7 +184,7 @@ class ParameterForm(QWidget):
         container = QFrame()
         container.setObjectName(f"param_{param.id}")
         layout = QHBoxLayout(container)
-        layout.setContentsMargins(0, 8, 0, 8)  # Add vertical spacing between rows
+        layout.setContentsMargins(0, 6, 0, 6)  # Consistent vertical padding per row
         layout.setSpacing(12)
         
         # Create label (always shown, positioned first)

@@ -9,7 +9,7 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
     QProgressBar, QFrame, QGraphicsDropShadowEffect
 )
-from PyQt6.QtCore import Qt, QObject, QEvent, QPoint
+from PyQt6.QtCore import Qt, QObject, QEvent, QPoint, QTimer, QPropertyAnimation, QEasingCurve, pyqtProperty
 from PyQt6.QtGui import QColor
 
 from client.gui.theme import Theme
@@ -38,6 +38,22 @@ class CodecEfficiencyTooltip(QWidget):
             "items": [
                 ("GIF", 15, "error", "Poor"),
                 ("WebM", 100, "success", "Excellent")
+            ]
+        },
+        "loop_av1": {
+            "title": "WebM AV1 Codec",
+            "desc": "Smallest files with best quality. Slower encoding speed.",
+            "items": [
+                ("VP9", 70, "info", "Fast encode"),
+                ("AV1", 100, "success", "Best quality")
+            ]
+        },
+        "loop_vp9": {
+            "title": "WebM VP9 Codec",
+            "desc": "Faster encoding with good quality. Larger files than AV1.",
+            "items": [
+                ("VP9", 70, "info", "Fast encode"),
+                ("AV1", 100, "success", "Best quality")
             ]
         },
         "image": {
@@ -70,7 +86,31 @@ class CodecEfficiencyTooltip(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
         
+        self._opacity = 0.0
         self._init_ui()
+        
+        # Connect to ThemeManager for automatic theme updates
+        from client.gui.theme_manager import ThemeManager
+        theme_manager = ThemeManager.instance()
+        theme_manager.theme_changed.connect(self._on_theme_changed)
+    
+    def _on_theme_changed(self, is_dark: bool):
+        """Update tooltip styling when theme changes."""
+        self._update_styles()
+        # Rebuild current mode to refresh colors
+        if hasattr(self, '_current_mode'):
+            self.set_mode(self._current_mode)
+    
+    @pyqtProperty(float)
+    def opacity(self):
+        """Get current opacity."""
+        return self._opacity
+    
+    @opacity.setter
+    def opacity(self, value):
+        """Set opacity and update window."""
+        self._opacity = value
+        self.setWindowOpacity(value)
     
     def _init_ui(self):
         """Initialize the UI components."""
@@ -80,7 +120,6 @@ class CodecEfficiencyTooltip(QWidget):
         
         # Container Frame
         self.container = QFrame()
-        self._update_styles()
         
         # Drop Shadow for depth (adjust opacity based on theme)
         shadow = QGraphicsDropShadowEffect(self)
@@ -102,11 +141,6 @@ class CodecEfficiencyTooltip(QWidget):
         
         # Title
         self.lbl_title = QLabel("Codec Efficiency")
-        self.lbl_title.setStyleSheet(f"""
-            font-weight: bold; 
-            font-size: {Theme.FONT_SIZE_BASE}px; 
-            color: {Theme.text()};
-        """)
         self.inner_layout.addWidget(self.lbl_title)
         
         # Bars Container (Dynamic)
@@ -117,14 +151,12 @@ class CodecEfficiencyTooltip(QWidget):
         # Description Text
         self.lbl_desc = QLabel("Description")
         self.lbl_desc.setWordWrap(True)
-        self.lbl_desc.setStyleSheet(f"""
-            color: {Theme.text_muted()}; 
-            font-size: {Theme.FONT_SIZE_SM}px; 
-            margin-top: 5px;
-        """)
         self.inner_layout.addWidget(self.lbl_desc)
         
         self.layout.addWidget(self.container)
+        
+        # Apply styles after all widgets are created
+        self._update_styles()
     
     def _update_styles(self):
         """Update styles based on current theme."""
@@ -148,6 +180,18 @@ class CodecEfficiencyTooltip(QWidget):
                 background: transparent;
             }}
         """)
+        
+        # Update title and description colors
+        self.lbl_title.setStyleSheet(f"""
+            font-weight: bold; 
+            font-size: {Theme.FONT_SIZE_BASE}px; 
+            color: {Theme.text()};
+        """)
+        self.lbl_desc.setStyleSheet(f"""
+            color: {Theme.text_muted()}; 
+            font-size: {Theme.FONT_SIZE_SM}px; 
+            margin-top: 5px;
+        """)
     
     def set_mode(self, mode: str):
         """
@@ -159,6 +203,7 @@ class CodecEfficiencyTooltip(QWidget):
         if mode not in self.PRESETS:
             return
         
+        self._current_mode = mode  # Store for theme updates
         data = self.PRESETS[mode]
         self.lbl_title.setText(data["title"])
         self.lbl_desc.setText(data["desc"])
@@ -224,34 +269,60 @@ class CodecEfficiencyTooltip(QWidget):
 class TooltipHoverFilter(QObject):
     """
     Event filter to attach the CodecEfficiencyTooltip to any widget.
-    Shows tooltip on hover, hides on leave.
+    Shows tooltip on hover with delay and fade-in animation.
     """
     
-    def __init__(self, target_widget, mode="video"):
+    def __init__(self, target_widget, mode="video", delay_ms=250):
         """
         Initialize the hover filter.
         
         Args:
             target_widget: Widget to attach tooltip to
             mode: Tooltip mode ("video", "loop", or "image")
+            delay_ms: Delay before showing tooltip (default: 250ms)
         """
         super().__init__(target_widget)
         self.target = target_widget
         self.tooltip = CodecEfficiencyTooltip(None)
         self.tooltip.set_mode(mode)
         self.target.installEventFilter(self)
+        
+        # Timer for delayed show
+        self.show_timer = QTimer(self)
+        self.show_timer.setSingleShot(True)
+        self.show_timer.setInterval(delay_ms)
+        self.show_timer.timeout.connect(self._show_with_animation)
+        
+        # Fade-in animation
+        self.fade_animation = QPropertyAnimation(self.tooltip, b"opacity")
+        self.fade_animation.setDuration(200)
+        self.fade_animation.setStartValue(0.0)
+        self.fade_animation.setEndValue(1.0)
+        self.fade_animation.setEasingCurve(QEasingCurve.Type.OutCubic)
+    
+    def _show_with_animation(self):
+        """Show tooltip with fade-in animation."""
+        # Calculate Position
+        pos = self.target.mapToGlobal(QPoint(0, self.target.height()))
+        # Add slight offset so it doesn't overlap the mouse immediately
+        self.tooltip.move(pos.x(), pos.y() + 5)
+        self.tooltip.opacity = 0.0
+        self.tooltip.show()
+        self.fade_animation.start()
     
     def eventFilter(self, obj, event):
-        """Handle hover events to show/hide tooltip."""
+        """Handle hover events to show/hide tooltip with delay."""
         if obj == self.target:
             if event.type() == QEvent.Type.Enter:
-                # Calculate Position
-                pos = self.target.mapToGlobal(QPoint(0, self.target.height()))
-                # Add slight offset so it doesn't overlap the mouse immediately
-                self.tooltip.move(pos.x(), pos.y() + 5)
-                self.tooltip.show()
+                # Start delay timer
+                self.show_timer.start()
                 return True
             elif event.type() == QEvent.Type.Leave:
+                # Cancel timer if still waiting
+                self.show_timer.stop()
+                # Stop animation if running
+                self.fade_animation.stop()
+                # Hide immediately
                 self.tooltip.hide()
                 return True
         return super().eventFilter(obj, event)

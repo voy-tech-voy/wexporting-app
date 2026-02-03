@@ -69,8 +69,10 @@ class TargetSizeSection(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(8)
         
-        # Single target size spinbox
+        # Unified row for target size (switches between single and multiple)
         self.target_size_label = QLabel(f"Target Size ({self._unit_suffix}):")
+        
+        # Single target size spinbox
         self.target_size_spinbox = CustomTargetSizeSpinBox(
             default_value=self._default_value,
             decimals=3,
@@ -79,24 +81,7 @@ class TargetSizeSection(QWidget):
         self.target_size_spinbox.setSensitivity(self._sensitivity)
         self.target_size_spinbox.valueChanged.connect(self._emit_change)
         
-        spinbox_row = QHBoxLayout()
-        spinbox_row.addWidget(self.target_size_label)
-        spinbox_row.addWidget(self.target_size_spinbox)
-        layout.addLayout(spinbox_row)
-        
-        # Auto-resize checkbox
-        self.auto_resize_checkbox = ThemedCheckBox("Auto-resize")
-        self.auto_resize_checkbox.setChecked(False)
-        self.auto_resize_checkbox.toggled.connect(self._emit_change)
-        layout.addWidget(self.auto_resize_checkbox)
-        
-        # Multiple variants checkbox
-        self.multiple_variants_checkbox = ThemedCheckBox("Multiple variants")
-        self.multiple_variants_checkbox.toggled.connect(self._on_multiple_toggled)
-        layout.addWidget(self.multiple_variants_checkbox)
-        
-        # Variant input field
-        self.variants_label = QLabel(f"Variant sizes ({self._unit_suffix}):")
+        # Variant input field (shares same row)
         self.variants_input = UnifiedVariantInput()
         self.variants_input.setPlaceholderText("e.g., 0.5, 1.0, 2.0")
         
@@ -112,12 +97,24 @@ class TargetSizeSection(QWidget):
         
         self.variants_input.setVisible(False)
         self.variants_input.textChanged.connect(self._emit_change)
-        self.variants_label.setVisible(False)
         
-        variants_row = QHBoxLayout()
-        variants_row.addWidget(self.variants_label)
-        variants_row.addWidget(self.variants_input)
-        layout.addLayout(variants_row)
+        # Row that contains either spinbox OR variant input
+        spinbox_row = QHBoxLayout()
+        spinbox_row.addWidget(self.target_size_label)
+        spinbox_row.addWidget(self.target_size_spinbox)
+        spinbox_row.addWidget(self.variants_input)
+        layout.addLayout(spinbox_row)
+        
+        # Auto-resize checkbox
+        self.auto_resize_checkbox = ThemedCheckBox("Auto-resize")
+        self.auto_resize_checkbox.setChecked(False)
+        self.auto_resize_checkbox.toggled.connect(self._emit_change)
+        layout.addWidget(self.auto_resize_checkbox)
+        
+        # Multiple variants checkbox
+        self.multiple_variants_checkbox = ThemedCheckBox("Multiple variants")
+        self.multiple_variants_checkbox.toggled.connect(self._on_multiple_toggled)
+        layout.addWidget(self.multiple_variants_checkbox)
     
     def get_params(self) -> dict:
         """
@@ -172,13 +169,16 @@ class TargetSizeSection(QWidget):
     
     def _on_multiple_toggled(self, multiple: bool):
         """Handle multiple variants checkbox toggle."""
-        # Hide/show single spinbox
-        self.target_size_label.setVisible(not multiple)
-        self.target_size_spinbox.setVisible(not multiple)
-        
-        # Hide/show variants input
-        self.variants_label.setVisible(multiple)
-        self.variants_input.setVisible(multiple)
+        if multiple:
+            # Switch to multiple variants mode
+            self.target_size_label.setText(f"Variant sizes ({self._unit_suffix}):")
+            self.target_size_spinbox.setVisible(False)
+            self.variants_input.setVisible(True)
+        else:
+            # Switch to single target size mode
+            self.target_size_label.setText(f"Target Size ({self._unit_suffix}):")
+            self.target_size_spinbox.setVisible(True)
+            self.variants_input.setVisible(False)
         
         self._emit_change()
     

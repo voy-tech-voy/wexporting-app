@@ -9,7 +9,7 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QSlider, 
     QSizePolicy, QFormLayout, QComboBox
 )
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import Qt, pyqtSignal, QEvent
 
 from client.gui.tabs.base_tab import BaseTab
 from client.gui.command_group import CommandGroup
@@ -20,7 +20,7 @@ from client.gui.custom_widgets import (
     UnifiedVariantInput
 )
 from client.gui.widgets import EstimatorVersionSelector
-from client.gui.sections import ResizeSection, TargetSizeSection
+from client.gui.sections import ResizeSection, TargetSizeSection, TimeSection
 from client.gui.theme import get_combobox_style
 from client.gui.components.codec_tooltip import TooltipHoverFilter
 
@@ -88,8 +88,13 @@ class LoopTab(BaseTab):
         self.format_selector.formatChanged.connect(self._on_format_changed)
         self.settings_group.get_content_layout().insertRow(0, self.format_selector)
         
-        # Add efficiency tooltip
+        # Add efficiency tooltip with dynamic mode switching
         self.format_tooltip = TooltipHoverFilter(self.format_selector, mode="loop")
+        
+        # Install event filters on codec row to switch tooltip mode
+        self.format_selector.codec_row.installEventFilter(self)
+        self.format_selector.av1_btn.installEventFilter(self)
+        self.format_selector.vp9_btn.installEventFilter(self)
         
         # Target Size Section (includes spinbox, auto-resize, and variants)
         self.target_size_section = TargetSizeSection(
@@ -260,48 +265,13 @@ class LoopTab(BaseTab):
         self.transform_group.add_row(self.rotate_container)
         
         # === TIME SECTION ===
-        self.time_container = QWidget()
-        time_layout = QVBoxLayout(self.time_container)
-        time_layout.setContentsMargins(0, 0, 0, 0)
-        time_layout.setSpacing(12)
-        
-        self.enable_time_cutting = ThemedCheckBox("Time range")
-        self.enable_time_cutting.toggled.connect(self._toggle_time_cutting)
-        
-        self.time_range_slider = TimeRangeSlider(is_dark_mode=self._initial_is_dark)
-        self.time_range_slider.setRange(0.0, 1.0)
-        self.time_range_slider.setStartValue(0.0)
-        self.time_range_slider.setEndValue(1.0)
-        self.time_range_slider.setVisible(False)
-        
-        time_row = QHBoxLayout()
-        time_row.addWidget(self.enable_time_cutting)
-        time_row.addSpacing(8)
-        time_row.addWidget(self.time_range_slider, 1)
-        time_layout.addLayout(time_row)
-        
-        self.enable_retime = ThemedCheckBox("Retime")
-        self.enable_retime.toggled.connect(self._toggle_retime)
-        
-        self.retime_slider = QSlider(Qt.Orientation.Horizontal)
-        self.retime_slider.setRange(10, 30)
-        self.retime_slider.setValue(10)
-        self.retime_slider.setVisible(False)
-        self.retime_value_label = QLabel("1.0x")
-        self.retime_value_label.setVisible(False)
-        self.retime_slider.valueChanged.connect(lambda v: self.retime_value_label.setText(f"{v/10:.1f}x"))
-        
-        retime_row = QHBoxLayout()
-        retime_row.addWidget(self.enable_retime)
-        retime_row.addWidget(self.retime_slider)
-        retime_row.addWidget(self.retime_value_label)
-        time_layout.addLayout(retime_row)
-        
-        self.transform_group.add_row(self.time_container)
+        self.time_section = TimeSection(self)
+        self.time_section.paramChanged.connect(self._notify_param_change)
+        self.time_section.setVisible(False)
+        self.transform_group.add_row(self.time_section)
         
         # Initially show resize, hide others
         self.rotate_container.setVisible(False)
-        self.time_container.setVisible(False)
         
         # Call _on_format_changed initially to set correct GIF/WebM visibility
         self._on_format_changed(self.format_selector.currentText())
@@ -324,15 +294,13 @@ class LoopTab(BaseTab):
             'type': 'loop',
             'loop_format': self.format_selector.currentText(),
             'rotation_angle': self.rotation_angle.currentText(),
-            'enable_time_cutting': self.enable_time_cutting.isChecked(),
-            'time_start': self.time_range_slider.startValue() if self.enable_time_cutting.isChecked() else 0.0,
-            'time_end': self.time_range_slider.endValue() if self.enable_time_cutting.isChecked() else 1.0,
-            'retime_enabled': self.enable_retime.isChecked(),
-            'retime_speed': self.retime_slider.value() / 10.0 if self.enable_retime.isChecked() else 1.0,
             'estimator_version': self.version_selector.get_selected_version(),
         }
         
         # Add format-specific max size parameters
+        # Get time parameters from TimeSection
+        time_params = self.time_section.get_params()
+        params.update(time_params)
         if is_gif:
             # GIF format uses gif_ prefix
             params.update({
@@ -400,12 +368,9 @@ class LoopTab(BaseTab):
         # No need to manually update: gif_fps, gif_colors
         
         # Note: ThemedCheckBox widgets auto-update via ThemeManager signal
-        # No need to manually update: gif_variants_checkbox, gif_blur, 
-        # webm_variants_checkbox, enable_time_cutting, enable_retime
+        # No need to manually update: gif_variants_checkbox, gif_blur, webm_variants_checkbox
         
-        # Update time range slider (doesn't auto-connect to ThemeManager)
-        if hasattr(self.time_range_slider, 'update_theme'):
-            self.time_range_slider.update_theme(is_dark)
+        # Note: TimeSection auto-updates via ThemeManager signal
     
     def _update_format_visibility(self):
         """
@@ -476,7 +441,7 @@ class LoopTab(BaseTab):
         """Set which transform section is visible."""
         self.resize_section.setVisible(mode == 'resize')
         self.rotate_container.setVisible(mode == 'rotate')
-        self.time_container.setVisible(mode == 'time')
+        self.time_section.setVisible(mode == 'time')
     
     def current_format(self) -> str:
         """Get current format (GIF or WebM)."""
@@ -514,16 +479,6 @@ class LoopTab(BaseTab):
         self._notify_param_change()
     
     
-    def _toggle_time_cutting(self, enabled: bool):
-        """Toggle time range slider."""
-        self.time_range_slider.setVisible(enabled)
-        self._notify_param_change()
-    
-    def _toggle_retime(self, enabled: bool):
-        """Toggle retime slider."""
-        self.retime_slider.setVisible(enabled)
-        self.retime_value_label.setVisible(enabled)
-        self._notify_param_change()
     
     def _parse_variants(self, text: str) -> list:
         """Parse comma-separated variant values."""
@@ -541,3 +496,19 @@ class LoopTab(BaseTab):
         self._is_dev_mode = is_dev
         # Version selector handles its own visibility
         self.version_selector.set_dev_mode(is_dev)
+    
+    def eventFilter(self, obj, event):
+        """Handle events for codec button tooltips."""
+        if obj == self.format_selector.codec_row:
+            if event.type() == QEvent.Type.Enter:
+                # Default to AV1 tooltip when entering codec area
+                self.format_tooltip.tooltip.set_mode("loop_av1")
+            elif event.type() == QEvent.Type.Leave:
+                self.format_tooltip.tooltip.set_mode("loop")
+        elif obj == self.format_selector.av1_btn:
+            if event.type() == QEvent.Type.Enter:
+                self.format_tooltip.tooltip.set_mode("loop_av1")
+        elif obj == self.format_selector.vp9_btn:
+            if event.type() == QEvent.Type.Enter:
+                self.format_tooltip.tooltip.set_mode("loop_vp9")
+        return super().eventFilter(obj, event)
