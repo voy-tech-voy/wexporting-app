@@ -100,11 +100,16 @@ class Estimator(EstimatorProtocol):
             else:
                 curr = "0:v"
 
+            # For low color counts (<=3), disable transparent color slot reservation
+            palette_opts = f"max_colors={colors}:stats_mode=diff"
+            if colors <= 3:
+                palette_opts += ":reserve_transparent=0"
+
             # Apply GIF Encoding Logic
             chain.append(
                 f"[{curr}]fps={fps},scale={w}:{h}:flags=lanczos[v];"
                 f"[v]split[a][b];"
-                f"[a]palettegen=max_colors={colors}:stats_mode=diff[p];"
+                f"[a]palettegen={palette_opts}[p];"
                 f"[b][p]paletteuse=dither={dither_type}{dither_opts}:diff_mode=rectangle"
             )
             
@@ -292,9 +297,15 @@ class Estimator(EstimatorProtocol):
                 status_callback=None, stop_check=None, **options):
         
         def emit(msg): 
+            print(f"[GIF v13] {msg}")
             if status_callback: status_callback(msg)
         def should_stop(): 
             return stop_check() if stop_check else False
+
+        print(f"[GIF v13] Starting export:")
+        print(f"  Input: {input_path}")
+        print(f"  Output: {output_path}")
+        print(f"  Target size: {target_size_bytes} bytes")
 
         params = self.estimate(input_path, target_size_bytes, **options)
         if not params:
@@ -314,22 +325,29 @@ class Estimator(EstimatorProtocol):
         if t_filters: chain.append(f"[0:v]{','.join(t_filters)}[t]")
         curr = "t" if t_filters else "0:v"
         
+        # For low color counts (<=3), disable transparent color slot reservation
+        palette_opts = f"max_colors={colors}:stats_mode=diff"
+        if colors <= 3:
+            palette_opts += ":reserve_transparent=0"
+        
         chain.append(
             f"[{curr}]fps={fps},scale={w}:{h}:flags=lanczos[v];"
             f"[v]split[a][b];"
-            f"[a]palettegen=max_colors={colors}:stats_mode=diff[p];"
+            f"[a]palettegen={palette_opts}[p];"
             f"[b][p]paletteuse=dither={dither_type}{dither_opts}:diff_mode=rectangle"
         )
         
         ffmpeg_bin = get_ffmpeg_binary()
-        cmd = [ffmpeg_bin, '-y', '-i', input_path]
+        cmd = [ffmpeg_bin, '-y']
         
-        # Add Input Args (Trims, etc)
+        # Add Input Args (Trims, etc) - MUST come BEFORE -i
         input_args = options.get('transform_filters', {}).get('input_args', {})
         for k, v in input_args.items():
             cmd.extend([f'-{k.lstrip("-")}', str(v)])
             
-        cmd.extend(['-filter_complex', ";".join(chain), output_path])
+        cmd.extend(['-i', input_path, '-filter_complex', ";".join(chain), output_path])
+        
+        print(f"[GIF v13] FFmpeg command: {' '.join(cmd)}")
         
         try:
             def drain(p, l):
@@ -353,12 +371,22 @@ class Estimator(EstimatorProtocol):
                 time.sleep(0.1)
             t.join()
             
+            print(f"[GIF v13] FFmpeg exit code: {proc.returncode}")
+            print(f"[GIF v13] Output exists: {os.path.exists(output_path)}")
+            if os.path.exists(output_path):
+                print(f"[GIF v13] Output size: {os.path.getsize(output_path)} bytes")
+            
             if proc.returncode == 0 and os.path.exists(output_path):
                 emit(f"✓ Done: {os.path.getsize(output_path)/1024:.1f} KB")
                 return True
             else:
-                emit(f"Error: {b''.join(errs).decode('utf-8', 'ignore')[-200:]}")
+                stderr_output = b''.join(errs).decode('utf-8', 'ignore')
+                print(f"[GIF v13] FFmpeg stderr:\n{stderr_output}")
+                emit(f"Error: {stderr_output[-200:]}")
                 return False
         except Exception as e:
+            print(f"[GIF v13] Exception: {e}")
+            import traceback
+            traceback.print_exc()
             emit(f"Ex Error: {e}")
             return False

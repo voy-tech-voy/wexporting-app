@@ -154,6 +154,27 @@ class Theme:
     def surface_element(cls) -> str:
         """Element surface color (buttons, inputs)."""
         return cls.color("surface_element")
+
+    @classmethod
+    def param_bg(cls) -> str:
+        """Background for parameter inputs (text, dropdowns, pills).
+        Uses surface_element for clear contrast against panel backgrounds."""
+        return cls.color("surface_element")
+    
+    @classmethod
+    def translucent_bg(cls) -> str:
+        """Translucent background for title bar with blur effect."""
+        return cls.color("translucent_bg")
+    
+    @classmethod
+    def surface_drop_area(cls) -> str:
+        """Background for file items in drop area."""
+        return cls.color("surface_drop_area")
+    
+    @classmethod
+    def presets_bg(cls) -> str:
+        """Background for preset gallery overlay."""
+        return cls.color("presets_bg")
     
     @classmethod
     def text(cls) -> str:
@@ -280,7 +301,7 @@ class Theme:
     def input_style(cls) -> str:
         """Generate standard input field QSS."""
         return f"""
-            background-color: {cls.surface_element()};
+            background-color: {cls.param_bg()};
             color: {cls.text()};
             border: 1px solid {cls.border()};
             border-radius: {cls.RADIUS_SM}px;
@@ -312,11 +333,13 @@ def get_combobox_style(is_dark: bool) -> str:
     Returns:
         QSS stylesheet string for QComboBox
     """
-    bg_color = "#2b2b2b" if is_dark else "#ffffff"
-    text_color = "white" if is_dark else "black"
-    border_color = "#555555" if is_dark else "#cccccc"
+    Theme.set_dark_mode(is_dark) # Ensure theme state is correct
+    
+    bg_color = Theme.param_bg()
+    text_color = Theme.text()
+    border_color = Theme.border()
     dropdown_bg = bg_color  # Match main background
-    arrow_color = "#AAAAAA" if is_dark else "#888888"
+    arrow_color = Theme.text_muted()
     
     return (
         f"QComboBox {{ "

@@ -75,6 +75,7 @@ class PresetGallery(QWidget):
         # Handle parent resize
         if obj == self.parent() and event.type() == QEvent.Type.Resize:
             self.setGeometry(obj.rect())
+            self._position_filter_bar()
             if self.isVisible():
                 self._capture_blur_background()
             return super().eventFilter(obj, event)
@@ -92,6 +93,12 @@ class PresetGallery(QWidget):
         
         return super().eventFilter(obj, event)
     
+    def _position_filter_bar(self):
+        """Position the filter bar as an overlay at the top of the gallery."""
+        if hasattr(self, '_filter_bar'):
+            # Position at top with some padding from edges
+            self._filter_bar.setGeometry(16, 16, self.width() - 32, 60)
+    
     def set_meta(self, meta):
         """Store media metadata for parameter visibility rules."""
         self._meta = meta
@@ -100,30 +107,33 @@ class PresetGallery(QWidget):
         """Setup the gallery layout."""
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(16, 16, 16, 16)
-        main_layout.setSpacing(12)
+        main_layout.setSpacing(0)  # No spacing - filter will overlay
         
-        # Category filter bar
-        self._filter_bar = CategoryFilterBar()
-        self._filter_bar.filterChanged.connect(self._apply_filter)
-        main_layout.addWidget(self._filter_bar)
-        
-        # Scroll area for cards
+        # Scroll area for cards (full height)
         self._scroll = QScrollArea()
         self._scroll.setWidgetResizable(True)
         self._scroll.setFrameShape(QFrame.Shape.NoFrame)
         self._scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self._scroll.setStyleSheet("background: transparent;")
         
+        # Update filter bar blur when scrolling
+        self._scroll.verticalScrollBar().valueChanged.connect(self._on_scroll)
+        
         # Card container
         self._card_container = QWidget()
         self._card_container.setStyleSheet("background: transparent;")
         self._container_layout = QVBoxLayout(self._card_container)
-        self._container_layout.setContentsMargins(0, 0, 0, 0)
+        self._container_layout.setContentsMargins(0, 60, 0, 0)  # Top padding for filter bar overlay
         self._container_layout.setSpacing(self.CARD_SPACING)
         self._container_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
         
         self._scroll.setWidget(self._card_container)
         main_layout.addWidget(self._scroll, 1)
+        
+        # Category filter bar - positioned as overlay on top of scroll area
+        self._filter_bar = CategoryFilterBar(self)
+        self._filter_bar.filterChanged.connect(self._apply_filter)
+        self._filter_bar.raise_()  # Ensure it's on top
         
         # Install event filters to catch background clicks
         self._scroll.viewport().installEventFilter(self)
@@ -137,6 +147,10 @@ class PresetGallery(QWidget):
         self._param_panel = DynamicParameterPanel()
         main_layout.addWidget(self._param_panel)
     
+    def _on_scroll(self, value):
+        """Handle scroll - update filter bar blur."""
+        self._update_filter_bar_blur()
+    
     def _update_param_panel_style(self):
         """Update parameter panel background based on theme."""
         self._param_panel.setStyleSheet(f"""
@@ -149,20 +163,21 @@ class PresetGallery(QWidget):
     
     def _update_preset_label_style(self):
         """Update preset label styling - no icon, just text."""
-        self._selected_preset_label.setStyleSheet(f"""
-            QLabel {{
-                color: {Theme.text()};
-                font-size: {Theme.FONT_SIZE_LG}px;
-                font-weight: bold;
-                font-family: '{Theme.FONT_BODY}';
-                padding-bottom: 8px;
-            }}
-        """)
+        if hasattr(self, '_selected_preset_label') and self._selected_preset_label:
+            self._selected_preset_label.setStyleSheet(f"""
+                QLabel {{
+                    color: {Theme.text()};
+                    font-size: {Theme.FONT_SIZE_LG}px;
+                    font-weight: bold;
+                    font-family: '{Theme.FONT_BODY}';
+                    padding-bottom: 8px;
+                }}
+            """)
     
     def _apply_styles(self):
         """Apply gallery-specific styles."""
-        # Use theme-aware background with opacity
-        bg_color = Theme.color_with_alpha('app_bg', 0.9)
+        # Use theme-aware preset gallery background
+        bg_color = Theme.presets_bg()
         self.setStyleSheet(f"""
             QWidget#PresetGallery {{
                 background-color: {bg_color};
@@ -352,6 +367,12 @@ class PresetGallery(QWidget):
             self.setGeometry(self.parent().rect())
             self._capture_blur_background()
         
+        # Position filter bar overlay
+        self._position_filter_bar()
+        
+        # Capture blur for filter bar after a short delay (let cards render)
+        QTimer.singleShot(50, self._update_filter_bar_blur)
+        
         # Setup opacity animation
         if not hasattr(self, '_opacity_effect'):
             self._opacity_effect = QGraphicsOpacityEffect(self)
@@ -367,6 +388,11 @@ class PresetGallery(QWidget):
         self._show_anim.setEndValue(1.0)
         self._show_anim.setEasingCurve(QEasingCurve.Type.OutQuad)
         self._show_anim.start()
+    
+    def _update_filter_bar_blur(self):
+        """Update the filter bar's blur background."""
+        if hasattr(self, '_filter_bar'):
+            self._filter_bar.capture_blur()
     
     def _capture_blur_background(self):
         """

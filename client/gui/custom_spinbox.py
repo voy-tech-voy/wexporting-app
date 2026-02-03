@@ -303,18 +303,17 @@ class CustomSpinBox(QWidget):
         self._apply_custom_style(is_dark)
     
     def _apply_custom_style(self, is_dark):
-        if is_dark:
-            bg_color = "#2b2b2b"
-            text_color = "#ffffff"
-            border_color = "#555555"
-            arrow_color = "#888888"
-            hover_color = "#4CAF50"
-        else:
-            bg_color = "white"
-            text_color = "#333333"
-            border_color = "#cccccc"
-            arrow_color = "#666666"
-            hover_color = "#4CAF50"
+        from client.gui.theme import Theme
+        
+        # Ensure Theme is in correct mode before querying colors
+        Theme.set_dark_mode(is_dark)
+        
+        # Use centralized theme tokens for logic
+        bg_color = Theme.param_bg()
+        text_color = Theme.text()
+        border_color = Theme.color("border_dim")
+        arrow_color = Theme.text_muted()
+        hover_color = Theme.color("border_focus")
         
         spinbox_style = f"""
             QSpinBox {{
@@ -336,6 +335,7 @@ class CustomSpinBox(QWidget):
         """
         self.spinbox.setStyleSheet(spinbox_style)
         
+        # Arrows share the same background, but handle their own border logic
         arrow_style = f"""
             QLabel {{
                 background-color: {bg_color};
@@ -347,7 +347,7 @@ class CustomSpinBox(QWidget):
                 min-height: 20px;
             }}
             QLabel:hover {{
-                background-color: {'#3d3d3d' if is_dark else '#f0f0f0'};
+                background-color: {Theme.color('surface_hover')};
             }}
         """
         

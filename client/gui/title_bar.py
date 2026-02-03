@@ -282,17 +282,15 @@ class TitleBarWindow(QMainWindow):
         self._is_dark_theme = is_dark
         Theme.set_dark_mode(is_dark)
         
-        if is_dark:
-            bg_color = "rgba(28, 28, 28, 0.7)"
-        else:
-            bg_color = "rgba(232, 232, 232, 0.6)"
+        # Use translucent_bg for title bar background (for blur effect)
+        bg_color = Theme.translucent_bg()
         
         text_color = Theme.text()
         btn_bg = Theme.surface_element()
         btn_hover = Theme.color("surface_hover")
         border_color = Theme.border()
         
-        # Frame style (rounded top corners, glass bg)
+        # Frame style (rounded top corners, translucent bg for blur)
         self._frame.setStyleSheet(f"""
             QFrame#TitleBarFrame {{
                 background-color: {bg_color};

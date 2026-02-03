@@ -163,7 +163,7 @@ class PresetCard(QFrame):
         
         self.setStyleSheet(f"""
             QFrame#PresetCard {{
-                background-color: {Theme.surface()};
+                background-color: {Theme.surface_element()};
                 border: 1px solid {Theme.border()};
                 border-radius: {Theme.RADIUS_LG}px;
             }}

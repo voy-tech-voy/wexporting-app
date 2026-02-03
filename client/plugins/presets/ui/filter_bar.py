@@ -5,8 +5,12 @@ Dynamic filter bar with exclusive toggle buttons for filtering presets by catego
 Single selection mode with "ALL" button to show all presets.
 """
 from typing import List, Optional
-from PyQt6.QtWidgets import QWidget, QHBoxLayout, QPushButton, QButtonGroup
-from PyQt6.QtCore import pyqtSignal
+from PyQt6.QtWidgets import (
+    QWidget, QHBoxLayout, QPushButton, QButtonGroup,
+    QGraphicsScene, QGraphicsPixmapItem, QGraphicsBlurEffect
+)
+from PyQt6.QtCore import pyqtSignal, Qt, QTimer
+from PyQt6.QtGui import QPainter, QColor, QPainterPath, QLinearGradient, QPixmap
 
 from client.plugins.presets.logic.models import PresetDefinition
 from client.gui.theme import Theme
@@ -20,6 +24,7 @@ class CategoryFilterBar(QWidget):
     - Dynamically generates buttons from preset categories
     - Single selection (exclusive) - only one category active at a time
     - "ALL" button shows all presets (default state)
+    - Blurs the preset cards behind it
     
     Signals:
         filterChanged: Emitted when selection changes
@@ -42,14 +47,138 @@ class CategoryFilterBar(QWidget):
         self._selected_category: Optional[str] = None  # None or category name
         self._button_group = QButtonGroup(self)
         self._button_group.setExclusive(True)
+        self._blurred_bg = None
+        self._is_capturing = False
+        
+        # Enable custom painting
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         
         self._layout = QHBoxLayout(self)
-        self._layout.setContentsMargins(0, 8, 0, 8)
+        self._layout.setContentsMargins(0, 12, 0, 16)
         self._layout.setSpacing(self.BUTTON_SPACING)
         
         # Center buttons with stretch on both sides
-        self._layout.addStretch()  # Leading stretch
-        self._layout.addStretch()  # Trailing stretch
+        self._layout.addStretch()
+        self._layout.addStretch()
+    
+    def capture_blur(self):
+        """
+        Capture and blur the content behind this filter bar.
+        Call this when the gallery shows or scrolls.
+        """
+        if self._is_capturing:
+            return
+        
+        gallery = self.parent()
+        if not gallery or not hasattr(gallery, '_scroll'):
+            return
+        
+        self._is_capturing = True
+        try:
+            scroll_area = gallery._scroll
+            
+            # Hide self to capture what's behind
+            self.hide()
+            
+            # Get the rect in scroll area coordinates
+            # Filter bar is at (16, 16) relative to gallery
+            # Scroll area also starts at (16, 16) due to margins
+            # So capture from top of scroll viewport
+            capture_rect = self.geometry()
+            capture_rect.moveTopLeft(scroll_area.viewport().mapFromParent(
+                gallery.mapFromParent(self.mapToParent(self.rect().topLeft()))
+            ))
+            
+            # Grab from scroll viewport
+            pixmap = scroll_area.viewport().grab(capture_rect)
+            
+            self.show()
+            
+            if pixmap.isNull():
+                return
+            
+            # Downscale for performance
+            scale = 4
+            small = pixmap.scaled(
+                pixmap.width() // scale, 
+                pixmap.height() // scale,
+                Qt.AspectRatioMode.IgnoreAspectRatio,
+                Qt.TransformationMode.SmoothTransformation
+            )
+            
+            # Apply blur using QGraphicsBlurEffect
+            scene = QGraphicsScene()
+            item = QGraphicsPixmapItem(small)
+            blur = QGraphicsBlurEffect()
+            blur.setBlurRadius(3)
+            blur.setBlurHints(QGraphicsBlurEffect.BlurHint.PerformanceHint)
+            item.setGraphicsEffect(blur)
+            scene.addItem(item)
+            
+            # Render blurred result
+            result = QPixmap(small.size())
+            result.fill(Qt.GlobalColor.transparent)
+            painter = QPainter(result)
+            scene.render(painter)
+            painter.end()
+            
+            self._blurred_bg = result
+            self.update()
+            
+        finally:
+            self._is_capturing = False
+    
+    def paintEvent(self, event):
+        """Paint blurred background with transparency fade at bottom."""
+        # Create a temporary pixmap to render content, then apply alpha mask
+        content = QPixmap(self.size())
+        content.fill(Qt.GlobalColor.transparent)
+        
+        content_painter = QPainter(content)
+        content_painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        
+        # Rounded corners
+        path = QPainterPath()
+        radius = 8
+        path.addRoundedRect(self.rect().toRectF(), radius, radius)
+        content_painter.setClipPath(path)
+        
+        # Fill with dark grey matching gallery visual appearance
+        # Gallery uses rgba(11,11,11,0.9) over blurred content
+        content_painter.fillRect(self.rect(), QColor(35, 35, 35, 255))
+        
+        # Draw blurred background on top
+        if self._blurred_bg and not self._blurred_bg.isNull():
+            content_painter.drawPixmap(self.rect(), self._blurred_bg)
+        
+        # Light tint to match gallery overlay
+        content_painter.fillRect(self.rect(), QColor(20, 20, 20, 180))
+        
+        content_painter.end()
+        
+        # Apply vertical alpha gradient mask (fade to transparent at bottom)
+        mask = QPixmap(self.size())
+        mask.fill(Qt.GlobalColor.transparent)
+        mask_painter = QPainter(mask)
+        
+        # Gradient from opaque at top to transparent at bottom
+        alpha_gradient = QLinearGradient(0, 0, 0, self.height())
+        alpha_gradient.setColorAt(0.0, QColor(255, 255, 255, 255))  # Fully opaque
+        alpha_gradient.setColorAt(0.6, QColor(255, 255, 255, 200))  # Still mostly opaque
+        alpha_gradient.setColorAt(1.0, QColor(255, 255, 255, 0))    # Fully transparent
+        mask_painter.fillRect(self.rect(), alpha_gradient)
+        mask_painter.end()
+        
+        # Apply mask to content using DestinationIn composition
+        result_painter = QPainter(content)
+        result_painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_DestinationIn)
+        result_painter.drawPixmap(0, 0, mask)
+        result_painter.end()
+        
+        # Draw final result to widget
+        painter = QPainter(self)
+        painter.drawPixmap(0, 0, content)
+        painter.end()
 
     
     def set_categories(self, presets: List[PresetDefinition]) -> None:

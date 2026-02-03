@@ -30,7 +30,7 @@ class StyleFactory:
                 QListWidget {{
                     border: 3px dashed {Theme.border()};
                     border-radius: {Theme.RADIUS_LG}px;
-                    background-color: {Theme.surface()};
+                    background-color: {Theme.surface_drop_area()};
                     color: {Theme.text_muted()};
                     font-size: {Theme.FONT_SIZE_BASE}px;
                     padding: 10px;
@@ -45,7 +45,7 @@ class StyleFactory:
                     margin: 2px;
                     border: 1px solid {Theme.border()};
                     border-radius: 5px;
-                    background-color: {Theme.surface_element()};
+                    background-color: {Theme.surface_drop_area()};
                     color: {Theme.text()};
                 }}
                 QListWidget::item:selected {{
@@ -71,7 +71,7 @@ class StyleFactory:
                     margin: 2px;
                     border: 1px solid {Theme.border()};
                     border-radius: 5px;
-                    background-color: {Theme.surface_element()};
+                    background-color: {Theme.surface_drop_area()};
                     color: {Theme.text()};
                 }}
                 QListWidget::item:selected {{
@@ -100,8 +100,12 @@ class StyleFactory:
                 color: {Theme.text()};
                 font-family: '{Theme.FONT_BODY}';
             }}
+            QFrame#RootFrame {{
+                background-color: {Theme.bg()};
+                border-radius: {Theme.RADIUS_LG}px;
+            }}
             QFrame#ContentFrame {{
-                background-color: {Theme.surface()};
+                background-color: {Theme.bg()};
                 border-radius: 0px 0px 5px 5px;
             }}
             QMenuBar {{
@@ -173,7 +177,7 @@ class StyleFactory:
                 border-color: {Theme.border()};
             }}
             QGroupBox {{
-                background-color: {Theme.surface_element()};
+                background-color: {Theme.surface()};
                 border: none;
                 border-radius: {Theme.RADIUS_MD}px;
                 margin: 0px;

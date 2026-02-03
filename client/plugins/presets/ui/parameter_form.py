@@ -77,7 +77,7 @@ class SegmentedPill(QWidget):
             else:
                 btn.setStyleSheet(f"""
                     QPushButton {{
-                        background-color: {Theme.surface()};
+                        background-color: {Theme.param_bg()};
                         color: {Theme.text_muted()};
                         border: 1px solid {Theme.border()};
                         font-size: {Theme.FONT_SIZE_LG}px;
@@ -259,6 +259,41 @@ class ParameterForm(QWidget):
             widget.addItems(param.options)
             if param.default in param.options:
                 widget.setCurrentText(str(param.default))
+            
+            # Apply theme-aware styling
+            widget.setStyleSheet(f"""
+                QComboBox {{
+                    background-color: {Theme.param_bg()};
+                    color: {Theme.text()};
+                    border: 1px solid {Theme.color('border_dim')};
+                    border-radius: {Theme.RADIUS_MD}px;
+                    padding: 8px 12px;
+                    font-size: {Theme.FONT_SIZE_LG}px;
+                }}
+                QComboBox:hover {{
+                    border: 1px solid {Theme.color('border_focus')};
+                }}
+                QComboBox::drop-down {{
+                    border: none;
+                    width: 24px;
+                }}
+                QComboBox::down-arrow {{
+                    image: none;
+                    border-left: 2px solid {Theme.color('text_secondary')};
+                    border-bottom: 2px solid {Theme.color('text_secondary')};
+                    width: 8px;
+                    height: 8px;
+                    margin-right: 8px;
+                    transform: rotate(-45deg);
+                }}
+                QComboBox QAbstractItemView {{
+                    background-color: {Theme.param_bg()};
+                    selection-background-color: {Theme.color('accent_primary')};
+                    selection-color: {Theme.bg()};
+                    border: 1px solid {Theme.color('border_dim')};
+                    outline: none;
+                }}
+            """)
             widget.currentTextChanged.connect(lambda: self._on_value_changed())
         
         if widget:
@@ -339,3 +374,38 @@ class ParameterForm(QWidget):
         for widget in self._widgets.values():
             if hasattr(widget, 'update_theme'):
                 widget.update_theme(is_dark)
+            elif isinstance(widget, QComboBox):
+                # Re-apply theme-aware styling for dropdowns
+                widget.setStyleSheet(f"""
+                    QComboBox {{
+                        background-color: {Theme.param_bg()};
+                        color: {Theme.text()};
+                        border: 1px solid {Theme.color('border_dim')};
+                        border-radius: {Theme.RADIUS_MD}px;
+                        padding: 8px 12px;
+                        font-size: {Theme.FONT_SIZE_LG}px;
+                    }}
+                    QComboBox:hover {{
+                        border: 1px solid {Theme.color('border_focus')};
+                    }}
+                    QComboBox::drop-down {{
+                        border: none;
+                        width: 24px;
+                    }}
+                    QComboBox::down-arrow {{
+                        image: none;
+                        border-left: 2px solid {Theme.color('text_secondary')};
+                        border-bottom: 2px solid {Theme.color('text_secondary')};
+                        width: 8px;
+                        height: 8px;
+                        margin-right: 8px;
+                        transform: rotate(-45deg);
+                    }}
+                    QComboBox QAbstractItemView {{
+                        background-color: {Theme.param_bg()};
+                        selection-background-color: {Theme.color('accent_primary')};
+                        selection-color: {Theme.bg()};
+                        border: 1px solid {Theme.color('border_dim')};
+                        outline: none;
+                    }}
+                """)

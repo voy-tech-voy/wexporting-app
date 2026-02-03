@@ -371,10 +371,16 @@ class DragDropArea(QWidget):
         
         Theme.set_dark_mode(is_dark)
         
+        # If list is empty, use transparent background for placeholder
+        if len(self.file_list) == 0:
+            bg_color = "transparent"
+        else:
+            bg_color = Theme.surface_drop_area()
+        
         # Base DropZone style
         base_style = f"""
             QListWidget#DropZone {{
-                background-color: {Theme.surface()};
+                background-color: {bg_color};
                 border: 6px dashed {Theme.border()};
                 border-radius: {Theme.RADIUS_LG}px;
                 color: {Theme.text()};
@@ -384,7 +390,7 @@ class DragDropArea(QWidget):
             }}
             QListWidget#DropZone:hover {{
                 border-color: {Theme.border_focus()};
-                background-color: {Theme.surface()};
+                background-color: {bg_color};
             }}
         """
         # Append scrollbar styling

@@ -161,7 +161,7 @@ class OutputFooter(QWidget):
         # Container styling
         self.setStyleSheet(f"""
             OutputFooter {{
-                background-color: {Theme.color("input_bg")};
+                background-color: {Theme.bg()};
                 border-top: 1px solid {Theme.border()};
             }}
         """)

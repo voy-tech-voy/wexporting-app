@@ -85,11 +85,12 @@ class DynamicParameterPanel(QFrame):
     
     def _apply_styles(self):
         """Apply panel styling."""
-        self.setStyleSheet("""
-            QFrame#DynamicParamPanel {
-                background: #2a2a2a;
+        from client.gui.theme import Theme
+        self.setStyleSheet(f"""
+            QFrame#DynamicParamPanel {{
+                background: {Theme.surface()};
                 border-radius: 8px;
-            }
+            }}
         """)
     
     def _update_title_style(self):

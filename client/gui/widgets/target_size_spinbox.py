@@ -426,18 +426,17 @@ class CustomTargetSizeSpinBox(QWidget):
     
     def _apply_custom_style(self, is_dark):
         """Apply custom styling with chevron arrows"""
-        if is_dark:
-            bg_color = "#2b2b2b"
-            text_color = "#ffffff"
-            border_color = "#555555"
-            arrow_color = "#888888"
-            hover_color = "#4CAF50"
-        else:
-            bg_color = "white"
-            text_color = "#333333"
-            border_color = "#cccccc"
-            arrow_color = "#888888"
-            hover_color = "#4CAF50"
+        from client.gui.theme import Theme
+        
+        # Ensure Theme is in correct mode
+        Theme.set_dark_mode(is_dark)
+        
+        # Use centralized theme tokens
+        bg_color = Theme.param_bg()
+        text_color = Theme.text()
+        border_color = Theme.border()
+        arrow_color = Theme.text_muted()
+        hover_color = Theme.border_focus()
         
         # Style the spinbox
         spinbox_style = f"""

@@ -34,6 +34,8 @@ class TargetSizeConversionEngine(QThread):
         self.successful_conversions = 0
         self.failed_conversions = 0
         self.skipped_files = 0
+        self.completed_outputs = 0  # Track completed output files
+        self.total_outputs = 0  # Total output files to generate
         
     def stop_conversion(self):
         """Stop the conversion process immediately."""
@@ -47,13 +49,19 @@ class TargetSizeConversionEngine(QThread):
         conversion_mode = self._determine_conversion_mode()
         print(f"[Engine] Conversion mode: {conversion_mode}")
         
+        # Calculate total output files (accounting for multi-variants)
+        self.total_outputs = self._calculate_total_outputs(conversion_mode)
+        print(f"[Engine] Total output files to generate: {self.total_outputs}")
+        
         for i, file_path in enumerate(self.files):
             if self.should_stop:
                 break
             
-            # Update progress
-            progress = int((i / total_files) * 100)
-            self.progress_updated.emit(progress)
+            # Update progress based on completed output files vs total output files
+            if self.total_outputs > 0:
+                progress = int((self.completed_outputs / self.total_outputs) * 100)
+                self.progress_updated.emit(progress)
+            
             self.status_updated.emit(f"Processing {Path(file_path).name}...")
             
             # Validate file type matches conversion mode
@@ -91,6 +99,55 @@ class TargetSizeConversionEngine(QThread):
         )
     
     def _determine_conversion_mode(self) -> str:
+        """
+        Determine conversion mode from params.
+        
+        Returns:
+            'image', 'video', or 'loop'
+        """
+        # First check explicit type param (set by tabs)
+        if 'conversion_type' in self.params:
+            return self.params['conversion_type']
+        
+        # Otherwise infer from format params
+        if self.params.get('loop_format'):
+            return 'loop'
+        elif self.params.get('image_max_size_mb') is not None:
+            return 'image'
+        else:
+            return 'video'
+    
+    def _calculate_total_outputs(self, conversion_mode: str) -> int:
+        """
+        Calculate total number of output files that will be generated.
+        Accounts for multi-variant size and resize options.
+        
+        Returns:
+            Total number of output files
+        """
+        total_input_files = len(self.files)
+        
+        # Get number of target sizes
+        target_sizes = self._get_target_sizes(conversion_mode)
+        num_sizes = len(target_sizes) if target_sizes else 1
+        
+        # Get number of resize variants
+        multiple_resize = self.params.get('multiple_resize', False) or self.params.get('multiple_size_variants', False)
+        resize_variants = self.params.get('resize_variants', []) or self.params.get('video_variants', [])
+        current_resize = self.params.get('current_resize')
+        
+        if multiple_resize and resize_variants:
+            num_resizes = len(resize_variants)
+        elif current_resize and current_resize != "No resize":
+            num_resizes = 1
+        else:
+            num_resizes = 1
+        
+        # Total = input files × size variants × resize variants
+        total = total_input_files * num_sizes * num_resizes
+        return total
+    
+    def _determine_conversion_mode_old(self) -> str:
         """
         Determine conversion mode from params.
         
@@ -224,7 +281,9 @@ class TargetSizeConversionEngine(QThread):
                     transform_filters = build_transform_filters(variant_params, file_path)
                     
                     # Prepare estimator overrides from transforms
-                    est_kwargs = {}
+                    est_kwargs = {
+                        'transform_filters': transform_filters  # Pass transform filters for duration/dimension calculation
+                    }
                     if transform_filters.get('target_dimensions'):
                         w, h = transform_filters['target_dimensions']
                         est_kwargs['override_width'] = w
@@ -263,6 +322,11 @@ class TargetSizeConversionEngine(QThread):
                     
                     if success:
                         self.file_completed.emit(file_path, output_path)
+                        self.completed_outputs += 1
+                        # Update progress immediately
+                        if self.total_outputs > 0:
+                            progress = int((self.completed_outputs / self.total_outputs) * 100)
+                            self.progress_updated.emit(progress)
                     else:
                         all_success = False
                         # Don't break - continue with other variants
@@ -370,6 +434,11 @@ class TargetSizeConversionEngine(QThread):
                     
                     if success:
                         self.file_completed.emit(file_path, output_path)
+                        self.completed_outputs += 1
+                        # Update progress immediately
+                        if self.total_outputs > 0:
+                            progress = int((self.completed_outputs / self.total_outputs) * 100)
+                            self.progress_updated.emit(progress)
                     else:
                         all_success = False
                         # Don't break - continue with other variants
@@ -439,7 +508,9 @@ class TargetSizeConversionEngine(QThread):
                     transform_filters = build_transform_filters(variant_params, file_path)
                     
                     # Prepare estimator overrides from transforms
-                    est_kwargs = {}
+                    est_kwargs = {
+                        'transform_filters': transform_filters  # Pass transform filters for duration/dimension calculation
+                    }
                     if transform_filters.get('target_dimensions'):
                         w, h = transform_filters['target_dimensions']
                         est_kwargs['override_width'] = w

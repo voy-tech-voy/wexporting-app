@@ -172,7 +172,7 @@ class ThemedCheckBox(QCheckBox):
                 border-radius: 9px;
             }}
             QCheckBox::indicator:unchecked {{
-                background-color: {border_dim};
+                background-color: {Theme.surface_element()};
                 border: 1px solid {border_dim};
             }}
             QCheckBox::indicator:checked {{
@@ -241,8 +241,8 @@ class UnifiedVariantInput(QLineEdit):
         """Apply themed styling using Theme class."""
         Theme.set_dark_mode(self._is_dark)
         
-        # Colors from theme
-        bg_color = Theme.surface_element()
+        # Colors from theme - use param_bg() for unified parameter background
+        bg_color = Theme.param_bg()
         text_color = Theme.text()
         border_color = Theme.border()
         border_focus = Theme.border_focus()
@@ -1307,26 +1307,17 @@ class CustomComboBox(QComboBox):
         dropdown_width = 24  # Fixed width for arrow area (matches CustomTargetSizeSpinBox)
         text_offset = 8  # Left offset for text and dropdown items
         
-        if is_dark:
-            bg_color = "#2b2b2b"
-            text_color = "#ffffff"
-            border_color = "#555555"
-            arrow_color = "#ffffff"
-            hover_border = "#4CAF50"
-            dropdown_bg = "#2b2b2b"
-            menu_bg = "#2b2b2b"
-            menu_text = "#ffffff"
-            menu_hover = "#3d3d3d"
-        else:
-            bg_color = "white"
-            text_color = "#333333"
-            border_color = "#cccccc"
-            arrow_color = "#333333"
-            hover_border = "#4CAF50"
-            dropdown_bg = "white"
-            menu_bg = "white"
-            menu_text = "#333333"
-            menu_hover = "#e0e0e0"
+        # Use Theme for unified parameter colors
+        Theme.set_dark_mode(is_dark)
+        bg_color = Theme.param_bg()
+        text_color = Theme.text()
+        border_color = Theme.border()
+        arrow_color = Theme.text()
+        hover_border = Theme.border_focus()
+        dropdown_bg = Theme.param_bg()
+        menu_bg = Theme.param_bg()
+        menu_text = Theme.text()
+        menu_hover = Theme.color('surface_hover')
         
         style = f"""
             QComboBox {{

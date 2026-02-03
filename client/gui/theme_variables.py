@@ -8,12 +8,15 @@ Based on Design Spec v4.0 - Premium Industrial (Tesla Dark Mode / Apple Ceramic)
 # ============================================
 DARK_THEME = {
     # Backgrounds
-    "app_bg": "#0B0B0B",           # Deepest Void (Window Background)
-    "surface_main": "#161616",     # Drop Zone / Panels
-    "surface_element": "#242424",  # Buttons / Inputs
-    "surface_hover": "#2a2a2a",    # Hover state for surfaces
-    "surface_pressed": "#202020",  # Pressed state
+    "app_bg": "#1B1B1B",           # Deepest Void (Window Background)
+    "surface_main": "#232323",     # Drop Zone / Panels (brighter for better visibility)
+    "surface_element": "#2D2D2D",  # Buttons / Inputs (lighter for clear interactivity)
+    "surface_drop_area": "#212121", # Drop area file item background
+    "surface_hover": "#333333",    # Hover state for surfaces
+    "surface_pressed": "#282828",  # Pressed state
     "input_bg": "#1a1a1a",         # Text input background
+    "translucent_bg": "rgba(28, 28, 28, 0.7)",  # Translucent background for title bar with blur
+    "presets_bg": "rgba(11, 11, 11, 0.9)",  # Preset gallery overlay background
     
     # Borders
     "border_dim": "#333333",       # Subtle Separation
@@ -49,9 +52,12 @@ LIGHT_THEME = {
     "app_bg": "#F5F5F7",           # Light background
     "surface_main": "#FFFFFF",     # Drop Zone / Panels
     "surface_element": "#E8E8ED",  # Buttons / Inputs
+    "surface_drop_area": "#E8E8ED", # Drop area file item background
     "surface_hover": "#E0E0E5",    # Hover state for surfaces
     "surface_pressed": "#D8D8DD",  # Pressed state
     "input_bg": "#FFFFFF",         # Text input background
+    "translucent_bg": "rgba(232, 232, 232, 0.6)",  # Translucent background for title bar with blur
+    "presets_bg": "rgba(245, 245, 247, 0.9)",  # Preset gallery overlay background
     
     # Borders
     "border_dim": "#D1D1D6",       # Subtle Separation

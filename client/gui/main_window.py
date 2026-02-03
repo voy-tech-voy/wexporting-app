@@ -115,6 +115,9 @@ class MainWindow(QMainWindow):
         # Mediator-Shell: Window behavior (resize, blur)
         self.window_behavior = FramelessWindowBehavior(self, border_width=8)
         
+        # Dev panel reference (lazy initialization)
+        self._dev_theme_panel = None
+        
         self.setup_ui()
         self.setup_status_bar()
         self.connect_signals()
@@ -904,21 +907,6 @@ class MainWindow(QMainWindow):
         # Delegate to the separate TitleBarWindow
         if hasattr(self, 'title_bar_window'):
             self.title_bar_window.apply_theme(is_dark)
-        
-        # Content frame styling (Opaque, rounded bottom corners)
-        if is_dark:
-            content_bg = "#2b2b2b"
-        else:
-            content_bg = "#ffffff"
-        
-        if hasattr(self, 'content_container'):
-            self.content_container.setStyleSheet(f"""
-                QFrame#ContentFrame {{
-                    background-color: {content_bg};
-                    border-bottom-left-radius: 12px;
-                    border-bottom-right-radius: 12px;
-                }}
-            """)
 
         
     def toggle_theme(self):
@@ -1126,3 +1114,26 @@ class MainWindow(QMainWindow):
         # Notify CommandPanel that top bar preset mode is inactive
         if mode != "Presets" and hasattr(self, 'command_panel'):
             self.command_panel.set_top_bar_preset_mode(False)
+    
+    def keyPressEvent(self, event):
+        """Handle global keyboard shortcuts"""
+        from PyQt6.QtCore import Qt
+        
+        # F12 - Open Dev Theme Panel
+        if event.key() == Qt.Key.Key_F12:
+            self._toggle_dev_theme_panel()
+            event.accept()
+            return
+        
+        super().keyPressEvent(event)
+    
+    def _toggle_dev_theme_panel(self):
+        """Toggle the developer theme panel (F12)"""
+        if self._dev_theme_panel is None or not self._dev_theme_panel.isVisible():
+            # Create or show the panel
+            from client.gui.dev_theme_panel import DevThemePanel
+            self._dev_theme_panel = DevThemePanel(self)
+            self._dev_theme_panel.show()
+        else:
+            # Hide the panel
+            self._dev_theme_panel.close()
