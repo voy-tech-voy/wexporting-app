@@ -388,6 +388,7 @@ class TargetSizeConversionEngine(QThread):
         try:
             target_sizes = self._get_target_sizes('loop')
             output_format = self.params.get('loop_format', 'GIF')  # LoopTab passes 'loop_format'
+            estimator_version = self.params.get('estimator_version', None)  # Get version from UI
             
             # Get auto_resize based on loop format (GIF vs WebM)
             if 'webm' in output_format.lower():
@@ -413,7 +414,7 @@ class TargetSizeConversionEngine(QThread):
                 resize_specs = [None]
             
             # Get estimator to determine output extension
-            estimator = get_loop_estimator(output_format)
+            estimator = get_loop_estimator(output_format, version=estimator_version)
             output_ext = estimator.get_output_extension() if estimator else 'gif'
             
             all_success = True
@@ -467,6 +468,7 @@ class TargetSizeConversionEngine(QThread):
                         output_path=output_path,
                         target_size_bytes=target_bytes,
                         loop_format=output_format,
+                        estimator_version=estimator_version,  # Pass version to run_loop_conversion
                         status_callback=self.status_updated.emit,
                         stop_check=lambda: self.should_stop,
                         allow_downscale=auto_resize,

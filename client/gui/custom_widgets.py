@@ -901,7 +901,7 @@ class ModeButtonsWidget(QWidget):
         target_size = 55 if self.orientation == Qt.Orientation.Vertical else 32
         self.max_size_btn.setIcon(self._create_themed_icon("target_icon.svg", target_size))
         self.presets_btn.setIcon(self._create_themed_icon("presets.svg", 32))
-        self.manual_btn.setIcon(self._create_themed_icon("settings.svg", 32))
+        self.manual_btn.setIcon(self._create_themed_icon("settings_v2.svg", 32))
 
     def _create_themed_icon(self, icon_name, size=64):
         """Create a QIcon from SVG with theme coloring."""
@@ -981,7 +981,7 @@ class ModeButtonsWidget(QWidget):
         target_size = 55 if self.orientation == Qt.Orientation.Vertical else 32
         self.max_size_btn.setIcon(self._get_tinted_icon("client/assets/icons/target_icon.svg", icon_color, target_size))
         self.presets_btn.setIcon(self._get_tinted_icon("client/assets/icons/presets.svg", icon_color, 32))
-        self.manual_btn.setIcon(self._get_tinted_icon("client/assets/icons/settings.svg", icon_color, 32))
+        self.manual_btn.setIcon(self._get_tinted_icon("client/assets/icons/settings_v2.svg", icon_color, 32))
         
         bg_hover = "rgba(255, 255, 255, 0.1)" if is_dark else "rgba(0, 0, 0, 0.05)"
         border_color = Theme.border()

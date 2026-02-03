@@ -49,6 +49,11 @@ class PresetGallery(QWidget):
         self._row_widgets: List[QWidget] = []  # Track row widgets for cleanup
         self._is_dark = True  # Default to dark mode
         
+        # Animation state
+        self._param_panel_animation = None
+        self._param_fade_animation = None
+        self._dev_panel = None
+        
         # Enable proper background painting
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.setAutoFillBackground(True)
@@ -64,13 +69,30 @@ class PresetGallery(QWidget):
         self.hide()
     
     def eventFilter(self, obj, event):
-        """Monitor parent resize events to update geometry."""
+        """Monitor parent resize events and catch double-clicks on scroll area."""
         from PyQt6.QtCore import QEvent
+        
+        # Handle parent resize
         if obj == self.parent() and event.type() == QEvent.Type.Resize:
             self.setGeometry(obj.rect())
             if self.isVisible():
                 self._capture_blur_background()
+            return super().eventFilter(obj, event)
+        
+        # Handle double-click on scroll viewport or card container
+        if event.type() == QEvent.Type.MouseButtonDblClick:
+            if obj == self._scroll.viewport() or obj == self._card_container:
+                # Check if double-click is on empty space (not on a child widget like a card)
+                child = obj.childAt(event.pos())
+                # If child is None OR child is the card container layout (not a card itself)
+                if child is None or child == self._card_container:
+                    print("[PresetGallery] Double-click on background detected - dismissing")
+                    self.dismissed.emit()
+                    return True
+        
         return super().eventFilter(obj, event)
+    
+    def set_meta(self, meta):
         """Store media metadata for parameter visibility rules."""
         self._meta = meta
     
@@ -103,23 +125,16 @@ class PresetGallery(QWidget):
         self._scroll.setWidget(self._card_container)
         main_layout.addWidget(self._scroll, 1)
         
-        # Parameter panel
+        # Install event filters to catch background clicks
+        self._scroll.viewport().installEventFilter(self)
+        self._card_container.installEventFilter(self)
+        
+        # Parameter panel - use new dynamic component
         from client.plugins.presets.ui.parameter_form import ParameterForm
-        self._param_panel = QFrame()
-        self._param_panel.setObjectName("ParamPanel")
-        self._update_param_panel_style()
-        
-        param_layout = QVBoxLayout(self._param_panel)
-        param_layout.setContentsMargins(12, 12, 12, 12)
-        
-        self._selected_preset_label = QLabel("Settings")
-        self._update_preset_label_style()
-        param_layout.addWidget(self._selected_preset_label)
+        from client.plugins.presets.ui.dynamic_parameter_panel import DynamicParameterPanel
         
         self._parameter_form = ParameterForm()
-        param_layout.addWidget(self._parameter_form)
-        
-        self._param_panel.hide()
+        self._param_panel = DynamicParameterPanel()
         main_layout.addWidget(self._param_panel)
     
     def _update_param_panel_style(self):
@@ -133,12 +148,15 @@ class PresetGallery(QWidget):
         """)
     
     def _update_preset_label_style(self):
-        """Update preset label style based on theme."""
+        """Update preset label styling - no icon, just text."""
         self._selected_preset_label.setStyleSheet(f"""
-            color: {Theme.text()};
-            font-weight: bold;
-            font-size: {Theme.FONT_SIZE_LG}px;
-            font-family: '{Theme.FONT_BODY}';
+            QLabel {{
+                color: {Theme.text()};
+                font-size: {Theme.FONT_SIZE_LG}px;
+                font-weight: bold;
+                font-family: '{Theme.FONT_BODY}';
+                padding-bottom: 8px;
+            }}
         """)
     
     def _apply_styles(self):
@@ -299,22 +317,27 @@ class PresetGallery(QWidget):
         return row
     
     def _on_card_clicked(self, preset: PresetDefinition):
-        """Handle card click."""
+        """Handle card click with smooth animations."""
         if preset.parameters:
-            self._selected_preset_label.setText(f"⚙ {preset.name} Settings")
             self._parameter_form.set_parameters(preset.parameters, self._meta)
-            self._param_panel.show()
+            self._param_panel.set_content(
+                title=f"{preset.name} Settings",
+                parameter_form=self._parameter_form
+            )
+            self._param_panel.show_animated()
         else:
-            self._param_panel.hide()
+            self._param_panel.hide_animated()
         
         self.preset_selected.emit(preset)
     
-    def mousePressEvent(self, event):
-        """Handle click on background - dismiss gallery."""
+    def mouseDoubleClickEvent(self, event):
+        """Handle double-click on gallery background - dismiss gallery."""
         child = self.childAt(event.pos())
+        # If clicked on empty space or on self (not a child widget)
         if child is None or child == self:
+            print("[PresetGallery] Double-click on gallery background - dismissing")
             self.dismissed.emit()
-        super().mousePressEvent(event)
+        super().mouseDoubleClickEvent(event)
     
     
     def show_animated(self):
@@ -436,6 +459,44 @@ class PresetGallery(QWidget):
         painter.fillRect(self.rect(), QColor(20, 20, 20, 180))
         
         super().paintEvent(event)
+    
+    
+    def toggle_dev_panel(self):
+        """Toggle dev panel for tuning animations (F12 in dev mode)."""
+        if self._dev_panel is None:
+            from client.gui.effects.dev_panel import DevPanel
+            from client.gui.animators.animation_driver import AnimationDriver
+            
+            self._dev_panel = DevPanel(title="Preset Gallery Animation Tuning")
+            
+            # Get list of easing curve names for dropdown
+            easing_options = list(AnimationDriver.EASING_MAP.keys())
+            
+            params = {
+                'ANIM_DURATION': (50, 1000, 50),
+                'EASING_CURVE': (easing_options,),  # Dropdown
+            }
+            
+            self._dev_panel.add_section(
+                target=self._param_panel,
+                params=params,
+                title="Parameter Panel Animations",
+                source_file=__file__,
+                on_change=None
+            )
+        
+        if self._dev_panel.isVisible():
+            self._dev_panel.hide()
+        else:
+            self._dev_panel.show()
+            self._dev_panel.raise_()
+    
+    def keyPressEvent(self, event):
+        """Handle F12 key for dev panel in dev mode."""
+        from PyQt6.QtCore import Qt
+        if event.key() == Qt.Key.Key_F12:
+            self.toggle_dev_panel()
+        super().keyPressEvent(event)
     
     def update_theme(self, is_dark: bool):
         """Update theme for gallery and all child components."""

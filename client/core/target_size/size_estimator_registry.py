@@ -345,6 +345,7 @@ def run_loop_conversion(
     output_path: str,
     target_size_bytes: int,
     loop_format: str,
+    estimator_version: str = None,
     status_callback=None,
     stop_check=None,
     **options
@@ -360,6 +361,7 @@ def run_loop_conversion(
         output_path: Destination file
         target_size_bytes: Target size in bytes
         loop_format: Loop format (GIF, WebM)
+        estimator_version: Optional version override (dev mode), defaults to PRODUCTION_DEFAULTS
         status_callback: Optional status update callback
         stop_check: Optional stop check callback
         **options: Additional options (allow_downscale, etc.)
@@ -367,7 +369,7 @@ def run_loop_conversion(
     Returns:
         True if conversion succeeded
     """
-    estimator = get_loop_estimator(loop_format)
+    estimator = get_loop_estimator(loop_format, version=estimator_version)
     
     if not estimator:
         if status_callback:

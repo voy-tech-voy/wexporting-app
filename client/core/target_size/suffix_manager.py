@@ -83,10 +83,21 @@ def generate_target_size_suffix(
     
     # GIF specifics
     if extension == 'gif' and optimal:
+        suffix_parts = []
         if 'fps' in optimal:
-            parts.append(f"_{optimal['fps']}fps")
+            suffix_parts.append(f"{optimal['fps']}fps")
         if 'colors' in optimal:
-            parts.append(f"_{optimal['colors']}colors")
+            suffix_parts.append(f"{optimal['colors']}colors")
+        if 'dither' in optimal:
+            d = optimal['dither']
+            if 'floyd' in d: d_str = 'floyd'
+            elif 'bayer' in d: d_str = 'bayer'
+            elif 'none' in d: d_str = 'nodither'
+            else: d_str = 'dither'
+            suffix_parts.append(d_str)
+            
+        if suffix_parts:
+            parts.append("_" + "_".join(suffix_parts))
     
     return ''.join(parts)
 

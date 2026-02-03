@@ -567,9 +567,10 @@ class MainWindow(QMainWindow):
             has_files = len(self.drag_drop_area.get_files()) > 0
             self.output_footer.set_has_files(has_files)
             
-        # USER REQUEST: "After dragging the file the PRESET view is on"
-        # Manually trigger the preset view when new files are added
-        self.drag_drop_area.show_preset_view()
+        # Show preset gallery only if NOT in LAB mode
+        # When LAB mode is active, user is working with the command panel, don't interrupt
+        if self._current_mode != Mode.LAB:
+            self.drag_drop_area.show_preset_view()
     
     def _on_footer_start(self):
         """Handle start button click from output footer"""

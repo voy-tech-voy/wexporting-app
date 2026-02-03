@@ -32,7 +32,7 @@ class SegmentedPill(QWidget):
         
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
+        layout.setSpacing(4)  # Small gap between buttons
         
         self._buttons: Dict[str, QPushButton] = {}
         self._button_group = QButtonGroup(self)
@@ -44,9 +44,10 @@ class SegmentedPill(QWidget):
             btn.setChecked(opt == self._current_value)
             btn.clicked.connect(lambda checked, o=opt: self._on_button_clicked(o))
             
-            # Styling
-            btn.setMinimumWidth(60)
-            btn.setMinimumHeight(32)
+            # Styling - ensure buttons are not cut off
+            btn.setMinimumWidth(70)
+            btn.setMinimumHeight(36)
+            btn.setSizePolicy(btn.sizePolicy().horizontalPolicy(), btn.sizePolicy().verticalPolicy())
             
             self._buttons[opt] = btn
             self._button_group.addButton(btn, i)
@@ -69,7 +70,7 @@ class SegmentedPill(QWidget):
                         color: {Theme.bg()};
                         border: none;
                         font-weight: bold;
-                        font-size: {Theme.FONT_SIZE_BASE}px;
+                        font-size: {Theme.FONT_SIZE_LG}px;
                         border-radius: {Theme.RADIUS_MD}px;
                     }}
                 """)
@@ -79,7 +80,7 @@ class SegmentedPill(QWidget):
                         background-color: {Theme.surface()};
                         color: {Theme.text_muted()};
                         border: 1px solid {Theme.border()};
-                        font-size: {Theme.FONT_SIZE_BASE}px;
+                        font-size: {Theme.FONT_SIZE_LG}px;
                         border-radius: {Theme.RADIUS_MD}px;
                     }}
                     QPushButton:hover {{
@@ -130,8 +131,8 @@ class ParameterForm(QWidget):
         self._is_dark = True  # Default to dark mode
         
         self._layout = QVBoxLayout(self)
-        self._layout.setContentsMargins(8, 8, 8, 8)
-        self._layout.setSpacing(12)
+        self._layout.setContentsMargins(0, 8, 0, 8)  # Let parent handle horizontal
+        self._layout.setSpacing(16)  # More space between parameters
         
         self._apply_styles()
     
@@ -140,7 +141,7 @@ class ParameterForm(QWidget):
         self.setStyleSheet(f"""
             QLabel {{ 
                 color: {Theme.text()}; 
-                font-size: {Theme.FONT_SIZE_BASE}px;
+                font-size: {Theme.FONT_SIZE_LG}px;
                 font-family: '{Theme.FONT_BODY}';
             }}
         """)
@@ -183,7 +184,7 @@ class ParameterForm(QWidget):
         container = QFrame()
         container.setObjectName(f"param_{param.id}")
         layout = QHBoxLayout(container)
-        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setContentsMargins(0, 8, 0, 8)  # Add vertical spacing between rows
         layout.setSpacing(12)
         
         # Create label (always shown, positioned first)
@@ -250,6 +251,7 @@ class ParameterForm(QWidget):
             
         elif param.type == ParameterType.SEGMENTED_PILL:
             widget = SegmentedPill(param.options, str(param.default))
+            widget.setMinimumHeight(40)  # Ensure buttons aren't cut off
             widget.value_changed.connect(lambda: self._on_value_changed())
             
         elif param.type == ParameterType.DROPDOWN:
