@@ -226,7 +226,7 @@ class Estimator(EstimatorProtocol):
             projected_total = (real_size / sample_len) * meta['duration'] * 1.05 
             
             if projected_total <= target_size_bytes:
-                print(f"[GIF_v12] ✓ Winner: Tier {tier['id']} ({tier['colors']}col) @ {fps} FPS")
+                print(f"[GIF_v12] [OK] Winner: Tier {tier['id']} ({tier['colors']}col) @ {fps} FPS")
                 return {
                     'fps': fps,
                     'colors': tier['colors'],
@@ -335,7 +335,7 @@ class Estimator(EstimatorProtocol):
             t.join()
             
             if proc.returncode == 0 and os.path.exists(output_path):
-                emit(f"✓ Done: {os.path.getsize(output_path)/1024:.1f} KB")
+                emit(f"[OK] Done: {os.path.getsize(output_path)/1024:.1f} KB")
                 return True
             else:
                 emit(f"Error: {b''.join(errs).decode('utf-8', 'ignore')[-200:]}")

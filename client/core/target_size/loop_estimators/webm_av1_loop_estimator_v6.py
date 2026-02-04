@@ -252,7 +252,7 @@ class Estimator(EstimatorProtocol):
 
         if os.path.exists(output_path):
             actual_mb = os.path.getsize(output_path) / (1024 * 1024)
-            emit(f"✓ Complete: {actual_mb:.2f} MB")
+            emit(f"[OK] Complete: {actual_mb:.2f} MB")
             try:
                 if os.path.exists("ffmpeg2pass-0.log"): os.remove("ffmpeg2pass-0.log")
             except: pass

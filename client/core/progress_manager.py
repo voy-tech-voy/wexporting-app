@@ -157,6 +157,10 @@ class ConversionProgressManager(QObject):
         size_variants: Optional[List] = None,
         resize_variants: Optional[List] = None,
         quality_variants: Optional[List] = None,
+        # GIF-specific variants (Loop tab, Manual mode)
+        gif_fps_variants: Optional[List] = None,
+        gif_colors_variants: Optional[List] = None,
+        gif_dither_variants: Optional[List] = None,
         # Preset mode params (optional)
         preset: Optional['PresetDefinition'] = None
     ) -> CalculationResult:
@@ -171,6 +175,9 @@ class ConversionProgressManager(QObject):
             size_variants: List of size variants (Max Size mode only)
             resize_variants: List of resize variants (both Lab sub-modes)
             quality_variants: List of quality variants (Manual mode only)
+            gif_fps_variants: List of FPS variants (Loop tab Manual mode only)
+            gif_colors_variants: List of color variants (Loop tab Manual mode only)
+            gif_dither_variants: List of dither variants (Loop tab Manual mode only)
             preset: PresetDefinition object (required if app_mode=PRESET)
         
         Returns:
@@ -183,7 +190,10 @@ class ConversionProgressManager(QObject):
                 lab_sub_mode=lab_sub_mode,
                 size_variants=size_variants or [],
                 resize_variants=resize_variants or [],
-                quality_variants=quality_variants or []
+                quality_variants=quality_variants or [],
+                gif_fps_variants=gif_fps_variants or [],
+                gif_colors_variants=gif_colors_variants or [],
+                gif_dither_variants=gif_dither_variants or []
             )
         elif app_mode == AppMode.PRESET:
             result = self._calculate_preset_mode(
@@ -234,6 +244,8 @@ class ConversionProgressManager(QObject):
                 size_variants = params.get('max_size_variants', [])
             elif params.get('multiple_size_variants'):
                 size_variants = params.get('size_variants', [])
+            elif params.get('gif_multiple_max_sizes'):
+                size_variants = params.get('gif_max_size_variants', [])
             else:
                 # Single size
                 size_mb = params.get('video_max_size_mb') or params.get('image_max_size_mb') or params.get('gif_max_size_mb')
@@ -257,6 +269,22 @@ class ConversionProgressManager(QObject):
         elif params.get('current_resize') and params.get('current_resize') != "No resize":
             resize_variants = [params.get('current_resize')]
         
+        # GIF-specific variants (Manual mode only, for Loop tab)
+        gif_fps_variants = []
+        gif_colors_variants = []
+        gif_dither_variants = []
+        
+        if lab_tab == LabTab.LOOP and lab_sub_mode == LabSubMode.MANUAL:
+            if params.get('gif_multiple_variants'):
+                # Multiple GIF variants enabled
+                fps_list = params.get('gif_fps_variants', [])
+                colors_list = params.get('gif_colors_variants', [])
+                dither_list = params.get('gif_dither_variants', [])
+                
+                gif_fps_variants = [int(x) for x in fps_list] if fps_list else []
+                gif_colors_variants = [int(x) for x in colors_list] if colors_list else []
+                gif_dither_variants = [int(x) for x in dither_list] if dither_list else []
+        
         # Delegate to main calculate method
         return self.calculate(
             file_list=file_list,
@@ -265,7 +293,10 @@ class ConversionProgressManager(QObject):
             lab_sub_mode=lab_sub_mode,
             size_variants=size_variants,
             resize_variants=resize_variants,
-            quality_variants=quality_variants
+            quality_variants=quality_variants,
+            gif_fps_variants=gif_fps_variants,
+            gif_colors_variants=gif_colors_variants,
+            gif_dither_variants=gif_dither_variants
         )
     
     def _calculate_lab_mode(
@@ -275,7 +306,10 @@ class ConversionProgressManager(QObject):
         lab_sub_mode: LabSubMode,
         size_variants: List,
         resize_variants: List,
-        quality_variants: List
+        quality_variants: List,
+        gif_fps_variants: List,
+        gif_colors_variants: List,
+        gif_dither_variants: List
     ) -> CalculationResult:
         """
         Calculate for Lab mode (tab-specific formats + sub-mode variants).
@@ -283,6 +317,7 @@ class ConversionProgressManager(QObject):
         Lab Sub-modes:
         - MAX_SIZE: total = valid_files × len(size_variants) × len(resize_variants)
         - MANUAL: total = valid_files × len(quality_variants) × len(resize_variants)
+        - MANUAL (Loop/GIF with variants): total = valid_files × len(fps) × len(colors) × len(dither) × len(resize)
         """
         if lab_tab is None:
             raise ValueError("lab_tab is required for Lab mode")
@@ -313,10 +348,24 @@ class ConversionProgressManager(QObject):
             variant_multiplier = num_sizes * num_resizes
         
         elif lab_sub_mode == LabSubMode.MANUAL:
-            # Manual: quality_variants × resize_variants
-            num_qualities = max(len(quality_variants), 1)
-            num_resizes = max(len(resize_variants), 1)
-            variant_multiplier = num_qualities * num_resizes
+            # Check if this is GIF with multiple variants
+            has_gif_variants = (lab_tab == LabTab.LOOP and 
+                              gif_fps_variants and 
+                              gif_colors_variants and 
+                              gif_dither_variants)
+            
+            if has_gif_variants:
+                # GIF Manual: fps × colors × dither × resize
+                num_fps = max(len(gif_fps_variants), 1)
+                num_colors = max(len(gif_colors_variants), 1)
+                num_dither = max(len(gif_dither_variants), 1)
+                num_resizes = max(len(resize_variants), 1)
+                variant_multiplier = num_fps * num_colors * num_dither * num_resizes
+            else:
+                # Standard Manual: quality_variants × resize_variants
+                num_qualities = max(len(quality_variants), 1)
+                num_resizes = max(len(resize_variants), 1)
+                variant_multiplier = num_qualities * num_resizes
         
         else:
             variant_multiplier = 1

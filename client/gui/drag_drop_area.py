@@ -901,7 +901,7 @@ class DragDropArea(QWidget):
             if selected_items:
                 # Remove items in reverse order to maintain correct indices
                 for item in reversed(selected_items):
-                    if not item.text().startswith("📁"):  # Don't remove placeholder
+                    if not item.text().startswith("[FILE]"):  # Don't remove placeholder
                         row = self.file_list_widget.row(item)
                         file_path = self.file_list[row]
                         

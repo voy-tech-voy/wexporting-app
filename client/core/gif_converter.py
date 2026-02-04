@@ -587,9 +587,9 @@ class GifConverter:
                             if success:
                                 successful_conversions += 1
                                 self.engine.file_completed.emit(file_path, output_path)
-                                self.engine.status_updated.emit(f"✓ GIF {variant_desc} completed")
+                                self.engine.status_updated.emit(f"[OK] GIF {variant_desc} completed")
                             else:
-                                self.engine.status_updated.emit(f"✗ GIF {variant_desc} failed")
+                                self.engine.status_updated.emit(f"[X] GIF {variant_desc} failed")
                             
                             # Restore original parameters
                             self.engine.params = original_params.copy()

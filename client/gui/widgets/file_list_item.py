@@ -216,9 +216,9 @@ class FileListItemWidget(QWidget):
     def set_fallback_icon(self, file_ext):
         """Set a fallback icon based on file type"""
         if file_ext in ['.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.tif', '.webp', '.gif']:
-            icon_text = "🖼"
+            icon_text = "[IMG]"
         elif file_ext in ['.mp4', '.avi', '.mov', '.mkv', '.flv', '.webm', '.m4v']:
-            icon_text = "🎬"
+            icon_text = "[VIDEO]"
         elif file_ext in ['.mp3', '.wav', '.flac', '.aac', '.ogg', '.m4a']:
             icon_text = "🎵"
         else:

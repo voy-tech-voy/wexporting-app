@@ -5,6 +5,34 @@ Shared helper functions for media analysis and manipulation.
 import ffmpeg
 import os
 
+
+def get_selected_ffmpeg_path() -> str:
+    """
+    Get FFmpeg path - backward compatibility wrapper
+    
+    Delegates to tool_registry as single source of truth.
+    Respects user selection from Advanced Settings.
+    
+    Returns:
+        Absolute path to FFmpeg binary
+    """
+    from client.core.tool_registry import get_ffmpeg_path
+    return get_ffmpeg_path()
+
+
+def get_selected_ffprobe_path() -> str:
+    """
+    Get FFprobe path - backward compatibility wrapper
+    
+    Delegates to tool_registry as single source of truth.
+    
+    Returns:
+        Absolute path to FFprobe binary
+    """
+    from client.core.tool_registry import get_ffprobe_path
+    return get_ffprobe_path()
+
+
 def map_ui_quality_to_crf(ui_quality: int, codec: str = 'generic') -> int:
     """
     Map UI quality value (0-100) to CRF value.

@@ -36,11 +36,13 @@ def get_bundled_ffmpeg_path():
 
 
 def get_ffprobe_path_from_ffmpeg(ffmpeg_path):
-    """Get ffprobe path from ffmpeg directory"""
+    """Get ffprobe path from ffmpeg directory - cross-platform"""
     if not ffmpeg_path:
         return ''
     
-    ffprobe_path = os.path.join(os.path.dirname(ffmpeg_path), 'ffprobe.exe')
+    # Use proper path construction instead of hardcoded .exe
+    probe_name = 'ffprobe.exe' if os.name == 'nt' else 'ffprobe'
+    ffprobe_path = os.path.join(os.path.dirname(ffmpeg_path), probe_name)
     return ffprobe_path if os.path.exists(ffprobe_path) else ''
 
 
@@ -235,19 +237,19 @@ def validate_system_ffmpeg(timeout=5):
         is_valid, error_msg, version_info = validate_ffmpeg_executable(ffmpeg_path, timeout)
         
         if not is_valid:
-            print(f"DEBUG: ✗ Basic validation failed: {error_msg}")
+            print(f"DEBUG: [X] Basic validation failed: {error_msg}")
             continue
         
-        print(f"DEBUG: ✓ Basic validation passed: {version_info}")
+        print(f"DEBUG: [OK] Basic validation passed: {version_info}")
         
         # Validate codecs
         has_codecs, missing_codecs = validate_ffmpeg_codecs(ffmpeg_path, timeout)
         
         if not has_codecs:
-            print(f"DEBUG: ✗ Codec validation failed. Missing codecs: {', '.join(missing_codecs)}")
+            print(f"DEBUG: [X] Codec validation failed. Missing codecs: {', '.join(missing_codecs)}")
             continue
         
-        print(f"DEBUG: ✓ All required codecs present")
+        print(f"DEBUG: [OK] All required codecs present")
         print(f"DEBUG: Selected FFmpeg: {ffmpeg_path}")
         return True, "", ffmpeg_path, version_info
     

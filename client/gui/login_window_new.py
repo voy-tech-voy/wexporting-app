@@ -481,7 +481,7 @@ class VideoPlaybackThread(QThread):
             
             cap = cv2.VideoCapture(self.video_path)
             if not cap.isOpened():
-                print(f"❌ Failed to open video: {self.video_path}")
+                print(f"[X] Failed to open video: {self.video_path}")
                 self.finished.emit()
                 return
             
@@ -538,11 +538,11 @@ class VideoPlaybackThread(QThread):
                 self.last_frame_captured.emit(self.last_frame)
             
             cap.release()
-            print(f"✅ Video playback thread completed")
+            print(f"[OK] Video playback thread completed")
         except ImportError:
-            print(f"❌ OpenCV (cv2) not installed. Install with: pip install opencv-python")
+            print(f"[X] OpenCV (cv2) not installed. Install with: pip install opencv-python")
         except Exception as e:
-            print(f"❌ Error in video playback: {e}")
+            print(f"[X] Error in video playback: {e}")
             import traceback
             traceback.print_exc()
         finally:
@@ -1155,9 +1155,9 @@ class ModernLoginWindow(QDialog):
     #         # Update theme toggle button emoji
     #         self._update_theme_toggle_button()
     #         
-    #         print(f"✅ Theme toggled to {'dark' if self.is_dark_mode() else 'light'} mode")
+    #         print(f"[OK] Theme toggled to {'dark' if self.is_dark_mode() else 'light'} mode")
     #     except Exception as e:
-    #         print(f"⚠️  Could not toggle dark mode: {e}")
+    #         print(f"[WARN]  Could not toggle dark mode: {e}")
     
     
     def get_config_path(self):
@@ -1765,11 +1765,11 @@ class ModernLoginWindow(QDialog):
             # Validate email format using EmailInput validation (except for dev mode test emails)
             if email not in ['a@a.com', 'b@b.com', 'off']:
                 if not self.trial_email_input.validate_email():
-                    print(f"🔍 DEBUG [handle_trial_send]: Invalid email format, showing error")
+                    print(f"[SEARCH] DEBUG [handle_trial_send]: Invalid email format, showing error")
                     self.trial_email_input.show_error("incorrect mail format")
                     return
         except Exception as e:
-            print(f"🔍 DEBUG [handle_trial_send]: Exception during validation: {e}")
+            print(f"[SEARCH] DEBUG [handle_trial_send]: Exception during validation: {e}")
             import traceback
             traceback.print_exc()
             return
@@ -1788,10 +1788,10 @@ class ModernLoginWindow(QDialog):
             email_norm = (email or "").strip().lower()
             print(f"DEBUG: handle_trial_send called with email: {email_norm}")
             if email_norm in ['a@a.com', 'b@b.com', 'off']:
-                print(f"🔍 DEBUG [handle_trial_send]: Dev mode detected for '{email_norm}', simulating delay")
+                print(f"[SEARCH] DEBUG [handle_trial_send]: Dev mode detected for '{email_norm}', simulating delay")
                 if email_norm == 'off':
                     # Immediate offline message
-                    print(f"🔍 DEBUG [handle_trial_send]: Showing offline message immediately")
+                    print(f"[SEARCH] DEBUG [handle_trial_send]: Showing offline message immediately")
                     self.show_trial_warning_dialog(
                         "No Internet Connection",
                         "An internet connection is required to activate a trial.\n\nPlease check your connection and try again."
@@ -1801,13 +1801,13 @@ class ModernLoginWindow(QDialog):
                     self.trial_send_btn.setStyleSheet(
                         "QPushButton { background-color: transparent; color: white; border: 2px solid #2196f3; border-radius: 8px; }"
                     )
-                    print(f"🔍 DEBUG [handle_trial_send]: Setting waiting_for_response=False (offline)")
+                    print(f"[SEARCH] DEBUG [handle_trial_send]: Setting waiting_for_response=False (offline)")
                     self.waiting_for_response = False
                     return
                 # Simulate 2s server wait before showing message
-                print(f"🔍 DEBUG [handle_trial_send]: Scheduling 2s delay for '{email_norm}'")
+                print(f"[SEARCH] DEBUG [handle_trial_send]: Scheduling 2s delay for '{email_norm}'")
                 def _finish_dev():
-                    print(f"🔍 DEBUG [_finish_dev]: Delay complete for '{email_norm}', showing dialog")
+                    print(f"[SEARCH] DEBUG [_finish_dev]: Delay complete for '{email_norm}', showing dialog")
                     if email_norm == 'a@a.com':
                         self.show_trial_success_dialog(email_norm, 'x-x-x')
                     else:
@@ -1816,13 +1816,13 @@ class ModernLoginWindow(QDialog):
                             "The server reported a trial activation failure for this email/device."
                         )
                     # Re-enable button after message shown (reset happens in message cleanup)
-                    print(f"🔍 DEBUG [_finish_dev]: Re-enabling trial button")
+                    print(f"[SEARCH] DEBUG [_finish_dev]: Re-enabling trial button")
                     self.trial_send_btn.setEnabled(True)
                     self.trial_send_btn.setText("enter trial mode")
                     self.trial_send_btn.setStyleSheet(
                         "QPushButton { background-color: transparent; color: white; border: 2px solid #2196f3; border-radius: 8px; }"
                     )
-                    print(f"🔍 DEBUG [_finish_dev]: Setting waiting_for_response=False")
+                    print(f"[SEARCH] DEBUG [_finish_dev]: Setting waiting_for_response=False")
                     self.waiting_for_response = False
                 QTimer.singleShot(2000, _finish_dev)
                 return
@@ -2237,33 +2237,33 @@ class ModernLoginWindow(QDialog):
     def handle_resend(self):
         """Handle forgot license - retrieve license key from server"""
         try:
-            print(f"🔍 DEBUG [handle_resend]: START - waiting_for_response={getattr(self, 'waiting_for_response', False)}")
+            print(f"[SEARCH] DEBUG [handle_resend]: START - waiting_for_response={getattr(self, 'waiting_for_response', False)}")
             
             # Clear any existing messages/overlays first to ensure consistent behavior
             self._remove_message_overlay()
             
             email = self.resend_input.text().strip()
-            print(f"🔍 DEBUG [handle_resend]: Email entered: '{email}'")
+            print(f"[SEARCH] DEBUG [handle_resend]: Email entered: '{email}'")
             
             if not email:
-                print(f"🔍 DEBUG [handle_resend]: Empty email, showing error")
+                print(f"[SEARCH] DEBUG [handle_resend]: Empty email, showing error")
                 self.resend_input.show_error("email required")
                 return
             
             # Validate email format using EmailInput validation
             if not self.resend_input.validate_email():
-                print(f"🔍 DEBUG [handle_resend]: Invalid email format, showing error")
+                print(f"[SEARCH] DEBUG [handle_resend]: Invalid email format, showing error")
                 self.resend_input.show_error("incorrect mail format")
                 return
         except Exception as e:
-            print(f"🔍 DEBUG [handle_resend]: Exception during validation: {e}")
+            print(f"[SEARCH] DEBUG [handle_resend]: Exception during validation: {e}")
             import traceback
             traceback.print_exc()
             return
 
         # Grey out and disable send button while waiting
         try:
-            print(f"🔍 DEBUG [handle_resend]: Setting waiting_for_response=True")
+            print(f"[SEARCH] DEBUG [handle_resend]: Setting waiting_for_response=True")
             self.waiting_for_response = True
             self.send_btn.setEnabled(False)
             self.send_btn.setText("Processing...")
@@ -2276,9 +2276,9 @@ class ModernLoginWindow(QDialog):
         # Development mode simulation: f@f.com success, n@n.com fail, invalid = error
         email_norm = (email or "").strip().lower()
         if email_norm in ["f@f.com", "n@n.com", "invalid"]:
-            print(f"🔍 DEBUG [handle_resend]: Dev mode detected for '{email_norm}', simulating 2s delay")
+            print(f"[SEARCH] DEBUG [handle_resend]: Dev mode detected for '{email_norm}', simulating 2s delay")
             def _finish_dev_resend():
-                print(f"🔍 DEBUG [_finish_dev_resend]: Delay complete, showing message for '{email_norm}'")
+                print(f"[SEARCH] DEBUG [_finish_dev_resend]: Delay complete, showing message for '{email_norm}'")
                 if email_norm == "f@f.com":
                     self._show_inline_forgot_message(
                         "License key sent! ✉️",
@@ -2298,7 +2298,7 @@ class ModernLoginWindow(QDialog):
                         message_type="error"
                     )
                 try:
-                    print(f"🔍 DEBUG [_finish_dev_resend]: Re-enabling send button")
+                    print(f"[SEARCH] DEBUG [_finish_dev_resend]: Re-enabling send button")
                     self.send_btn.setEnabled(True)
                     self.send_btn.setText("Send")
                     # Restore original style
@@ -2307,7 +2307,7 @@ class ModernLoginWindow(QDialog):
                     )
                 except:
                     pass
-                print(f"🔍 DEBUG [_finish_dev_resend]: Setting waiting_for_response=False")
+                print(f"[SEARCH] DEBUG [_finish_dev_resend]: Setting waiting_for_response=False")
                 self.waiting_for_response = False
             QTimer.singleShot(2000, _finish_dev_resend)
             return
@@ -2320,17 +2320,17 @@ class ModernLoginWindow(QDialog):
         try:
             from client.config.config import FORGOT_LICENSE_URL
             
-            print(f"🔍 DEBUG: Sending forgot license request to {FORGOT_LICENSE_URL} for {email}")
+            print(f"[SEARCH] DEBUG: Sending forgot license request to {FORGOT_LICENSE_URL} for {email}")
             
             response = requests.post(FORGOT_LICENSE_URL, json={
                 'email': email
             }, timeout=10)
             
-            print(f"✅ DEBUG: Server response received: {response.status_code}")
+            print(f"[OK] DEBUG: Server response received: {response.status_code}")
             
             result = response.json()
             
-            print(f"✅ DEBUG: Response JSON: {result}")
+            print(f"[OK] DEBUG: Response JSON: {result}")
             
             if result.get('success'):
                 # License found and email sent
@@ -2356,7 +2356,7 @@ class ModernLoginWindow(QDialog):
                     if minutes > 0:
                         message = (
                             f"You've reached the maximum number of requests.\n\n"
-                            f"⏳ Please wait {minutes} minute(s)"
+                            f"[WAIT] Please wait {minutes} minute(s)"
                         )
                         if seconds > 0:
                             message += f" and {seconds} second(s)"
@@ -2364,7 +2364,7 @@ class ModernLoginWindow(QDialog):
                     else:
                         message = (
                             f"You've reached the maximum number of requests.\n\n"
-                            f"⏳ Please wait {retry_after} seconds before trying again."
+                            f"[WAIT] Please wait {retry_after} seconds before trying again."
                         )
                 
                 self._show_inline_forgot_message(
@@ -2405,11 +2405,11 @@ class ModernLoginWindow(QDialog):
 
     def _show_inline_forgot_message(self, title, subtitle, message_type="info"):
         """Display message inline for Forgot flow, replacing Forgot UI and adding a back button."""
-        print(f"🔍 DEBUG [_show_inline_forgot_message]: Showing message - title='{title}', type={message_type}")
+        print(f"[SEARCH] DEBUG [_show_inline_forgot_message]: Showing message - title='{title}', type={message_type}")
         
         # Mark message as not yet stable (prevents premature Enter reset)
         self.message_stable = False
-        print(f"🔍 DEBUG [_show_inline_forgot_message]: Set message_stable=False")
+        print(f"[SEARCH] DEBUG [_show_inline_forgot_message]: Set message_stable=False")
         
         # Clear any existing overlays/messages first
         self._remove_message_overlay()
@@ -2440,7 +2440,7 @@ class ModernLoginWindow(QDialog):
         # Mark message as stable after a short delay (500ms) to prevent premature reset
         def _mark_stable():
             self.message_stable = True
-            print(f"🔍 DEBUG [_show_inline_forgot_message]: Message now stable, Enter key will reset")
+            print(f"[SEARCH] DEBUG [_show_inline_forgot_message]: Message now stable, Enter key will reset")
         QTimer.singleShot(500, _mark_stable)
         
         # Auto-dismiss success messages after 3 seconds
@@ -2464,22 +2464,22 @@ class ModernLoginWindow(QDialog):
         
         # Intercept Enter/Return key - NEVER let it reach QDialog's default handler
         if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
-            print(f"🔍 DEBUG [keyPressEvent]: Enter pressed at dialog level")
+            print(f"[SEARCH] DEBUG [keyPressEvent]: Enter pressed at dialog level")
             
             # If there's a message overlay, close it
             if hasattr(self, 'overlay_widget') and self.overlay_widget:
-                print(f"🔍 DEBUG [keyPressEvent]: Closing overlay")
+                print(f"[SEARCH] DEBUG [keyPressEvent]: Closing overlay")
                 self.reset_trial_to_login_mode()
                 event.accept()
                 return
             if hasattr(self, 'success_message_container') and self.success_message_container:
-                print(f"🔍 DEBUG [keyPressEvent]: Closing success message")
+                print(f"[SEARCH] DEBUG [keyPressEvent]: Closing success message")
                 self.reset_trial_to_login_mode()
                 event.accept()
                 return
             
             # Otherwise, just consume the Enter - do NOT close the dialog
-            print(f"🔍 DEBUG [keyPressEvent]: Consuming Enter to prevent dialog close")
+            print(f"[SEARCH] DEBUG [keyPressEvent]: Consuming Enter to prevent dialog close")
             event.accept()  # Accept and return - do NOT call super()
             return
         
@@ -2557,23 +2557,23 @@ class ModernLoginWindow(QDialog):
                 # Check message stability (prevents reset during message creation)
                 message_stable = getattr(self, 'message_stable', True)  # Default True for backward compat
                 
-                print(f"🔍 DEBUG [eventFilter]: Enter pressed - waiting={is_waiting}, has_inline={has_inline}, message_stable={message_stable}")
+                print(f"[SEARCH] DEBUG [eventFilter]: Enter pressed - waiting={is_waiting}, has_inline={has_inline}, message_stable={message_stable}")
                 
                 # Consume Enter while waiting for server response to avoid accidental actions
                 if is_waiting:
-                    print(f"🔍 DEBUG [eventFilter]: Consuming Enter (still waiting for server)")
+                    print(f"[SEARCH] DEBUG [eventFilter]: Consuming Enter (still waiting for server)")
                     return True
                 
                 # Only reset to login if message is stable AND not waiting
                 if has_inline and message_stable:
-                    print(f"🔍 DEBUG [eventFilter]: Message stable, resetting to login")
+                    print(f"[SEARCH] DEBUG [eventFilter]: Message stable, resetting to login")
                     self.reset_trial_to_login_mode()
                     return True  # consume event
                 elif has_inline and not message_stable:
-                    print(f"🔍 DEBUG [eventFilter]: Message not yet stable, consuming Enter")
+                    print(f"[SEARCH] DEBUG [eventFilter]: Message not yet stable, consuming Enter")
                     return True  # consume but don't reset
         except Exception as e:
-            print(f"🔍 DEBUG [eventFilter]: Exception: {e}")
+            print(f"[SEARCH] DEBUG [eventFilter]: Exception: {e}")
         return super().eventFilter(obj, event)
 
     def load_media_animation(self):
@@ -2585,8 +2585,8 @@ class ModernLoginWindow(QDialog):
             animation_path = os.path.abspath(animation_path)
             
             if os.path.exists(animation_path):
-                print(f"📁 Animation path: {animation_path}")
-                print(f"📁 File exists: {os.path.exists(animation_path)}")
+                print(f"[FILE] Animation path: {animation_path}")
+                print(f"[FILE] File exists: {os.path.exists(animation_path)}")
                 
                 # Calculate video duration using OpenCV
                 import cv2
@@ -2605,12 +2605,12 @@ class ModernLoginWindow(QDialog):
                 self.video_thread.last_frame_captured.connect(self._on_login_frame_ready)  # Keep last frame
                 self.video_thread.finished.connect(self._on_video_playback_finished)
                 self.video_thread.start()
-                print(f"✅ Login animation started")
+                print(f"[OK] Login animation started")
             else:
-                print(f"⚠️  Animation file not found: {animation_path}")
+                print(f"[WARN]  Animation file not found: {animation_path}")
                 self.show_placeholder_image()
         except Exception as e:
-            print(f"❌ Error loading animation: {e}")
+            print(f"[X] Error loading animation: {e}")
             import traceback
             traceback.print_exc()
             self.show_placeholder_image()
@@ -2622,7 +2622,7 @@ class ModernLoginWindow(QDialog):
             # Last frame is already being displayed by last_frame_captured signal
             # No need to show placeholder image anymore
         except Exception as e:
-            print(f"❌ Error after video playback: {e}")
+            print(f"[X] Error after video playback: {e}")
             self.show_placeholder_image()
     
     def _on_login_frame_ready(self, pixmap):
@@ -2665,13 +2665,13 @@ class ModernLoginWindow(QDialog):
                 self.video_widget.hide()
                 image_label.show()
                 
-                print(f"✅ Placeholder image displayed: {placeholder_path}")
+                print(f"[OK] Placeholder image displayed: {placeholder_path}")
             else:
                 # Show black background with a simple label
-                print(f"⚠️  Placeholder image not found: {placeholder_path}")
+                print(f"[WARN]  Placeholder image not found: {placeholder_path}")
                 self.show_simple_placeholder()
         except Exception as e:
-            print(f"❌ Error displaying placeholder: {e}")
+            print(f"[X] Error displaying placeholder: {e}")
             self.show_simple_placeholder()
     
     def show_simple_placeholder(self):
@@ -2687,9 +2687,9 @@ class ModernLoginWindow(QDialog):
             self.video_widget.hide()
             label.show()
             
-            print(f"✅ Simple placeholder displayed")
+            print(f"[OK] Simple placeholder displayed")
         except Exception as e:
-            print(f"❌ Error showing simple placeholder: {e}")
+            print(f"[X] Error showing simple placeholder: {e}")
 
 
 if __name__ == "__main__":

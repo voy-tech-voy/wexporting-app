@@ -283,7 +283,7 @@ class Estimator(EstimatorProtocol):
             t.join()
             
             if proc.returncode == 0 and os.path.exists(output_path):
-                emit(f"✓ Done: {os.path.getsize(output_path)/1024:.1f} KB")
+                emit(f"[OK] Done: {os.path.getsize(output_path)/1024:.1f} KB")
                 return True
             else:
                 emit(f"Error: {b''.join(errs).decode('utf-8', 'ignore')[-200:]}")

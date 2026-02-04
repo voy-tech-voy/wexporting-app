@@ -19,7 +19,7 @@ from .command_panel import CommandPanel
 from .output_footer import OutputFooter
 from .theme_manager import ThemeManager
 from .title_bar import TitleBarWindow
-from client.core.conversion_engine import ConversionEngine, ToolChecker
+from client.core.conversion_engine import ToolChecker  # Only for tool status checking
 from client.core.progress_manager import ConversionProgressManager
 from client.gui.custom_widgets import PresetStatusButton
 from client.utils.trial_manager import TrialManager
@@ -514,23 +514,24 @@ class MainWindow(QMainWindow):
         self.progress_bar.setVisible(visible)
         
     def set_progress(self, value):
-        """Set progress bar value (0-100)"""
+        """Set progress bar value (0-100) - updates green overall progress bar"""
         self.progress_bar.setValue(value)
+        # Also update the green total_progress_bar (0.0-1.0 scale)
+        if hasattr(self, 'total_progress_bar'):
+            self.total_progress_bar.set_progress(value / 100.0)
     
     @pyqtSlot(int, float)
     def on_file_progress(self, file_index, progress):
-        """Handle individual file progress update"""
+        """Handle individual file progress update - updates blue file progress bar"""
         # Update file list item progress
         self.drag_drop_area.set_file_progress(file_index, progress)
         
-        # Update blue bar (current file)
+        # Update blue bar (current file) only
         if hasattr(self, 'file_progress_bar'):
             self.file_progress_bar.set_progress(progress)
-            
-        # Update green bar (overall progress) using manager
-        if hasattr(self, 'total_progress_bar'):
-            overall_progress = self.progress_manager.get_overall_progress(progress)
-            self.total_progress_bar.set_progress(overall_progress)
+        
+        # NOTE: Green bar (overall progress) is updated via set_progress() signal,
+        # not here - to avoid conflicting updates
         
     def connect_signals(self):
         """Connect signals between components"""
@@ -758,8 +759,12 @@ class MainWindow(QMainWindow):
         if use_target_size_engine:
             from client.core.target_size import TargetSizeConversionEngine
             self.conversion_engine = TargetSizeConversionEngine(files, params, self.progress_manager)
+            print(f"[MainWindow] Using TargetSizeConversionEngine")
         else:
-            self.conversion_engine = ConversionEngine(files, params)
+            # NEW: Use modular manual mode engine
+            from client.core.manual_mode import ManualModeConversionEngine
+            self.conversion_engine = ManualModeConversionEngine(files, params, self.progress_manager)
+            print(f"[MainWindow] Using ManualModeConversionEngine")
         
         # Connect engine signals
         self.conversion_engine.progress_updated.connect(self.set_progress)
@@ -799,7 +804,7 @@ class MainWindow(QMainWindow):
         import os
         source_name = os.path.basename(source_file)
         output_name = os.path.basename(output_file)
-        self.update_status(f"✓ Converted: {source_name} → {output_name}")
+        self.update_status(f"[OK] Converted: {source_name} → {output_name}")
         
         # Ensure blue bar reaches 100% for this file
         if hasattr(self, 'file_progress_bar'):
@@ -901,7 +906,7 @@ class MainWindow(QMainWindow):
             # Create detailed message
             message_parts = ["Tool Status Check:\n"]
             for tool, status in detailed_status.items():
-                icon = "✓" if tools[tool] else "✗"
+                icon = "[OK]" if tools[tool] else "[X]"
                 message_parts.append(f"{icon} {tool.title()}: {status}")
             
             message = "\n".join(message_parts)

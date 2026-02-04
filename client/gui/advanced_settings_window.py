@@ -217,14 +217,14 @@ class AdvancedSettingsWindow(QDialog):
             is_valid, error_msg, version_info = validate_ffmpeg_executable(file_path)
             if is_valid:
                 self.path_input.setText(file_path)
-                self.status_label.setText(f"✓ Valid FFmpeg executable selected")
+                self.status_label.setText(f"[OK] Valid FFmpeg executable selected")
                 self.status_label.setStyleSheet("color: green;")
                 
                 # Auto-switch to "Use ffmpeg file" if currently in system mode
                 if self.radio_system.isChecked():
                     self.radio_bundled.setChecked(True)
             else:
-                self.status_label.setText(f"✗ {error_msg}")
+                self.status_label.setText(f"[X] {error_msg}")
                 self.status_label.setStyleSheet("color: red;")
                 
     def populate_ffmpeg_dropdown(self):
@@ -235,7 +235,7 @@ class AdvancedSettingsWindow(QDialog):
         ffmpeg_list = get_all_valid_ffmpeg_paths()
         
         if not ffmpeg_list:
-            self.status_label.setText("✗ No valid FFmpeg found in PATH")
+            self.status_label.setText("[X] No valid FFmpeg found in PATH")
             self.status_label.setStyleSheet("color: red;")
             self.system_ffmpeg_combo.setEnabled(False)
             return
@@ -252,7 +252,7 @@ class AdvancedSettingsWindow(QDialog):
             version_short = version_info.split()[2] if len(version_info.split()) > 2 else "unknown"
             
             # Create display text
-            display_text = f"{path} - v{version_short} (✓ all codecs)"
+            display_text = f"{path} - v{version_short} ([OK] all codecs)"
             
             # Add to dropdown with path as user data
             self.system_ffmpeg_combo.addItem(display_text, userData=path)
@@ -263,7 +263,7 @@ class AdvancedSettingsWindow(QDialog):
         self.system_ffmpeg_combo.setCurrentIndex(0)
         
         # Update status
-        self.status_label.setText(f"✓ Found {valid_count} valid FFmpeg installation(s)")
+        self.status_label.setText(f"[OK] Found {valid_count} valid FFmpeg installation(s)")
 
         self.status_label.setStyleSheet("color: green;")
             

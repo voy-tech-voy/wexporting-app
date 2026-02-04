@@ -25,7 +25,7 @@ def get_cross_platform_hardware_id():
         else:
             return get_fallback_hardware_id()
     except Exception as e:
-        print(f"⚠️ Error getting hardware ID: {e}")
+        print(f"[WARN] Error getting hardware ID: {e}")
         return get_fallback_hardware_id()
 
 def get_windows_hardware_id():
@@ -138,7 +138,7 @@ def get_platform_info():
     }
 
 if __name__ == "__main__":
-    print("🖥️ CROSS-PLATFORM HARDWARE ID DETECTION")
+    print("[SCREEN]️ CROSS-PLATFORM HARDWARE ID DETECTION")
     print("=" * 50)
     
     # Show platform info
@@ -155,13 +155,13 @@ if __name__ == "__main__":
     # Show what method was used
     system = platform.system().lower()
     if system == 'windows':
-        print("🪟 Method: Windows WMI (motherboard + CPU)")
+        print("[WIN] Method: Windows WMI (motherboard + CPU)")
     elif system == 'darwin':
         print("🍎 Method: macOS system_profiler (Hardware UUID)")
     elif system == 'linux':
         print("🐧 Method: Linux dmidecode/machine-id")
     else:
-        print("❓ Method: Fallback (system info hash)")
+        print("[?] Method: Fallback (system info hash)")
     
-    print(f"\n✅ This ID will be consistent across app restarts on this device")
-    print(f"⚠️  ID will change if hardware is significantly modified")
+    print(f"\n[OK] This ID will be consistent across app restarts on this device")
+    print(f"[WARN]  ID will change if hardware is significantly modified")

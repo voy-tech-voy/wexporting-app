@@ -1399,7 +1399,7 @@ class LoginWindow(QDialog):
         layout.setContentsMargins(25, 25, 25, 25)
         
         # Title
-        title = QLabel("🎉 Trial Activated!")
+        title = QLabel("[DONE] Trial Activated!")
         title.setFont(AppFonts.get_custom_font(14, bold=True))
         layout.addWidget(title)
         
@@ -1424,7 +1424,7 @@ class LoginWindow(QDialog):
         copy_btn = QPushButton("Copy License Key")
         def copy_to_clipboard():
             QApplication.clipboard().setText(license_key)
-            copy_btn.setText("Copied! ✓")
+            copy_btn.setText("Copied! [OK]")
             QApplication.processEvents()
             # Use QTimer instead of sleep to avoid blocking
             from functools import partial
@@ -1494,7 +1494,7 @@ class LoginWindow(QDialog):
         layout.setContentsMargins(25, 25, 25, 25)
         
         # Title
-        title_label = QLabel(f"⚠️ {title}")
+        title_label = QLabel(f"[WARN] {title}")
         title_label.setFont(AppFonts.get_custom_font(12, bold=True))
         layout.addWidget(title_label)
         
@@ -1568,7 +1568,7 @@ class LoginWindow(QDialog):
         layout.setContentsMargins(25, 25, 25, 25)
         
         # Title
-        title_label = QLabel(f"⚠️ {title}")
+        title_label = QLabel(f"[WARN] {title}")
         title_label.setFont(AppFonts.get_custom_font(12, bold=True))
         layout.addWidget(title_label)
         

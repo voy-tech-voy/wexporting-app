@@ -66,7 +66,7 @@ class ServerHealthChecker:
                     return 'circuit_open', f"Server unavailable. Retry in {int(self.circuit_timeout - elapsed)}s"
                 else:
                     # Timeout elapsed, try again (half-open state)
-                    logger.info("🔄 Circuit breaker timeout elapsed, attempting reconnection...")
+                    logger.info("[SYNC] Circuit breaker timeout elapsed, attempting reconnection...")
                     self.circuit_open = False
         
         try:
@@ -137,7 +137,7 @@ class ServerHealthChecker:
             self.circuit_open = True
             self.circuit_opened_at = datetime.now()
             logger.warning(
-                f"⚠️  Circuit breaker opened after {self.consecutive_failures} failures. "
+                f"[WARN]  Circuit breaker opened after {self.consecutive_failures} failures. "
                 f"Will retry in {self.circuit_timeout}s"
             )
     
@@ -177,18 +177,18 @@ class ServerHealthChecker:
         # Fallback to hardcoded messages
         messages = {
             'online': {
-                'title': '✅ Connected',
+                'title': '[OK] Connected',
                 'message': 'Server is online and responsive.',
                 'action': None
             },
             'slow': {
-                'title': '⚠️ Slow Connection',
+                'title': '[WARN] Slow Connection',
                 'message': f'{details}\n\nYour request may take longer than usual.\n\n'
                           f'ACTION: Continue anyway',
                 'action': None
             },
             'maintenance': {
-                'title': '🔧 Maintenance Mode',
+                'title': '[TOOL] Maintenance Mode',
                 'message': 'The server is currently under maintenance.\n\n'
                           f'This usually takes only a few minutes.\n\n'
                           f'ACTION: Retry in 5 minutes',
@@ -202,7 +202,7 @@ class ServerHealthChecker:
                 'action': None
             },
             'offline': {
-                'title': '❌ Server Offline',
+                'title': '[X] Server Offline',
                 'message': f'{details}\n\n'
                           f'Possible reasons:\n'
                           f'• Server maintenance\n'
@@ -213,7 +213,7 @@ class ServerHealthChecker:
                 'action': None
             },
             'timeout': {
-                'title': '⏱️ Connection Timeout',
+                'title': '[TIME]️ Connection Timeout',
                 'message': f'The server is not responding.\n\n{details}\n\n'
                           f'This may be temporary. Please check:\n'
                           f'• Your internet connection\n'
@@ -230,7 +230,7 @@ class ServerHealthChecker:
                 'action': None
             },
             'unknown': {
-                'title': '⚠️ Unknown Error',
+                'title': '[WARN] Unknown Error',
                 'message': f'{details}\n\nAn unexpected error occurred.\n\n'
                           f'ACTION: Please contact support if this persists',
                 'action': None
@@ -238,7 +238,7 @@ class ServerHealthChecker:
         }
         
         return messages.get(status, {
-            'title': '⚠️ Connection Issue',
+            'title': '[WARN] Connection Issue',
             'message': f'{details}\n\nACTION: Please try again later',
             'action': None
         })
@@ -248,7 +248,7 @@ class ServerHealthChecker:
         self.circuit_open = False
         self.circuit_opened_at = None
         self.consecutive_failures = 0
-        logger.info("🔄 Circuit breaker manually reset")
+        logger.info("[SYNC] Circuit breaker manually reset")
 
 
 # Convenience function

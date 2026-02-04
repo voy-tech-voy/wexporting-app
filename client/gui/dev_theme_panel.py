@@ -122,7 +122,7 @@ class DevThemePanel(QWidget):
     
     def __init__(self, parent=None):
         super().__init__(parent, Qt.WindowType.Window)
-        self.setWindowTitle("🎨 Dev Theme Editor (F12)")
+        self.setWindowTitle("[COLOR] Dev Theme Editor (F12)")
         self.setMinimumSize(900, 700)
         
         # Track color changes
@@ -161,12 +161,12 @@ class DevThemePanel(QWidget):
         main_layout.setSpacing(12)
         
         # Header
-        header = QLabel("🎨 Interactive Theme Color Editor")
+        header = QLabel("[COLOR] Interactive Theme Color Editor")
         header.setStyleSheet("font-size: 20px; font-weight: bold; padding: 10px;")
         main_layout.addWidget(header)
         
         # Instructions
-        info = QLabel("💡 Change colors in real-time. Press 'Apply & Save' to write changes to theme_variables.py")
+        info = QLabel("[TIP] Change colors in real-time. Press 'Apply & Save' to write changes to theme_variables.py")
         info.setStyleSheet("color: #86868B; padding: 5px; font-size: 12px;")
         info.setWordWrap(True)
         main_layout.addWidget(info)
@@ -255,7 +255,7 @@ class DevThemePanel(QWidget):
         button_layout.setSpacing(12)
         
         # Reset button
-        reset_btn = QPushButton("🔄 Reset All")
+        reset_btn = QPushButton("[SYNC] Reset All")
         reset_btn.clicked.connect(self._reset_colors)
         reset_btn.setStyleSheet("""
             QPushButton {
@@ -276,7 +276,7 @@ class DevThemePanel(QWidget):
         button_layout.addStretch()
         
         # Apply button
-        apply_btn = QPushButton("✅ Apply & Save to File")
+        apply_btn = QPushButton("[OK] Apply & Save to File")
         apply_btn.clicked.connect(self._save_to_file)
         apply_btn.setStyleSheet("""
             QPushButton {
@@ -295,7 +295,7 @@ class DevThemePanel(QWidget):
         button_layout.addWidget(apply_btn)
         
         # Close button
-        close_btn = QPushButton("❌ Close (F12)")
+        close_btn = QPushButton("[X] Close (F12)")
         close_btn.clicked.connect(self.close)
         close_btn.setStyleSheet("""
             QPushButton {
@@ -401,7 +401,7 @@ class DevThemePanel(QWidget):
             
             QMessageBox.information(
                 self,
-                "✅ Saved Successfully",
+                "[OK] Saved Successfully",
                 f"Theme colors saved to:\n{file_path}\n\nRestart the app to see all changes take effect."
             )
             
@@ -410,7 +410,7 @@ class DevThemePanel(QWidget):
         except Exception as e:
             QMessageBox.critical(
                 self,
-                "❌ Save Failed",
+                "[X] Save Failed",
                 f"Failed to save colors:\n{str(e)}"
             )
     

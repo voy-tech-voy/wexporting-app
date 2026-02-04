@@ -246,7 +246,7 @@ class Estimator(EstimatorProtocol):
         # 5. Verification
         if os.path.exists(output_path):
             actual_mb = os.path.getsize(output_path) / (1024 * 1024)
-            emit(f"✓ Complete: {actual_mb:.2f} MB")
+            emit(f"[OK] Complete: {actual_mb:.2f} MB")
             
             # Clean up ffmpeg pass log files (ffmpeg2pass-0.log)
             # They usually generate in the current working directory

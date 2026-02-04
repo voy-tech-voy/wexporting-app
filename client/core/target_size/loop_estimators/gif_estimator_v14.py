@@ -228,7 +228,7 @@ class Estimator(EstimatorProtocol):
             if projected <= target_size_bytes:
                 # Perfect fit at native/high res
                 best_result = {**tier, 'resolution_w': w, 'resolution_h': h, 'resolution_scale': w/orig_w}
-                print(f"   ✓ Match found: Tier {tier['fps']}fps/{tier['colors']}col @ {w}x{h}")
+                print(f"   [OK] Match found: Tier {tier['fps']}fps/{tier['colors']}col @ {w}x{h}")
                 break
             
             elif allow_downscale and projected < (target_size_bytes * 3.0):
@@ -343,7 +343,7 @@ class Estimator(EstimatorProtocol):
             t.join()
             
             if proc.returncode == 0 and os.path.exists(output_path):
-                emit(f"✓ Done: {os.path.getsize(output_path)/1024:.1f} KB")
+                emit(f"[OK] Done: {os.path.getsize(output_path)/1024:.1f} KB")
                 return True
             else:
                 emit(f"Error: {b''.join(errs).decode('utf-8', 'ignore')[-200:]}")

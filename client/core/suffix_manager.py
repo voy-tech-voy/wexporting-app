@@ -180,6 +180,26 @@ class SuffixManager:
              elif '270' in rot: parts.append('_rot270')
              else: parts.append('_rot')
         
+        # 2.1 Time Cutting Suffix
+        if p.get('enable_time_cutting'):
+            time_start = p.get('time_start', 0)
+            time_end = p.get('time_end', 1)
+            if time_start is not None and time_end is not None:
+                # Format as percentage (e.g., _cut10-90 for 10% to 90%)
+                start_pct = int(time_start * 100)
+                end_pct = int(time_end * 100)
+                parts.append(f'_cut{start_pct}-{end_pct}')
+        
+        # 2.2 Retime (Speed) Suffix
+        retime_enabled = p.get('retime_enabled') or p.get('enable_retime')
+        if retime_enabled:
+            retime_speed = p.get('retime_speed', 1.0)
+            if retime_speed and retime_speed != 1.0:
+                # Format speed (e.g., _speed0.5x or _speed2x)
+                if retime_speed == int(retime_speed):
+                    parts.append(f'_speed{int(retime_speed)}x')
+                else:
+                    parts.append(f'_speed{retime_speed:.1f}x')
         
         # 2.5 Codec Suffix (Video Tab)
         is_gif = format_ext.lower() == 'gif' or p.get('type') == 'gif' or p.get('loop_format') == 'GIF'
@@ -264,5 +284,14 @@ class SuffixManager:
              return f"_{value}colors"
         elif variant_type == 'dither':
              return f"_d{value}"
+        elif variant_type == 'time_cut':
+            # value is tuple (start_pct, end_pct)
+            if isinstance(value, (tuple, list)) and len(value) == 2:
+                return f"_cut{value[0]}-{value[1]}"
+            return f"_cut{value}"
+        elif variant_type == 'retime' or variant_type == 'speed':
+            if value == int(value):
+                return f"_speed{int(value)}x"
+            return f"_speed{value:.1f}x"
              
         return f"_{value}"

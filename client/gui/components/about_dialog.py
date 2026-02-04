@@ -50,7 +50,7 @@ def show_about_dialog(parent, theme_manager):
     <p style="color: {text_color};">Convert files to WebM, WebP, GIF, MP4, and other formats in just a few clicks.</p>
     <p style="color: {text_color};">Built for speed, quality, and ease of use.</p>
     <br>
-    <p style="color: {text_color};">🌐 <a href="" style="color: {accent_color}; text-decoration: none;">Visit our website</a></p>
+    <p style="color: {text_color};">[WEB] <a href="" style="color: {accent_color}; text-decoration: none;">Visit our website</a></p>
     <br>
     <p style="color: {text_color};">This software uses FFmpeg (© FFmpeg developers) licensed under the LGPL/GPL.</p>
     <p style="color: {text_color};">© 2025 {AUTHOR}. All rights reserved.</p>

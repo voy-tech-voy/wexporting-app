@@ -794,7 +794,7 @@ class ConversionEngine(QThread):
                     preset_info = optimal.get('_preset_info', '')
                     est_size = optimal.get('_estimated_size', 0)
                     self.status_updated.emit(
-                        f"✓ Optimized: {preset_info} (est. {est_size/(1024*1024):.2f} MB)"
+                        f"[OK] Optimized: {preset_info} (est. {est_size/(1024*1024):.2f} MB)"
                     )
             
             # Check if multiple qualities or resize variants are requested
@@ -859,12 +859,12 @@ class ConversionEngine(QThread):
                         variant_desc = f"Quality {quality}%"
                         if resize:
                             variant_desc += f", Resize {resize}"
-                        self.status_updated.emit(f"✓ {variant_desc} completed")
+                        self.status_updated.emit(f"[OK] {variant_desc} completed")
                     else:
                         variant_desc = f"Quality {quality}%"
                         if resize:
                             variant_desc += f", Resize {resize}"
-                        self.status_updated.emit(f"✗ {variant_desc} failed")
+                        self.status_updated.emit(f"[X] {variant_desc} failed")
                     
                     # Restore original parameters
                     self.params['quality'] = original_quality
@@ -1104,7 +1104,7 @@ class ConversionEngine(QThread):
                     preset_info = optimal.get('_preset_info', '')
                     est_size = optimal.get('_estimated_size', 0)
                     self.status_updated.emit(
-                        f"✓ Optimized: {preset_info} (est. {est_size/(1024*1024):.2f} MB)"
+                        f"[OK] Optimized: {preset_info} (est. {est_size/(1024*1024):.2f} MB)"
                     )
             
             # Debug: Print the command being executed
@@ -1792,7 +1792,7 @@ class ConversionEngine(QThread):
                         self.run_ffmpeg_with_cancellation(output)
                         
                         self.file_completed.emit(file_path, output_path)
-                        self.status_updated.emit(f"✓ Video variant {variant_info} completed")
+                        self.status_updated.emit(f"[OK] Video variant {variant_info} completed")
                         
                     except Exception as e:
                         # More detailed FFmpeg error reporting

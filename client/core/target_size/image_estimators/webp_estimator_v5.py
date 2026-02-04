@@ -205,9 +205,9 @@ class Estimator(EstimatorProtocol):
             
             if os.path.exists(output_path):
                 actual_kb = os.path.getsize(output_path) / 1024
-                emit(f"✓ Complete: {actual_kb:.1f} KB")
+                emit(f"[OK] Complete: {actual_kb:.1f} KB")
                 return True
-            emit("✗ Output file not created")
+            emit("[X] Output file not created")
             return False
         except Exception as e:
             import traceback

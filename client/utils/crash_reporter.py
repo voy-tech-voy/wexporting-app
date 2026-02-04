@@ -126,9 +126,9 @@ class EmergencyCrashReporter:
             self.init_steps.append(step_info)
             
             if self.logger:
-                self.logger.info(f"✅ INIT: {step} ({duration:.1f}ms)")
+                self.logger.info(f"[OK] INIT: {step} ({duration:.1f}ms)")
             else:
-                print(f"✅ INIT: {step}")
+                print(f"[OK] INIT: {step}")
                 
         except Exception as e:
             if self.logger:
@@ -147,10 +147,10 @@ class EmergencyCrashReporter:
             self.errors.append(error_info)
             
             if self.logger:
-                self.logger.error(f"❌ ERROR: {context}: {error}")
+                self.logger.error(f"[X] ERROR: {context}: {error}")
                 self.logger.debug(f"Traceback: {traceback.format_exc()}")
             else:
-                print(f"❌ ERROR: {context}: {error}")
+                print(f"[X] ERROR: {context}: {error}")
                 
         except Exception as e:
             print(f"Failed to log error: {e}")
@@ -173,9 +173,9 @@ class EmergencyCrashReporter:
             for module in critical_modules:
                 try:
                     __import__(module)
-                    checks["modules"][module] = "✅ Available"
+                    checks["modules"][module] = "[OK] Available"
                 except ImportError as e:
-                    checks["modules"][module] = f"❌ Missing: {e}"
+                    checks["modules"][module] = f"[X] Missing: {e}"
                     self._log_error(e, f"import_{module}")
             
             self.crash_info["environment"] = checks
@@ -209,9 +209,9 @@ class EmergencyCrashReporter:
                     test_file = location / "imgapp_write_test.tmp"
                     test_file.write_text("test")
                     test_file.unlink()
-                    checks["write_access"][str(location)] = "✅ Writable"
+                    checks["write_access"][str(location)] = "[OK] Writable"
                 except Exception as e:
-                    checks["write_access"][str(location)] = f"❌ Not writable: {e}"
+                    checks["write_access"][str(location)] = f"[X] Not writable: {e}"
             
             # Check for critical files
             critical_files = ["gui/main_window.py", "core/conversion_engine.py", "config.py"]
@@ -219,7 +219,7 @@ class EmergencyCrashReporter:
             
             for file in critical_files:
                 file_path = base_path / file
-                checks["critical_files"][file] = "✅ Found" if file_path.exists() else "❌ Missing"
+                checks["critical_files"][file] = "[OK] Found" if file_path.exists() else "[X] Missing"
             
             self.crash_info["filesystem"] = checks
             return True
@@ -249,9 +249,9 @@ class EmergencyCrashReporter:
                     app = QApplication.instance()
                     if app is None:
                         app = QApplication([])
-                    checks["qapplication"] = "✅ Created successfully"
+                    checks["qapplication"] = "[OK] Created successfully"
                 except Exception as e:
-                    checks["qapplication"] = f"❌ Failed: {e}"
+                    checks["qapplication"] = f"[X] Failed: {e}"
                 
             except ImportError as e:
                 checks["qt_available"] = False
@@ -357,7 +357,7 @@ INITIALIZATION STEPS
 '''
             
             for step in crash_data.get("initialization_steps", []):
-                status = "✅" if step.get("success", False) else "❌"
+                status = "[OK]" if step.get("success", False) else "[X]"
                 content += f" {len(crash_data.get('initialization_steps', []))}. {status} {step.get('step', 'Unknown step')}\\n"
             
             content += f'''
@@ -378,14 +378,14 @@ CRITICAL ANALYSIS
             # GUI issues
             gui_info = diagnostics.get("gui", {})
             if not gui_info.get("qt_available", True):
-                content += "❌ qt not available - GUI framework missing\\n"
+                content += "[X] qt not available - GUI framework missing\\n"
             
             # Environment issues  
             env_info = diagnostics.get("environment", {})
             modules = env_info.get("modules", {})
             for module, status in modules.items():
-                if "❌" in status:
-                    content += f"❌ {module} module issue: {status}\\n"
+                if "[X]" in status:
+                    content += f"[X] {module} module issue: {status}\\n"
             
             content += f'''
 TROUBLESHOOTING STEPS

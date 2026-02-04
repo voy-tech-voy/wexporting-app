@@ -169,7 +169,7 @@ class Estimator(EstimatorProtocol):
         # Get metadata for scaling
         meta = self.get_media_metadata(input_path)
         if meta['duration'] == 0:
-            emit("✗ No video stream found")
+            emit("[X] No video stream found")
             return False
         
         target_w = int(meta['width'] * scale)
@@ -221,10 +221,10 @@ class Estimator(EstimatorProtocol):
         # Verify output
         if os.path.exists(output_path):
             actual_size = os.path.getsize(output_path)
-            emit(f"✓ Complete: {actual_size / 1024:.1f} KB")
+            emit(f"[OK] Complete: {actual_size / 1024:.1f} KB")
             return True
         else:
-            emit("✗ Output file not created")
+            emit("[X] Output file not created")
             return False
     
     def _get_temp_filename(self, ext='gif'):

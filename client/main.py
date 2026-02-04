@@ -72,15 +72,15 @@ class ToolLoadingWindow(QWidget):
         img_path = get_resource_path('client/assets/images/splash_pic.jpg')
         
         if not os.path.exists(img_path):
-            print(f"❌ Splash image not found: {img_path}")
+            print(f"[X] Splash image not found: {img_path}")
             sys.exit(1)
         
         pixmap = QPixmap(img_path)
         if pixmap.isNull():
-            print(f"❌ Failed to load splash image")
+            print(f"[X] Failed to load splash image")
             sys.exit(1)
         
-        print(f"📷 Pixmap loaded: {pixmap.width()}x{pixmap.height()}, isNull: {pixmap.isNull()}")
+        print(f"[CAM] Pixmap loaded: {pixmap.width()}x{pixmap.height()}, isNull: {pixmap.isNull()}")
         
         # Scale to 50% size
         scale_factor = .8
@@ -282,7 +282,7 @@ def initialize_main_window(is_trial=False, skip_splash=False):
         for _ in range(5):
             QApplication.processEvents()
         
-        print(f"🪟 Splash visible: {splash.isVisible()}")
+        print(f"[WIN] Splash visible: {splash.isVisible()}")
         
         # Record start time
         splash_start_time = time.time()
@@ -304,11 +304,11 @@ def initialize_main_window(is_trial=False, skip_splash=False):
     # ------------------------------------------------------------------------
     
     # Create main window in background while splash is still visible
-    print("🔨 Creating main window in background...")
+    print("[BUILD] Creating main window in background...")
     window = MainWindow(is_trial=is_trial)
     set_dark_title_bar(window)  # Apply dark title bar to main window
     QApplication.processEvents()  # Process events during window creation
-    print("✅ Main window created")
+    print("[OK] Main window created")
     
     # Ensure splash displays for minimum 2 seconds (non-blocking wait)
     if not skip_splash and splash:
@@ -316,7 +316,7 @@ def initialize_main_window(is_trial=False, skip_splash=False):
         elapsed = time.time() - splash_start_time
         if elapsed < MIN_SPLASH_TIME:
             remaining_ms = int((MIN_SPLASH_TIME - elapsed) * 1000)
-            print(f"⏳ Waiting {remaining_ms}ms more for splash (non-blocking)...")
+            print(f"[WAIT] Waiting {remaining_ms}ms more for splash (non-blocking)...")
             # Non-blocking wait - keeps UI responsive
             end_time = time.time() + (MIN_SPLASH_TIME - elapsed)
             while time.time() < end_time:
@@ -325,7 +325,7 @@ def initialize_main_window(is_trial=False, skip_splash=False):
     
         # Close splash
         splash.close()
-        print("✅ Splash closed, returning main window")
+        print("[OK] Splash closed, returning main window")
     
     return window
 

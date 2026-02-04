@@ -53,7 +53,7 @@ def encode_loop(
             probe = ffmpeg.probe(input_path)
             video = next((s for s in probe['streams'] if s['codec_type'] == 'video'), None)
             if not video:
-                emit_status("✗ No video stream found")
+                emit_status("[X] No video stream found")
                 return False
             
             width = int(video['width'])
@@ -97,10 +97,10 @@ def encode_loop(
         # Verify output
         if os.path.exists(output_path):
             actual_size = os.path.getsize(output_path)
-            emit_status(f"✓ Complete: {actual_size / 1024:.1f} KB")
+            emit_status(f"[OK] Complete: {actual_size / 1024:.1f} KB")
             return True
         else:
-            emit_status("✗ Output file not created")
+            emit_status("[X] Output file not created")
             return False
             
     except Exception as e:

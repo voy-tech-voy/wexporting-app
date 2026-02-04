@@ -148,7 +148,7 @@ class Estimator(EstimatorProtocol):
                 print(f"   Tier {i}: {tier['fps']}fps/{tier['colors']}col -> Est: {projected_total/1024:.1f} KB")
                 
                 if projected_total <= target_size_bytes:
-                    print(f"   ✓ Found Match at Tier {i}")
+                    print(f"   [OK] Found Match at Tier {i}")
                     best_tier = tier
                     break
             
@@ -277,7 +277,7 @@ class Estimator(EstimatorProtocol):
             t.join()
             
             if proc.returncode == 0 and os.path.exists(output_path):
-                emit(f"✓ Done: {os.path.getsize(output_path)/1024:.1f} KB")
+                emit(f"[OK] Done: {os.path.getsize(output_path)/1024:.1f} KB")
                 return True
             else:
                 emit(f"Error: {b''.join(errs).decode('utf-8', 'ignore')[-200:]}")

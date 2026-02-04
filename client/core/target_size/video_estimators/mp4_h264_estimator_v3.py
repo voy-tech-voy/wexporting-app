@@ -269,10 +269,10 @@ class Estimator(EstimatorProtocol):
             # Verify output
             if os.path.exists(output_path):
                 actual_mb = os.path.getsize(output_path) / (1024 * 1024)
-                emit(f"✓ Complete: {actual_mb:.2f} MB")
+                emit(f"[OK] Complete: {actual_mb:.2f} MB")
                 return True
             else:
-                emit("✗ Output file not created")
+                emit("[X] Output file not created")
                 return False
                 
         except Exception as e:

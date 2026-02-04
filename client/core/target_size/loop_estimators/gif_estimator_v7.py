@@ -298,7 +298,7 @@ class Estimator(EstimatorProtocol):
 
             if os.path.exists(output_path):
                 size_mb = os.path.getsize(output_path) / (1024*1024)
-                emit(f"✓ Complete: {size_mb:.2f} MB")
+                emit(f"[OK] Complete: {size_mb:.2f} MB")
                 return True
             return False
 

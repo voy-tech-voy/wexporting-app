@@ -230,34 +230,34 @@ class WindowsErrorReporter:
             test_file.write_text("test content")
             content = test_file.read_text()
             test_file.unlink()
-            tests["filesystem_write"] = "✅ OK" if content == "test content" else "❌ Failed"
+            tests["filesystem_write"] = "[OK] OK" if content == "test content" else "[X] Failed"
         except Exception as e:
-            tests["filesystem_write"] = f"❌ Failed: {e}"
+            tests["filesystem_write"] = f"[X] Failed: {e}"
         
         # Test PyQt5 availability
         try:
             from PyQt6.QtWidgets import QApplication
-            tests["pyqt5_import"] = "✅ OK"
+            tests["pyqt5_import"] = "[OK] OK"
             
             # Test QApplication creation
             try:
                 app = QApplication.instance()
                 if app is None:
                     app = QApplication([])
-                tests["qapplication_create"] = "✅ OK"
+                tests["qapplication_create"] = "[OK] OK"
             except Exception as e:
-                tests["qapplication_create"] = f"❌ Failed: {e}"
+                tests["qapplication_create"] = f"[X] Failed: {e}"
                 
         except ImportError as e:
-            tests["pyqt5_import"] = f"❌ Failed: {e}"
+            tests["pyqt5_import"] = f"[X] Failed: {e}"
         
         # Test network connectivity (basic)
         try:
             import socket
             socket.create_connection(("8.8.8.8", 53), timeout=3)
-            tests["network_connectivity"] = "✅ OK"
+            tests["network_connectivity"] = "[OK] OK"
         except Exception as e:
-            tests["network_connectivity"] = f"❌ Failed: {e}"
+            tests["network_connectivity"] = f"[X] Failed: {e}"
         
         return tests
     

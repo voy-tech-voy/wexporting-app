@@ -167,10 +167,10 @@ class PresetOrchestrator(QObject):
                     
                     if result.returncode == 0:
                         success_count += 1
-                        print(f"[PresetOrchestrator] ✓ Success: {input_p.name}")
+                        print(f"[PresetOrchestrator] [OK] Success: {input_p.name}")
                     else:
                         failed_count += 1
-                        print(f"[PresetOrchestrator] ✗ Failed: {input_p.name}")
+                        print(f"[PresetOrchestrator] [X] Failed: {input_p.name}")
                         print(f"[PresetOrchestrator] stderr: {result.stderr[:200]}")
                 
                 # Emit progress
