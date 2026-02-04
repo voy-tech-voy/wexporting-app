@@ -157,66 +157,70 @@ class DialogManager:
         )
         return dlg.exec() == QMessageBox.StandardButton.Yes
     
-    def show_completion(self, success: bool, message: str) -> int:
+    def show_conversion_summary(self, successful: int, failed: int, skipped: int, stopped: int) -> int:
         """
-        Show a conversion completion dialog.
+        Show conversion completion dialog with color-coded breakdown (unified method).
+        
+        This is the app-wide standard for conversion completion dialogs.
+        Displays success/failed/skipped/stopped counts with appropriate color coding.
         
         Args:
-            success: True for success (info icon), False for error (critical icon)
-            message: Completion message with details (may contain HTML)
+            successful: Number of files converted successfully
+            failed: Number of files that failed to convert
+            skipped: Number of files skipped (incompatible format, etc.)
+            stopped: Number of files stopped (user cancelled)
             
         Returns:
             QMessageBox result code
         """
-        # Parse the HTML message to extract components and reformat
-        # Expected format: "<span style='color: #xxx;'>X successful</span>, <span...>Y skipped</span>"
+        # App color palette
+        app_green = "#4CAF50"   # Success green
+        app_yellow = "#FFC107"  # Warning yellow
+        app_red = "#F44336"     # Error red
         
-        # Extract full HTML spans with their styling
-        import re
-        spans = re.findall(r"<span[^>]*>.*?</span>", message)
+        # Build color-coded message parts
+        parts = []
         
-        if len(spans) >= 1:
-            # Reorganize: success first, skipped second, failed third
-            lines = []
-            success_span = None
-            skipped_span = None
-            failed_span = None
-            stopped_span = None
-            
-            for span in spans:
-                # Check content inside span
-                content = re.search(r">([^<]+)<", span)
-                if content:
-                    text = content.group(1).lower()
-                    if 'success' in text or 'exported' in text:
-                        success_span = span
-                    elif 'skipped' in text:
-                        skipped_span = span
-                    elif 'failed' in text:
-                        failed_span = span
-                    elif 'stopped' in text:
-                        stopped_span = span
-            
-            # Build formatted message with line breaks, preserving HTML
-            if success_span:
-                lines.append(success_span)
-            if skipped_span:
-                lines.append(skipped_span)
-            if failed_span:
-                lines.append(failed_span)
-            if stopped_span:
-                lines.append(stopped_span)
-            
-            formatted_message = "<br>".join(lines)
-        else:
-            # Fallback to original message if parsing fails
-            formatted_message = message
+        # Show successful (green) - always show if any
+        if successful > 0:
+            if successful == 1:
+                parts.append(f"<span style='color: {app_green};'>1 file exported successfully</span>")
+            else:
+                parts.append(f"<span style='color: {app_green};'>{successful} files exported successfully</span>")
+        
+        # Show skipped (yellow) - only if any
+        if skipped > 0:
+            if skipped == 1:
+                parts.append(f"<span style='color: {app_yellow};'>1 skipped</span>")
+            else:
+                parts.append(f"<span style='color: {app_yellow};'>{skipped} skipped</span>")
+        
+        # Show failed (red) - only if any
+        if failed > 0:
+            if failed == 1:
+                parts.append(f"<span style='color: {app_red};'>1 failed</span>")
+            else:
+                parts.append(f"<span style='color: {app_red};'>{failed} failed</span>")
+        
+        # Show stopped (yellow) - only if any
+        if stopped > 0:
+            if stopped == 1:
+                parts.append(f"<span style='color: {app_yellow};'>1 file stopped</span>")
+            else:
+                parts.append(f"<span style='color: {app_yellow};'>{stopped} files stopped</span>")
+        
+        # Join with line breaks for vertical layout
+        formatted_message = "<br>".join(parts) if parts else "<span>No files processed</span>"
+        
+        # Determine success status and dialog title
+        success = successful > 0 or (successful == 0 and failed == 0 and stopped == 0)
+        icon = QMessageBox.Icon.Information if success else QMessageBox.Icon.Critical
+        title = "Conversion Complete" if success else "Conversion Error"
         
         # Create dialog without buttons
-        icon = QMessageBox.Icon.Information if success else QMessageBox.Icon.Critical
         dlg = self._create_dialog(
             icon,
-            "Conversion Complete" if success else "Conversion Error",
+            title,
             formatted_message,
             buttons=QMessageBox.StandardButton.NoButton  # No buttons
         )

@@ -20,6 +20,7 @@ from .output_footer import OutputFooter
 from .theme_manager import ThemeManager
 from .title_bar import TitleBarWindow
 from client.core.conversion_engine import ConversionEngine, ToolChecker
+from client.core.progress_manager import ConversionProgressManager
 from client.gui.custom_widgets import PresetStatusButton
 from client.utils.trial_manager import TrialManager
 from client.utils.font_manager import AppFonts, FONT_FAMILY_APP_NAME
@@ -98,6 +99,9 @@ class MainWindow(QMainWindow):
         
         # Conversion engine
         self.conversion_engine = None
+        
+        # Progress manager for tracking conversion outputs
+        self.progress_manager = ConversionProgressManager()
         
         # Theme management (Singleton pattern)
         self.theme_manager = ThemeManager.instance()
@@ -519,19 +523,14 @@ class MainWindow(QMainWindow):
         # Update file list item progress
         self.drag_drop_area.set_file_progress(file_index, progress)
         
-        # Update separated progress bars
+        # Update blue bar (current file)
         if hasattr(self, 'file_progress_bar'):
             self.file_progress_bar.set_progress(progress)
             
+        # Update green bar (overall progress) using manager
         if hasattr(self, 'total_progress_bar'):
-            # Calculate total progress
-            total_files = len(self.drag_drop_area.file_list)
-            if total_files > 0:
-                # Base progress from completed files
-                base_progress = self._completed_files_count / total_files
-                # Add fraction of current file
-                current_fraction = progress / total_files
-                self.total_progress_bar.set_progress(base_progress + current_fraction)
+            overall_progress = self.progress_manager.get_overall_progress(progress)
+            self.total_progress_bar.set_progress(overall_progress)
         
     def connect_signals(self):
         """Connect signals between components"""
@@ -642,17 +641,37 @@ class MainWindow(QMainWindow):
             self.set_progress(progress)
             self.update_status(message)
         
-        def on_finished(success, message):
-            self.set_progress(100)
-            self.update_status(message)
-            if hasattr(self, 'output_footer'):
-                self.output_footer.set_converting(False)
-            self.show_progress(False)
-            self.dialogs.show_completion(success, message)
+        def on_completed(successful, failed, skipped, stopped):
+            """NEW: Handle unified completion signal"""
+            self.progress_manager.reset()
+            self._reset_conversion_ui()
+            self.dialogs.show_conversion_summary(successful, failed, skipped, stopped)
         
-        # Connect signals (disconnect after use to prevent stacking)
+        def on_finished_legacy(success, message):
+            """LEGACY: Fallback for old conversion_finished signal - extract counts from message"""
+            # Try to extract counts from message like "Preset conversion complete: 5/10 files"
+            import re
+            match = re.search(r'(\d+)/(\d+)', message)
+            if match:
+                successful = int(match.group(1))
+                total = int(match.group(2))
+                failed = total - successful
+            else:
+                # Fallback: assume all successful
+                successful = len(files) if 'files' in locals() else 0
+                failed = 0
+            
+            self.progress_manager.reset()
+            self._reset_conversion_ui()
+            self.dialogs.show_conversion_summary(successful, failed, 0, 0)
+        
+        # Connect signals - prefer new conversion_completed if available
         orchestrator.conversion_progress.connect(on_progress)
-        orchestrator.conversion_finished.connect(on_finished)
+        if hasattr(orchestrator, 'conversion_completed'):
+            orchestrator.conversion_completed.connect(on_completed)
+        else:
+            # Fallback to legacy signal
+            orchestrator.conversion_finished.connect(on_finished_legacy)
         
         # Delegate execution to orchestrator (Strategy Pattern)
         orchestrator.run_conversion(
@@ -665,9 +684,26 @@ class MainWindow(QMainWindow):
         # Disconnect signals after execution
         try:
             orchestrator.conversion_progress.disconnect(on_progress)
-            orchestrator.conversion_finished.disconnect(on_finished)
+            if hasattr(orchestrator, 'conversion_completed'):
+                orchestrator.conversion_completed.disconnect(on_completed)
+            else:
+                orchestrator.conversion_finished.disconnect(on_finished_legacy)
         except TypeError:
             pass  # Already disconnected
+
+    def _calculate_conversion_totals(self, files, params):
+        """
+        Calculate total outputs using ConversionProgressManager.
+        Delegates all param extraction to manager for cleaner MainWindow.
+        """
+        try:
+            result = self.progress_manager.calculate_from_params(files, params)
+            print(f"[ProgressManager] Valid: {result.valid_count}, Skipped: {result.skipped_count}, Total Outputs: {result.total_outputs}")
+            print(f"[ProgressManager] Preview: {self.progress_manager.get_preview_text()}")
+        except Exception as e:
+            print(f"[ProgressManager] Calculation failed: {e}")
+            # Fallback: assume all files valid, no variants
+            self.progress_manager.total_outputs = len(files)
 
 
         
@@ -715,10 +751,13 @@ class MainWindow(QMainWindow):
             use_target_size_engine = True
             print(f"[MainWindow] Using TargetSizeConversionEngine (estimator version: {current_version})")
         
+        # Calculate totals with progress manager for accurate progress tracking
+        self._calculate_conversion_totals(files, params)
+        
         # Create appropriate engine
         if use_target_size_engine:
             from client.core.target_size import TargetSizeConversionEngine
-            self.conversion_engine = TargetSizeConversionEngine(files, params)
+            self.conversion_engine = TargetSizeConversionEngine(files, params, self.progress_manager)
         else:
             self.conversion_engine = ConversionEngine(files, params)
         
@@ -729,12 +768,12 @@ class MainWindow(QMainWindow):
         self.conversion_engine.file_completed.connect(self.on_file_completed)
         
         # Handle different signal names between engines
-        if hasattr(self.conversion_engine, 'conversion_finished'):
+        # NEW: Connect to unified conversion_completed signal if available
+        if hasattr(self.conversion_engine, 'conversion_completed'):
+            self.conversion_engine.conversion_completed.connect(self._on_conversion_completed)
+        # LEGACY: Only connect to old conversion_finished if new signal doesn't exist
+        elif hasattr(self.conversion_engine, 'conversion_finished'):
             self.conversion_engine.conversion_finished.connect(self.on_conversion_finished)
-        elif hasattr(self.conversion_engine, 'conversion_completed'):
-            self.conversion_engine.conversion_completed.connect(
-                lambda s, f, sk, st: self._on_target_size_completed(s, f, sk, st)
-            )
         
         # Reset progress bars
         if hasattr(self, 'file_progress_bar'):
@@ -755,13 +794,6 @@ class MainWindow(QMainWindow):
             self.conversion_engine.stop_conversion()
             # The button state will be reset in on_conversion_finished
     
-    @pyqtSlot(int, float)
-    def on_file_progress(self, file_index, progress):
-        """Handle individual file progress update"""
-        self.drag_drop_area.set_file_progress(file_index, progress)
-        if hasattr(self, 'file_progress_bar'):
-            self.file_progress_bar.set_progress(progress, animate=True, min_duration_ms=500)
-    
     def on_file_completed(self, source_file, output_file):
         """Handle completed file conversion"""
         import os
@@ -773,21 +805,26 @@ class MainWindow(QMainWindow):
         if hasattr(self, 'file_progress_bar'):
             self.file_progress_bar.set_progress(1.0, animate=True, min_duration_ms=500)
         
+        # Increment progress manager (each output variant completes)
+        progress_percentage = self.progress_manager.increment_progress(count=1)
+        
+        # Update green total progress bar with accurate percentage
+        if hasattr(self, 'total_progress_bar'):
+            self.total_progress_bar.set_progress(progress_percentage / 100.0)
+        
         # Mark the file as completed in the list
         # Find the file index
         for i, f in enumerate(self.drag_drop_area.file_list):
             if f == source_file:
                 self.drag_drop_area.set_file_completed(i)
                 self._completed_files_count += 1
-                # Update total progress bar
-                if hasattr(self, 'total_progress_bar'):
-                    total_files = len(self.drag_drop_area.file_list)
-                    if total_files > 0:
-                        self.total_progress_bar.set_progress(self._completed_files_count / total_files)
                 break
         
     def on_conversion_finished(self, success, message):
-        """Handle conversion completion"""
+        """Handle conversion completion (LEGACY - for backward compatibility)"""
+        # Reset progress manager state
+        self.progress_manager.reset()
+        
         # Reset button state (handled by footer)
         # Reset footer state
         if hasattr(self, 'output_footer'):
@@ -806,50 +843,52 @@ class MainWindow(QMainWindow):
         
         self.update_status(message)
         
-        self.dialogs.show_completion(success, message)
+        # LEGACY: Old engines may call this - try to extract counts or show basic message
+        import re
+        match = re.search(r'(\d+)\s+files?\s+processed', message)
+        if match:
+            successful = int(match.group(1))
+            self.dialogs.show_conversion_summary(successful, 0, 0, 0)
+        # If no counts found, do nothing (engine should use conversion_completed signal)
+    
+    def _on_conversion_completed(self, successful, failed, skipped, stopped):
+        """Handle conversion completion with detailed counts (NEW unified handler)"""
+        # Reset progress manager state
+        self.progress_manager.reset()
+        
+        # Reset UI state
+        self._reset_conversion_ui()
+        
+        # Show unified conversion summary dialog
+        self.dialogs.show_conversion_summary(successful, failed, skipped, stopped)
+    
+    def _reset_conversion_ui(self):
+        """Reset UI elements after conversion"""
+        # Reset footer state
+        if hasattr(self, 'output_footer'):
+            self.output_footer.set_converting(False)
+        
+        self.show_progress(False)
+        self.set_progress(0)
+        
+        # Reset separated progress bars
+        if hasattr(self, 'file_progress_bar'):
+            self.file_progress_bar.set_progress(0)
+        if hasattr(self, 'total_progress_bar'):
+            self.total_progress_bar.set_progress(0)
+        
+        self._completed_files_count = 0
     
     def _on_target_size_completed(self, successful, failed, skipped, stopped):
         """Handle target size conversion completion with detailed breakdown."""
-        # Build detailed message with color coding
-        parts = []
+        # Reset progress manager before completion
+        self.progress_manager.reset()
         
-        # Get app colors (green, yellow, red)
-        app_green = "#4CAF50"  # Success green
-        app_yellow = "#FFC107"  # Warning yellow
-        app_red = "#F44336"  # Error red
+        # Use unified conversion summary dialog
+        self.dialogs.show_conversion_summary(successful, failed, skipped, stopped)
         
-        # Always show successful count in green
-        if successful == 1:
-            parts.append(f"<span style='color: {app_green};'>1 file exported successfully</span>")
-        else:
-            parts.append(f"<span style='color: {app_green};'>{successful} files exported successfully</span>")
-        
-        # Show skipped only if any (in yellow)
-        if skipped > 0:
-            if skipped == 1:
-                parts.append(f"<span style='color: {app_yellow};'>1 skipped</span>")
-            else:
-                parts.append(f"<span style='color: {app_yellow};'>{skipped} skipped</span>")
-        
-        # Show failed only if any (in red)
-        if failed > 0:
-            if failed == 1:
-                parts.append(f"<span style='color: {app_red};'>1 failed</span>")
-            else:
-                parts.append(f"<span style='color: {app_red};'>{failed} failed</span>")
-        
-        # Show stopped only if any (in yellow)
-        if stopped > 0:
-            if stopped == 1:
-                parts.append(f"<span style='color: {app_yellow};'>1 file stopped</span>")
-            else:
-                parts.append(f"<span style='color: {app_yellow};'>{stopped} files stopped</span>")
-        
-        message = ", ".join(parts)
-        success = successful > 0 or (successful == 0 and failed == 0 and stopped == 0)
-        
-        # Call the standard completion handler
-        self.on_conversion_finished(success, message)
+        # Reset UI
+        self._reset_conversion_ui()
             
     def check_tools(self):
         """Check if required tools are available"""

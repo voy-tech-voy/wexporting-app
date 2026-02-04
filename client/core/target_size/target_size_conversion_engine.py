@@ -9,6 +9,7 @@ from PyQt6.QtCore import QThread, pyqtSignal
 from .size_estimator_registry import optimize_gif_params
 from .suffix_manager import get_output_path
 from client.core.file_type_utils import is_image_file, is_video_file
+from client.core.progress_manager import ConversionProgressManager
 
 
 
@@ -26,7 +27,7 @@ class TargetSizeConversionEngine(QThread):
     file_completed = pyqtSignal(str, str)
     conversion_completed = pyqtSignal(int, int, int, int)  # successful, failed, skipped, stopped
     
-    def __init__(self, files: list, params: Dict):
+    def __init__(self, files: list, params: Dict, progress_manager: ConversionProgressManager = None):
         super().__init__()
         self.files = files
         self.params = params
@@ -34,6 +35,7 @@ class TargetSizeConversionEngine(QThread):
         self.successful_conversions = 0
         self.failed_conversions = 0
         self.skipped_files = 0
+        self.progress_manager = progress_manager or ConversionProgressManager()
         self.completed_outputs = 0  # Track completed output files
         self.total_outputs = 0  # Total output files to generate
         

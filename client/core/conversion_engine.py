@@ -342,7 +342,8 @@ class ConversionEngine(QThread):
     file_progress_updated = pyqtSignal(int, float)  # (file_index, progress 0.0-1.0) for individual file progress
     status_updated = pyqtSignal(str)    # Status message
     file_completed = pyqtSignal(str, str)  # (source, output) file paths
-    conversion_finished = pyqtSignal(bool, str)  # (success, message)
+    conversion_finished = pyqtSignal(bool, str)  # (success, message) - LEGACY for backward compatibility
+    conversion_completed = pyqtSignal(int, int, int, int)  # (successful, failed, skipped, stopped) - NEW unified signal
     
     def __init__(self, files: List[str], params: Dict):
         super().__init__()
@@ -361,6 +362,9 @@ class ConversionEngine(QThread):
         import threading
         import time
         
+        # Extract cmd if provided, otherwise use default ffmpeg
+        cmd = kwargs.pop('cmd', 'ffmpeg')
+        
         try:
             # Add -progress pipe:1 to output progress to stdout in parseable format
             stream_spec = stream_spec.global_args('-progress', 'pipe:1', '-stats_period', '0.1')
@@ -370,6 +374,7 @@ class ConversionEngine(QThread):
                 stream_spec, 
                 pipe_stderr=True,
                 pipe_stdout=True,
+                cmd=cmd,
                 **{k: v for k, v in kwargs.items() if k != 'quiet'}
             )
             
@@ -482,6 +487,9 @@ class ConversionEngine(QThread):
         try:
             total_files = len(self.files)
             successful_conversions = 0
+            failed_conversions = 0
+            skipped_files = 0
+            stopped_count = 0
             
             # Calculate total operations for progress tracking
             total_operations = 0
@@ -499,6 +507,8 @@ class ConversionEngine(QThread):
             
             for i, file_path in enumerate(self.files):
                 if self.should_stop:
+                    # Count remaining files as stopped
+                    stopped_count = total_files - i
                     break
                 
                 # Set current file index for progress tracking
@@ -512,28 +522,29 @@ class ConversionEngine(QThread):
                 self.progress_updated.emit(progress_start)
                 
                 # Emit file-specific progress start
-                print(f"🔵 EMITTING file_progress_updated({i}, 0.0)")
+                print(f"DEBUG: EMITTING file_progress_updated({i}, 0.0)")
                 self.file_progress_updated.emit(i, 0.0)
                 
                 # For non-FFmpeg conversions (images), emit progress updates during conversion
                 # Simulate progress: 0% at start, then 50% midway, 100% when done
-                print(f"🔵 EMITTING file_progress_updated({i}, 0.1)")
+                print(f"DEBUG: EMITTING file_progress_updated({i}, 0.1)")
                 self.file_progress_updated.emit(i, 0.1)  # 10% when starting
                 
                 result = self.convert_file(file_path)
                 
                 # Emit near-complete progress for image conversions (instant completion)
-                print(f"🔵 EMITTING file_progress_updated({i}, 0.95)")
+                print(f"DEBUG: EMITTING file_progress_updated({i}, 0.95)")
                 self.file_progress_updated.emit(i, 0.95)  # 95% when file conversion completes
                 
                 if result is None:
                     # Skipped file
+                    skipped_files += 1
                     print(f"Skipped file: {file_path}")
-                    # Don't increment successful_conversions
                 elif result:
                     successful_conversions += 1
                     print(f"Successfully converted: {file_path}")
                 else:
+                    failed_conversions += 1
                     print(f"Failed to convert: {file_path}")
                     
                 # Update progress based on operations completed
@@ -551,15 +562,15 @@ class ConversionEngine(QThread):
                 
             # Finish
             if self.should_stop:
-                print("Conversion cancelled by user")
+                print(f"Conversion cancelled by user - {stopped_count} files stopped")
+                # Emit new unified signal
+                self.conversion_completed.emit(successful_conversions, failed_conversions, skipped_files, stopped_count)
+                # Also emit legacy signal for backward compatibility
                 self.conversion_finished.emit(False, "Conversion cancelled by user")
             else:
-                # Calculate actual processed count (excluding skipped)
-                # We don't have a separate counter for skipped, but successful_conversions tracks successes.
-                # If we want to report "X/Y files processed successfully" where Y is only relevant files:
-                # But the user asked: "If you converted 2 video files and skipped 5 photos, dont tell in teh popup converted 7 files, but say converted 2 files"
-                # So we should just report successful_conversions.
-                
+                # Emit new unified signal
+                self.conversion_completed.emit(successful_conversions, failed_conversions, skipped_files, 0)
+                # Also emit legacy signal for backward compatibility
                 message = f"Conversion completed: {successful_conversions} files processed successfully"
                 print(message)
                 self.conversion_finished.emit(True, message)
@@ -788,17 +799,23 @@ class ConversionEngine(QThread):
             
             # Check if multiple qualities or resize variants are requested
             has_multiple_qualities = self.params.get('multiple_qualities', False) and self.params.get('quality_variants')
+            has_multiple_resize = self.params.get('multiple_resize', False) or self.params.get('multiple_size_variants', False)
             has_resize_variants = self.params.get('resize_variants', [])
             
-            if has_multiple_qualities or (has_resize_variants and len(has_resize_variants) > 1):
+            if has_multiple_qualities or (has_multiple_resize and has_resize_variants and len(has_resize_variants) > 1):
+                print(f"DEBUG: Converting with multiple variants")
                 return self._convert_image_multiple_variants(file_path, format_ext)
             else:
                 # Single conversion
                 output_path = self.get_output_path(file_path, format_ext)
+                print(f"DEBUG: Single conversion, output_path={output_path}")
                 return self._convert_single_image(file_path, output_path, format_ext)
                 
         except Exception as e:
             self.status_updated.emit(f"Image conversion error: {str(e)}")
+            print(f"Image conversion error for {file_path}: {str(e)}")
+            import traceback
+            traceback.print_exc()
             return False
             
     def _convert_image_multiple_variants(self, file_path: str, format_ext: str) -> bool:
@@ -863,12 +880,20 @@ class ConversionEngine(QThread):
         
     def _convert_single_image(self, file_path: str, output_path: str, format_ext: str) -> bool:
         """Convert a single image with current settings using FFmpeg"""
-        return self._convert_image_ffmpeg(file_path, output_path)
+        print(f"DEBUG: _convert_single_image called: {file_path} -> {output_path}")
+        result = self._convert_image_ffmpeg(file_path, output_path)
+        print(f"DEBUG: _convert_image_ffmpeg returned: {result}")
+        return result
             
     def _convert_image_ffmpeg(self, file_path: str, output_path: str) -> bool:
         """Convert image using FFmpeg"""
         # Ensure output directory exists
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        
+        # Get the selected FFmpeg path
+        from client.core.ffmpeg_utils import get_selected_ffmpeg_path
+        ffmpeg_cmd = get_selected_ffmpeg_path() or 'ffmpeg'
+        print(f"DEBUG: Using FFmpeg: {ffmpeg_cmd}")
             
         input_stream = ffmpeg.input(file_path)
         
@@ -980,12 +1005,21 @@ class ConversionEngine(QThread):
         if self.params.get('overwrite', False):
             output = ffmpeg.overwrite_output(output)
             
+        # Compile ffmpeg command with custom ffmpeg path
+        cmd = ffmpeg.compile(output, cmd=ffmpeg_cmd)
+        print(f"DEBUG: FFmpeg command: {' '.join(cmd)}")
+            
         # Run with error capture
         try:
-            # Use run_ffmpeg_with_cancellation instead of direct run
-            self.run_ffmpeg_with_cancellation(output, overwrite_output=self.params.get('overwrite', False))
+            # Use run_ffmpeg_with_cancellation with compiled command
+            # We need to rebuild the output with the cmd parameter
+            output_with_cmd = ffmpeg.output(stream, output_path, **output_args)
+            if self.params.get('overwrite', False):
+                output_with_cmd = ffmpeg.overwrite_output(output_with_cmd)
+            self.run_ffmpeg_with_cancellation(output_with_cmd, overwrite_output=self.params.get('overwrite', False), cmd=ffmpeg_cmd)
         except Exception as e:
             error_msg = str(e)
+            print(f"DEBUG: FFmpeg error in _convert_image_ffmpeg: {error_msg}")
             raise Exception(f"FFmpeg conversion failed: {error_msg}")
             
         self.file_completed.emit(file_path, output_path)

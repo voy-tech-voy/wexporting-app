@@ -38,7 +38,8 @@ class PresetOrchestrator(QObject):
     gallery_dismissed = pyqtSignal()
     conversion_started = pyqtSignal()
     conversion_progress = pyqtSignal(int, int, str)  # current, total, message
-    conversion_finished = pyqtSignal(bool, str)  # success, message
+    conversion_finished = pyqtSignal(bool, str)  # success, message - LEGACY
+    conversion_completed = pyqtSignal(int, int, int, int)  # successful, failed, skipped, stopped - NEW
     
     def __init__(self, registry: 'ToolRegistryProtocol', parent_widget: QWidget):
         """
@@ -113,6 +114,8 @@ class PresetOrchestrator(QObject):
         
         total_files = len(files)
         success_count = 0
+        failed_count = 0
+        skipped_count = 0
         
         for i, input_path in enumerate(files):
             try:
@@ -166,6 +169,7 @@ class PresetOrchestrator(QObject):
                         success_count += 1
                         print(f"[PresetOrchestrator] ✓ Success: {input_p.name}")
                     else:
+                        failed_count += 1
                         print(f"[PresetOrchestrator] ✗ Failed: {input_p.name}")
                         print(f"[PresetOrchestrator] stderr: {result.stderr[:200]}")
                 
@@ -173,9 +177,13 @@ class PresetOrchestrator(QObject):
                 self.conversion_progress.emit(i + 1, total_files, f"Processed: {input_p.name}")
                 
             except Exception as e:
+                failed_count += 1
                 print(f"[PresetOrchestrator] Error processing {input_path}: {e}")
         
-        # Emit finished
+        # Emit finished signals (both NEW unified and LEGACY)
+        # NEW: Emit conversion_completed with detailed counts
+        self.conversion_completed.emit(success_count, failed_count, 0, 0)  # skipped=0, stopped=0 for presets
+        # LEGACY: Also emit conversion_finished for backward compatibility
         message = f"Preset conversion complete: {success_count}/{total_files} files"
         self.conversion_finished.emit(success_count == total_files, message)
         
