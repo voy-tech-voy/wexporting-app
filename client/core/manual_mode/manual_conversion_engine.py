@@ -26,10 +26,13 @@ class ManualModeConversionEngine(QThread):
     
     # Signals matching target_size and old ConversionEngine
     progress_updated = pyqtSignal(int)                    # Overall percentage (0-100)
-    file_progress_updated = pyqtSignal(int, float)        # (file_index, 0.0-1.0)
+    file_progress_updated = pyqtSignal(int, float)        # (file_index, 0.0-1.0) - BLUE bar: single file encoding progress
     status_updated = pyqtSignal(str)                      # Status messages
     file_completed = pyqtSignal(str, str)                 # (source_path, output_path)
     conversion_completed = pyqtSignal(int, int, int, int) # (successful, failed, skipped, stopped)
+    
+    # Current file index for progress callbacks
+    _current_file_index = 0
     
     def __init__(self, files: List[str], params: Dict[str, Any], progress_manager: Optional[ConversionProgressManager] = None):
         """
@@ -47,11 +50,16 @@ class ManualModeConversionEngine(QThread):
         self.should_stop = False
         
         # Initialize converters for all media types
+        # Pass progress callback for real-time FFmpeg progress
         self.converters = {
-            'image': ImageConverter(params, self._emit_status),
-            'gif': GifConverter(params, self._emit_status),
-            'video': VideoConverter(params, self._emit_status),
+            'image': ImageConverter(params, self._emit_status, self._emit_file_progress),
+            'gif': GifConverter(params, self._emit_status, self._emit_file_progress),
+            'video': VideoConverter(params, self._emit_status, self._emit_file_progress),
         }
+    
+    def _emit_file_progress(self, progress: float):
+        """Emit file progress (blue bar) - called by converters during encoding"""
+        self.file_progress_updated.emit(self._current_file_index, progress)
     
     def run(self):
         """Main conversion loop - file iteration and variant handling"""
@@ -81,7 +89,10 @@ class ManualModeConversionEngine(QThread):
                     print(f"[ManualModeEngine] Stopped by user, {stopped} files remaining")
                     break
                 
-                # Emit file progress start (blue bar - current file)
+                # Set current file index for progress callbacks (blue bar)
+                self._current_file_index = i
+                
+                # Reset file progress (blue bar starts at 0)
                 self.file_progress_updated.emit(i, 0.0)
                 self._emit_status(f"Processing: {Path(file_path).name}")
                 
@@ -103,9 +114,6 @@ class ManualModeConversionEngine(QThread):
                 if result['failed'] > 0:
                     failed += result['failed']
                     completed_outputs += result['failed']
-                
-                # Update file progress (blue bar) - this file is complete
-                self.file_progress_updated.emit(i, 1.0)
                 
                 # Update overall progress (green bar) based on total outputs
                 if total_outputs > 0:
@@ -164,14 +172,35 @@ class ManualModeConversionEngine(QThread):
         Returns:
             Dict with 'successful' and 'failed' counts
         """
-        # Check for multiple variants
-        has_quality_variants = self.params.get('multiple_qualities', False) and self.params.get('quality_variants')
+        format_ext = converter.get_format_extension()
+        
+        # Check for multiple variants - support both image and video param names
+        # Images use: multiple_qualities, quality_variants
+        # Videos use: webm_multiple_variants, webm_quality_variants
+        has_quality_variants = (
+            (self.params.get('multiple_qualities', False) and self.params.get('quality_variants')) or
+            (self.params.get('webm_multiple_variants', False) and self.params.get('webm_quality_variants'))
+        )
         has_resize_variants = self.params.get('multiple_resize', False) and self.params.get('resize_variants')
         has_gif_variants = self.params.get('gif_multiple_variants', False)
         
-        # Get variant lists
-        quality_variants = self.params.get('quality_variants', [self.params.get('quality', 85)]) if has_quality_variants else [self.params.get('quality', 85)]
+        # DEBUG: Print variant detection
+        print(f"[ManualModeEngine] Format: {format_ext}")
+        print(f"[ManualModeEngine] multiple_qualities: {self.params.get('multiple_qualities')}, quality_variants: {self.params.get('quality_variants')}")
+        print(f"[ManualModeEngine] webm_multiple_variants: {self.params.get('webm_multiple_variants')}, webm_quality_variants: {self.params.get('webm_quality_variants')}")
+        print(f"[ManualModeEngine] has_quality_variants: {has_quality_variants}")
+        
+        # Get variant lists - check both image and video param names
+        if has_quality_variants:
+            quality_variants = self.params.get('quality_variants') or self.params.get('webm_quality_variants') or [self.params.get('quality', 85)]
+        else:
+            # Use webm_quality for videos, quality for images
+            default_quality = self.params.get('webm_quality') or self.params.get('quality', 85)
+            quality_variants = [default_quality]
+        
         resize_variants = self.params.get('resize_variants', [None]) if has_resize_variants else [None]
+        
+        print(f"[ManualModeEngine] quality_variants list: {quality_variants}")
         
         # GIF-specific variants
         fps_variants = [self.params.get('gif_fps', 15)]
@@ -190,13 +219,6 @@ class ManualModeConversionEngine(QThread):
             if dither_list:
                 dither_variants = [int(x) for x in dither_list]
         
-        # If no variants enabled, use single values
-        if not has_quality_variants:
-            quality_variants = [self.params.get('quality', 85)]
-        if not has_resize_variants:
-            resize_variants = [None]
-        
-        format_ext = converter.get_format_extension()
         successful = 0
         failed = 0
         
@@ -205,6 +227,8 @@ class ManualModeConversionEngine(QThread):
             total_variants = len(fps_variants) * len(colors_variants) * len(dither_variants) * len(resize_variants)
         else:
             total_variants = len(quality_variants) * len(resize_variants)
+        
+        print(f"[ManualModeEngine] total_variants: {total_variants}")
         
         current_variant = 0
         
@@ -215,72 +239,74 @@ class ManualModeConversionEngine(QThread):
         orig_colors = self.params.get('gif_colors')
         orig_dither = self.params.get('gif_dither')
         
-        for quality in quality_variants:
-            if self.should_stop:
-                break
-            
-            # For GIF, iterate through GIF variants instead of quality
-            if format_ext == 'gif' and has_gif_variants:
-                for fps in fps_variants:
+        # For GIF, iterate through GIF variants instead of quality
+        if format_ext == 'gif' and has_gif_variants:
+            for fps in fps_variants:
+                if self.should_stop:
+                    break
+                for colors in colors_variants:
                     if self.should_stop:
                         break
-                    for colors in colors_variants:
+                    for dither in dither_variants:
                         if self.should_stop:
                             break
-                        for dither in dither_variants:
+                        for resize in resize_variants:
                             if self.should_stop:
                                 break
-                            for resize in resize_variants:
-                                if self.should_stop:
-                                    break
+                            
+                            current_variant += 1
+                            
+                            # Set GIF params for this variant
+                            self.params['gif_fps'] = fps
+                            self.params['gif_colors'] = colors
+                            self.params['gif_dither'] = dither
+                            self.params['current_resize'] = resize
+                            
+                            # Build variant list for SuffixManager
+                            variants = []
+                            variants.append({'type': 'fps', 'value': fps})
+                            variants.append({'type': 'colors', 'value': colors})
+                            variants.append({'type': 'dither', 'value': dither})
+                            if has_resize_variants and resize:
+                                variants.append({'type': 'resize', 'value': resize})
+                            
+                            # Generate output path with variants
+                            output_path = SuffixManager.get_output_path(
+                                file_path,
+                                self.params,
+                                format_ext,
+                                variants
+                            )
+                            
+                            # Convert
+                            # Note: File progress (blue bar) is now updated in real-time via converter's progress_callback
+                            # The converter calls emit_progress() during FFmpeg encoding
+                            
+                            # Update overall progress (green bar - across all outputs)
+                            if total_outputs > 0:
+                                overall_progress = int(((completed_outputs + current_variant) / total_outputs) * 100)
+                                self.progress_updated.emit(overall_progress)
+                            
+                            success = converter.convert(file_path, output_path)
+                            
+                            # Mark file progress complete for this variant
+                            self.file_progress_updated.emit(file_index, 1.0)
+                            
+                            if success:
+                                successful += 1
+                                self.file_completed.emit(file_path, output_path)
                                 
-                                current_variant += 1
-                                
-                                # Set GIF params for this variant
-                                self.params['gif_fps'] = fps
-                                self.params['gif_colors'] = colors
-                                self.params['gif_dither'] = dither
-                                self.params['current_resize'] = resize
-                                
-                                # Build variant list for SuffixManager
-                                variants = []
-                                variants.append({'type': 'fps', 'value': fps})
-                                variants.append({'type': 'colors', 'value': colors})
-                                variants.append({'type': 'dither', 'value': dither})
-                                if has_resize_variants and resize:
-                                    variants.append({'type': 'resize', 'value': resize})
-                                
-                                # Generate output path with variants
-                                output_path = SuffixManager.get_output_path(
-                                    file_path,
-                                    self.params,
-                                    format_ext,
-                                    variants
-                                )
-                                
-                                # Convert
-                                # Update file progress (blue bar - progress within this file's variants)
-                                variant_progress = current_variant / total_variants
-                                self.file_progress_updated.emit(file_index, variant_progress)
-                                
-                                # Update overall progress (green bar - across all outputs)
-                                if total_outputs > 0:
-                                    overall_progress = int(((completed_outputs + current_variant) / total_outputs) * 100)
-                                    self.progress_updated.emit(overall_progress)
-                                
-                                success = converter.convert(file_path, output_path)
-                                
-                                if success:
-                                    successful += 1
-                                    self.file_completed.emit(file_path, output_path)
-                                    
-                                    # Update progress manager if available
-                                    if self.progress_manager:
-                                        self.progress_manager.increment_progress(1)
-                                else:
-                                    failed += 1
-            else:
-                # Standard quality/resize variants for non-GIF
+                                # Update progress manager if available
+                                if self.progress_manager:
+                                    self.progress_manager.increment_progress(1)
+                            else:
+                                failed += 1
+        else:
+            # Standard quality/resize variants for non-GIF (video, image)
+            for quality in quality_variants:
+                if self.should_stop:
+                    break
+                
                 for resize in resize_variants:
                     if self.should_stop:
                         break
@@ -307,9 +333,8 @@ class ManualModeConversionEngine(QThread):
                     )
                     
                     # Convert
-                    # Update file progress (blue bar - progress within this file's variants)
-                    variant_progress = current_variant / total_variants
-                    self.file_progress_updated.emit(file_index, variant_progress)
+                    # Note: File progress (blue bar) is now updated in real-time via converter's progress_callback
+                    # The converter calls emit_progress() during FFmpeg encoding
                     
                     # Update overall progress (green bar - across all outputs)
                     if total_outputs > 0:
@@ -317,6 +342,9 @@ class ManualModeConversionEngine(QThread):
                         self.progress_updated.emit(overall_progress)
                     
                     success = converter.convert(file_path, output_path)
+                    
+                    # Mark file progress complete for this variant
+                    self.file_progress_updated.emit(file_index, 1.0)
                     
                     if success:
                         successful += 1

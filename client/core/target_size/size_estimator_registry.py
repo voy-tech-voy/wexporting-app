@@ -205,6 +205,7 @@ def run_video_conversion(
     estimator_version: str = None,
     status_callback=None,
     stop_check=None,
+    progress_callback=None,
     **options
 ) -> bool:
     """
@@ -221,6 +222,7 @@ def run_video_conversion(
         estimator_version: Optional estimator version override
         status_callback: Optional status update callback
         stop_check: Optional stop check callback
+        progress_callback: Optional progress update callback (0.0-1.0)
         **options: Additional options (rotation, allow_downscale, etc.)
     
     Returns:
@@ -239,6 +241,7 @@ def run_video_conversion(
         target_size_bytes=target_size_bytes,
         status_callback=status_callback,
         stop_check=stop_check,
+        progress_callback=progress_callback,
         **options
     )
 
@@ -276,6 +279,7 @@ def run_image_conversion(
     output_format: str,
     status_callback=None,
     stop_check=None,
+    progress_callback=None,
     **options
 ) -> bool:
     """
@@ -288,6 +292,7 @@ def run_image_conversion(
         output_format: Output format (JPG, WebP, PNG)
         status_callback: Optional status update callback
         stop_check: Optional stop check callback
+        progress_callback: Optional progress update callback (0.0-1.0)
         **options: Additional options (rotation, allow_downscale, etc.)
     
     Returns:
@@ -306,6 +311,7 @@ def run_image_conversion(
         target_size_bytes=target_size_bytes,
         status_callback=status_callback,
         stop_check=stop_check,
+        progress_callback=progress_callback,
         **options
     )
 
@@ -348,6 +354,7 @@ def run_loop_conversion(
     estimator_version: str = None,
     status_callback=None,
     stop_check=None,
+    progress_callback=None,
     **options
 ) -> bool:
     """
@@ -364,6 +371,7 @@ def run_loop_conversion(
         estimator_version: Optional version override (dev mode), defaults to PRODUCTION_DEFAULTS
         status_callback: Optional status update callback
         stop_check: Optional stop check callback
+        progress_callback: Optional progress update callback (0.0-1.0)
         **options: Additional options (allow_downscale, etc.)
     
     Returns:
@@ -382,6 +390,7 @@ def run_loop_conversion(
         target_size_bytes=target_size_bytes,
         status_callback=status_callback,
         stop_check=stop_check,
+        progress_callback=progress_callback,
         **options
     )
 

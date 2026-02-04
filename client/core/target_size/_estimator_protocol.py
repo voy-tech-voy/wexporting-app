@@ -59,6 +59,7 @@ class EstimatorProtocol(ABC):
         target_size_bytes: int,
         status_callback: Optional[Callable[[str], None]] = None,
         stop_check: Optional[Callable[[], bool]] = None,
+        progress_callback: Optional[Callable[[float], None]] = None,
         **options
     ) -> bool:
         """
@@ -74,6 +75,7 @@ class EstimatorProtocol(ABC):
             target_size_bytes: Target file size in bytes
             status_callback: Optional callback for status messages
             stop_check: Optional callback that returns True to stop
+            progress_callback: Optional callback for progress updates (0.0-1.0)
             **options: Additional options (rotation, allow_downscale, etc.)
         
         Returns:

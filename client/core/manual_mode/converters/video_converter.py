@@ -129,18 +129,44 @@ class VideoConverter(BaseConverter):
             # Get FFmpeg path from centralized source
             ffmpeg_cmd = get_ffmpeg_path()
             
-            # Run FFmpeg
-            print(f"[VideoConverter] FFmpeg command: {ffmpeg_cmd}")
-            ffmpeg.run(
-                output,
-                cmd=ffmpeg_cmd,
-                capture_stdout=True,
-                capture_stderr=True,
-                quiet=True
-            )
+            # Get video duration for progress tracking
+            total_duration = get_video_duration(file_path)
             
-            self.emit_status(f"[OK] {Path(output_path).name}")
-            return True
+            # Apply time cutting adjustments to duration
+            if self.params.get('enable_time_cutting'):
+                time_start = self.params.get('time_start', 0)
+                time_end = self.params.get('time_end', 1)
+                total_duration = total_duration * (time_end - time_start)
+            
+            # Apply retime adjustments to duration
+            if self.params.get('retime_enabled') or self.params.get('enable_retime'):
+                retime_speed = self.params.get('retime_speed', 1.0)
+                if retime_speed and retime_speed > 0:
+                    total_duration = total_duration / retime_speed
+            
+            # Run FFmpeg with progress tracking
+            print(f"[VideoConverter] FFmpeg command: {ffmpeg_cmd}")
+            print(f"[VideoConverter] Total duration for progress: {total_duration:.2f}s")
+            
+            # Use progress tracking for video (has duration)
+            if total_duration > 0 and self.progress_callback:
+                success = self.run_ffmpeg_with_progress(output, ffmpeg_cmd, total_duration)
+            else:
+                # Fallback to standard run
+                ffmpeg.run(
+                    output,
+                    cmd=ffmpeg_cmd,
+                    capture_stdout=True,
+                    capture_stderr=True,
+                    quiet=True
+                )
+                success = True
+            
+            if success:
+                self.emit_status(f"[OK] {Path(output_path).name}")
+                return True
+            else:
+                return False
             
         except ffmpeg.Error as e:
             error_msg = e.stderr.decode('utf-8') if e.stderr else str(e)

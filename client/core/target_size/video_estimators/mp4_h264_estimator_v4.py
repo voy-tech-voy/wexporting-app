@@ -125,11 +125,13 @@ class Estimator(EstimatorProtocol):
         target_size_bytes: int,
         status_callback: Optional[Callable[[str], None]] = None,
         stop_check: Optional[Callable[[], bool]] = None,
+        progress_callback: Optional[Callable[[float], None]] = None,
         **options
     ) -> bool:
         """Execute 2-pass CBR encoding for H.264 with transform filters."""
         import threading
         import subprocess
+        import re
         
         def emit(msg: str):
             if status_callback:
@@ -137,6 +139,11 @@ class Estimator(EstimatorProtocol):
         
         def should_stop() -> bool:
             return stop_check() if stop_check else False
+        
+        def emit_progress(progress: float):
+            """Emit progress (0.0-1.0) if callback available"""
+            if progress_callback:
+                progress_callback(min(max(progress, 0.0), 1.0))
         
         def drain_pipe(pipe, collected: list):
             """Drain pipe in background thread to prevent buffer deadlock."""
@@ -157,6 +164,10 @@ class Estimator(EstimatorProtocol):
         resolution_scale = params.get('resolution_scale', 1.0)
         codec = params['codec']
         has_audio = params.get('has_audio', True)
+        
+        # Get duration for progress tracking
+        meta = get_media_metadata(input_path)
+        duration = meta.get('duration', 0)
         
         # Get transform filters
         transform_filters = options.get('transform_filters', {})
@@ -179,6 +190,9 @@ class Estimator(EstimatorProtocol):
             vf_args['vf'] = ','.join(vf_filters)
         
         emit(f"Using {codec}, {video_bitrate}kbps video, {audio_bitrate}kbps audio")
+        
+        # Emit 0% at start
+        emit_progress(0.0)
         
         # Generate unique passlogfile
         passlogfile = os.path.join(
@@ -254,8 +268,11 @@ class Estimator(EstimatorProtocol):
                 emit(f"Pass 1 failed: {error_msg[-200:]}")
                 return False
             
+            # Pass 1 complete - report 50% progress
+            emit_progress(0.50)
+            
             # =============================================
-            # PASS 2: Encode
+            # PASS 2: Encode with progress tracking
             # =============================================
             emit("Pass 2/2: Encoding final video...")
             
@@ -272,6 +289,13 @@ class Estimator(EstimatorProtocol):
             
             cmd2 = ffmpeg.compile(pass2_stream)
             
+            # Add progress tracking flags before FFmpeg command
+            cmd2_list = list(cmd2)
+            cmd2_list.insert(1, '-progress')
+            cmd2_list.insert(2, 'pipe:1')
+            cmd2_list.insert(3, '-nostats')
+            cmd2 = cmd2_list
+            
             # Replace cmd[0] with actual FFMPEG_BINARY path
             ffmpeg_bin = get_ffmpeg_binary()
             cmd2[0] = ffmpeg_bin
@@ -284,9 +308,36 @@ class Estimator(EstimatorProtocol):
             )
             
             stderr_chunks = []
-            drain_thread = threading.Thread(target=drain_pipe, args=(process.stderr, stderr_chunks))
-            drain_thread.daemon = True
-            drain_thread.start()
+            stderr_thread = threading.Thread(target=drain_pipe, args=(process.stderr, stderr_chunks))
+            stderr_thread.daemon = True
+            stderr_thread.start()
+            
+            # Parse progress from stdout
+            time_pattern = re.compile(r'out_time_ms=(\d+)')
+            
+            def read_stdout():
+                try:
+                    while True:
+                        line = process.stdout.readline()
+                        if not line:
+                            break
+                        line_str = line if isinstance(line, str) else line.decode('utf-8', errors='ignore')
+                        
+                        # Parse progress
+                        if duration > 0:
+                            time_match = time_pattern.search(line_str)
+                            if time_match:
+                                current_time_ms = int(time_match.group(1))
+                                current_time_s = current_time_ms / 1000000.0  # microseconds to seconds
+                                # Scale progress from 0.50-0.95 (pass 2 is 50-95%, final 5% for cleanup)
+                                progress = 0.50 + min(0.45, (current_time_s / duration) * 0.45)
+                                emit_progress(progress)
+                except:
+                    pass
+            
+            stdout_thread = threading.Thread(target=read_stdout)
+            stdout_thread.daemon = True
+            stdout_thread.start()
             
             while process.poll() is None:
                 if should_stop():
@@ -299,7 +350,8 @@ class Estimator(EstimatorProtocol):
                     return False
                 time.sleep(0.1)
             
-            drain_thread.join(timeout=1)
+            stderr_thread.join(timeout=1)
+            stdout_thread.join(timeout=1)
             
             if process.returncode != 0:
                 error_msg = b''.join(stderr_chunks).decode('utf-8', errors='ignore')
@@ -313,6 +365,7 @@ class Estimator(EstimatorProtocol):
             if os.path.exists(output_path):
                 actual_mb = os.path.getsize(output_path) / (1024 * 1024)
                 emit(f"[OK] Complete: {actual_mb:.2f} MB")
+                emit_progress(1.0)  # Report 100% on success
                 return True
             else:
                 emit("[X] Output file not created")

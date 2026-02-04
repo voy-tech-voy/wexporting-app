@@ -121,7 +121,7 @@ class Estimator(EstimatorProtocol):
         }
 
     def execute(self, input_path: str, output_path: str, target_size_bytes: int, 
-                status_callback=None, stop_check=None, **options) -> bool:
+                status_callback=None, stop_check=None, progress_callback=None, **options) -> bool:
         """
         Execute 2-Pass SVT-AV1 conversion with VBV Constraints.
         """
@@ -131,8 +131,15 @@ class Estimator(EstimatorProtocol):
 
         def should_stop() -> bool:
             return stop_check() if stop_check else False
+        
+        def emit_progress(progress: float):
+            """Emit progress (0.0-1.0) if callback available"""
+            if progress_callback:
+                progress_callback(min(max(progress, 0.0), 1.0))
 
-        def run_ffmpeg_process(description, stream_obj):
+        def run_ffmpeg_process(description, stream_obj, total_duration=0, is_pass2=False):
+            import re
+            
             def drain_pipe(pipe, collected):
                 try:
                     while True:
@@ -143,11 +150,20 @@ class Estimator(EstimatorProtocol):
 
             cmd = ffmpeg.compile(stream_obj, overwrite_output=True)
             
+            # Add progress flags for pass 2 only (where we want real-time tracking)
+            if is_pass2 and total_duration > 0:
+                # Insert -progress pipe:1 after ffmpeg command
+                cmd_list = list(cmd)
+                cmd_list.insert(1, '-progress')
+                cmd_list.insert(2, 'pipe:1')
+                cmd_list.insert(3, '-nostats')
+                cmd = cmd_list
+            
             # Replace cmd[0] with actual FFMPEG_BINARY path
             ffmpeg_bin = get_ffmpeg_binary()
             cmd[0] = ffmpeg_bin
             
-            print(f"[AV1_LOOP_v1 DEBUG] Command: {cmd}")
+            print(f"[AV1_LOOP_v6 DEBUG] Command: {cmd}")
             
             process = subprocess.Popen(
                 cmd,
@@ -157,9 +173,37 @@ class Estimator(EstimatorProtocol):
             )
 
             stderr_chunks = []
-            drain_thread = threading.Thread(target=drain_pipe, args=(process.stderr, stderr_chunks))
-            drain_thread.daemon = True
-            drain_thread.start()
+            stderr_thread = threading.Thread(target=drain_pipe, args=(process.stderr, stderr_chunks))
+            stderr_thread.daemon = True
+            stderr_thread.start()
+            
+            # Parse progress from stdout if this is pass 2
+            time_pattern = re.compile(r'out_time_ms=(\d+)')
+            
+            def read_stdout():
+                try:
+                    while True:
+                        line = process.stdout.readline()
+                        if not line:
+                            break
+                        line_str = line if isinstance(line, str) else line.decode('utf-8', errors='ignore')
+                        
+                        # Parse progress
+                        if is_pass2 and total_duration > 0:
+                            time_match = time_pattern.search(line_str)
+                            if time_match:
+                                current_time_ms = int(time_match.group(1))
+                                current_time_s = current_time_ms / 1000000.0  # microseconds to seconds
+                                progress = min(0.95, current_time_s / total_duration)
+                                emit_progress(progress)
+                except:
+                    pass
+            
+            # Start stdout reader thread if tracking progress
+            if is_pass2 and total_duration > 0:
+                stdout_thread = threading.Thread(target=read_stdout)
+                stdout_thread.daemon = True
+                stdout_thread.start()
 
             while process.poll() is None:
                 if should_stop():
@@ -170,11 +214,13 @@ class Estimator(EstimatorProtocol):
                     return False
                 time.sleep(0.1)
 
-            drain_thread.join(timeout=1)
+            stderr_thread.join(timeout=1)
+            if is_pass2 and total_duration > 0:
+                stdout_thread.join(timeout=1)
 
             if process.returncode != 0:
                 error_msg = b''.join(stderr_chunks).decode('utf-8', errors='ignore')
-                print(f"[AV1_LOOP_v1 ERROR] FFmpeg failed. Command: {cmd}\nError Output:\n{error_msg}")
+                print(f"[AV1_LOOP_v6 ERROR] FFmpeg failed. Command: {cmd}\nError Output:\n{error_msg}")
                 emit(f"FFmpeg Error: {error_msg[-300:]}")
                 return False
             return True
@@ -211,6 +257,13 @@ class Estimator(EstimatorProtocol):
 
         emit(f"Target: {params['resolution_w']}x{params['resolution_h']} @ {bitrate} (Loop, no audio)")
 
+        # Get duration for progress tracking
+        meta = self.get_media_metadata(input_path)
+        duration = meta.get('duration', 0)
+        
+        # Emit 0% at start
+        emit_progress(0.0)
+
         # PASS 1
         null_output = "NUL" if os.name == 'nt' else "/dev/null"
         
@@ -229,10 +282,13 @@ class Estimator(EstimatorProtocol):
             .output(null_output, **pass1_args)
         )
 
-        if not run_ffmpeg_process("Pass 1/2: Analysis...", pass1_stream):
+        if not run_ffmpeg_process("Pass 1/2: Analysis...", pass1_stream, total_duration=0, is_pass2=False):
             return False
+        
+        # Pass 1 complete - report 50% progress
+        emit_progress(0.50)
 
-        # PASS 2 - No audio for loops
+        # PASS 2 - No audio for loops (with progress tracking)
         pass2_args = {
             'vcodec': 'libsvtav1',
             'b:v': bitrate,
@@ -247,8 +303,11 @@ class Estimator(EstimatorProtocol):
             .output(output_path, **pass2_args)
         )
 
-        if not run_ffmpeg_process("Pass 2/2: Encoding...", pass2_stream):
+        if not run_ffmpeg_process("Pass 2/2: Encoding...", pass2_stream, total_duration=duration, is_pass2=True):
             return False
+        
+        # Encoding complete - report 100%
+        emit_progress(1.0)
 
         if os.path.exists(output_path):
             actual_mb = os.path.getsize(output_path) / (1024 * 1024)

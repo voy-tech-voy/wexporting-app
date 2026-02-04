@@ -38,6 +38,11 @@ class TargetSizeConversionEngine(QThread):
         self.progress_manager = progress_manager or ConversionProgressManager()
         self.completed_outputs = 0  # Track completed output files
         self.total_outputs = 0  # Total output files to generate
+        self._current_file_index = 0  # Track current file for progress callback
+        
+    def _emit_file_progress(self, progress: float):
+        """Emit file progress (blue bar) - called by estimators during encoding"""
+        self.file_progress_updated.emit(self._current_file_index, progress)
         
     def stop_conversion(self):
         """Stop the conversion process immediately."""
@@ -58,6 +63,12 @@ class TargetSizeConversionEngine(QThread):
         for i, file_path in enumerate(self.files):
             if self.should_stop:
                 break
+            
+            # Set current file index for progress callback
+            self._current_file_index = i
+            
+            # Reset file progress (blue bar starts at 0)
+            self.file_progress_updated.emit(i, 0.0)
             
             # Update progress based on completed output files vs total output files
             if self.total_outputs > 0:
@@ -317,6 +328,7 @@ class TargetSizeConversionEngine(QThread):
                         estimator_version=estimator_version,  # Pass version to run_video_conversion
                         status_callback=self.status_updated.emit,
                         stop_check=lambda: self.should_stop,
+                        progress_callback=self._emit_file_progress,
                         rotation=rotation,
                         allow_downscale=auto_resize,
                         transform_filters=transform_filters
@@ -428,6 +440,7 @@ class TargetSizeConversionEngine(QThread):
                         output_format=output_format,
                         status_callback=self.status_updated.emit,
                         stop_check=lambda: self.should_stop,
+                        progress_callback=self._emit_file_progress,
                         rotation=rotation,
                         allow_downscale=auto_resize,
                         override_width=override_dims[0] if override_dims else None,
@@ -544,6 +557,7 @@ class TargetSizeConversionEngine(QThread):
                         estimator_version=estimator_version,  # Pass version to run_loop_conversion
                         status_callback=self.status_updated.emit,
                         stop_check=lambda: self.should_stop,
+                        progress_callback=self._emit_file_progress,
                         allow_downscale=auto_resize,
                         transform_filters=transform_filters
                     )

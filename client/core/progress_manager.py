@@ -254,11 +254,15 @@ class ConversionProgressManager(QObject):
         
         quality_variants = []
         if lab_sub_mode == LabSubMode.MANUAL:
-            # Manual mode variants
+            # Manual mode variants - check both image and video param names
+            # Images use: multiple_qualities, quality_variants
+            # Videos use: webm_multiple_variants, webm_quality_variants
             if params.get('multiple_qualities'):
                 quality_variants = params.get('quality_variants', [])
+            elif params.get('webm_multiple_variants'):
+                quality_variants = params.get('webm_quality_variants', [])
             else:
-                quality = params.get('quality') or params.get('crf')
+                quality = params.get('webm_quality') or params.get('quality') or params.get('crf')
                 if quality is not None:
                     quality_variants = [quality]
         
