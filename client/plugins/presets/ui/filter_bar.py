@@ -50,8 +50,12 @@ class CategoryFilterBar(QWidget):
         self._blurred_bg = None
         self._is_capturing = False
         
-        # Enable custom painting
-        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        # DEBUG MODE - Set to False for production
+        self._debug_mode = False
+        
+        # Prevent Qt from painting any background - we handle it in paintEvent
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground, True)
         
         self._layout = QHBoxLayout(self)
         self._layout.setContentsMargins(0, 12, 0, 16)
@@ -81,13 +85,15 @@ class CategoryFilterBar(QWidget):
             self.hide()
             
             # Get the rect in scroll area coordinates
-            # Filter bar is at (16, 16) relative to gallery
-            # Scroll area also starts at (16, 16) due to margins
-            # So capture from top of scroll viewport
-            capture_rect = self.geometry()
-            capture_rect.moveTopLeft(scroll_area.viewport().mapFromParent(
-                gallery.mapFromParent(self.mapToParent(self.rect().topLeft()))
-            ))
+            filter_pos_in_gallery = self.pos()
+            scroll_pos_in_gallery = scroll_area.pos()
+            
+            # Calculate offset
+            offset_x = filter_pos_in_gallery.x() - scroll_pos_in_gallery.x()
+            offset_y = filter_pos_in_gallery.y() - scroll_pos_in_gallery.y()
+            
+            from PyQt6.QtCore import QRect
+            capture_rect = QRect(offset_x, offset_y, self.width(), self.height())
             
             # Grab from scroll viewport
             pixmap = scroll_area.viewport().grab(capture_rect)
@@ -97,8 +103,15 @@ class CategoryFilterBar(QWidget):
             if pixmap.isNull():
                 return
             
-            # Downscale for performance
-            scale = 4
+            # Simple blur via downscale + upscale
+            from client.gui.theme_variables import get_color
+            from client.gui.theme_manager import ThemeManager
+            is_dark = ThemeManager.instance().is_dark_mode()
+            
+            scale = int(get_color("gallery_filter_blur_scale", is_dark))
+            blur_passes = int(get_color("gallery_filter_blur_radius", is_dark))
+            
+            # Downscale for blur effect
             small = pixmap.scaled(
                 pixmap.width() // scale, 
                 pixmap.height() // scale,
@@ -106,79 +119,124 @@ class CategoryFilterBar(QWidget):
                 Qt.TransformationMode.SmoothTransformation
             )
             
-            # Apply blur using QGraphicsBlurEffect
-            scene = QGraphicsScene()
-            item = QGraphicsPixmapItem(small)
-            blur = QGraphicsBlurEffect()
-            blur.setBlurRadius(3)
-            blur.setBlurHints(QGraphicsBlurEffect.BlurHint.PerformanceHint)
-            item.setGraphicsEffect(blur)
-            scene.addItem(item)
+            # Apply multiple downscale passes for stronger blur
+            current = small
+            for _ in range(blur_passes):
+                if current.width() > 4 and current.height() > 4:
+                    current = current.scaled(
+                        current.width() // 2,
+                        current.height() // 2,
+                        Qt.AspectRatioMode.IgnoreAspectRatio,
+                        Qt.TransformationMode.SmoothTransformation
+                    )
             
-            # Render blurred result
-            result = QPixmap(small.size())
-            result.fill(Qt.GlobalColor.transparent)
-            painter = QPainter(result)
-            scene.render(painter)
-            painter.end()
-            
-            self._blurred_bg = result
+            # Scale back up - creates blur effect
+            self._blurred_bg = current.scaled(
+                pixmap.size(),
+                Qt.AspectRatioMode.IgnoreAspectRatio,
+                Qt.TransformationMode.SmoothTransformation
+            )
             self.update()
             
         finally:
             self._is_capturing = False
     
     def paintEvent(self, event):
-        """Paint blurred background with transparency fade at bottom."""
-        # Create a temporary pixmap to render content, then apply alpha mask
-        content = QPixmap(self.size())
-        content.fill(Qt.GlobalColor.transparent)
+        """Paint blurred background with tunable gradient mask that fades cards underneath."""
+        from client.gui.theme_variables import get_color
+        from client.gui.theme_manager import ThemeManager
         
-        content_painter = QPainter(content)
-        content_painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        is_dark = ThemeManager.instance().is_dark_mode()
         
-        # Rounded corners
+        # Get tunable mask parameters - Default to Opaque Top / Transparent Bottom
+        try:
+            mask_top = int(get_color("gallery_filter_mask_top_alpha", is_dark))
+            mask_bottom = int(get_color("gallery_filter_mask_bottom_alpha", is_dark))
+            debug_mask = int(get_color("gallery_filter_debug_mask", is_dark)) == 1
+        except (ValueError, TypeError):
+            mask_top = 255
+            mask_bottom = 0
+            debug_mask = False
+
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        
+        # Rounded corners clipping
         path = QPainterPath()
         radius = 8
         path.addRoundedRect(self.rect().toRectF(), radius, radius)
-        content_painter.setClipPath(path)
+        painter.setClipPath(path)
         
-        # Fill with dark grey matching gallery visual appearance
-        # Gallery uses rgba(11,11,11,0.9) over blurred content
-        content_painter.fillRect(self.rect(), QColor(35, 35, 35, 255))
+        # Get filter bar background color for solid overlay
+        filter_bg = get_color("gallery_filter_bg", is_dark)
+        filter_overlay = get_color("gallery_filter_overlay", is_dark)
+        try:
+            filter_overlay_alpha = int(get_color("gallery_filter_overlay_alpha", is_dark))
+        except (ValueError, TypeError):
+            filter_overlay_alpha = 180
         
-        # Draw blurred background on top
+        # Parse hex color
+        bg_color = QColor(filter_bg)
+        bg_r, bg_g, bg_b = bg_color.red(), bg_color.green(), bg_color.blue()
+        
+        # Parse overlay color  
+        overlay_color = QColor(filter_overlay)
+        ov_r, ov_g, ov_b = overlay_color.red(), overlay_color.green(), overlay_color.blue()
+        
+        # 1. Draw solid background with gradient alpha - this fades/multiplies the cards underneath
+        solid_gradient = QLinearGradient(0, 0, 0, self.height())
+        solid_gradient.setColorAt(0.0, QColor(bg_r, bg_g, bg_b, mask_top))
+        solid_gradient.setColorAt(1.0, QColor(bg_r, bg_g, bg_b, mask_bottom))
+        painter.fillRect(self.rect(), solid_gradient)
+        
+        # 1.5. Draw overlay tint on top of background
+        overlay_gradient = QLinearGradient(0, 0, 0, self.height())
+        overlay_gradient.setColorAt(0.0, QColor(ov_r, ov_g, ov_b, min(filter_overlay_alpha, mask_top)))
+        overlay_gradient.setColorAt(1.0, QColor(ov_r, ov_g, ov_b, min(filter_overlay_alpha, mask_bottom)))
+        painter.fillRect(self.rect(), overlay_gradient)
+        
+        # 2. Draw blur with gradient mask on top
         if self._blurred_bg and not self._blurred_bg.isNull():
-            content_painter.drawPixmap(self.rect(), self._blurred_bg)
+            # Create temporary pixmap for masking
+            blurred_masked = QPixmap(self._blurred_bg.size())
+            blurred_masked.fill(Qt.GlobalColor.transparent)
+            
+            # Draw the full blur
+            mask_painter = QPainter(blurred_masked)
+            mask_painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+            mask_painter.drawPixmap(0, 0, self._blurred_bg)
+            
+            # Multiply Alpha with Gradient
+            mask_painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_DestinationIn)
+            
+            alpha_gradient = QLinearGradient(0, 0, 0, self.height())
+            alpha_gradient.setColorAt(0.0, QColor(0, 0, 0, mask_top))
+            alpha_gradient.setColorAt(1.0, QColor(0, 0, 0, mask_bottom))
+            
+            mask_painter.fillRect(blurred_masked.rect(), alpha_gradient)
+            mask_painter.end()
+            
+            # Paint the masked blur
+            painter.drawPixmap(0, 0, blurred_masked)
         
-        # Light tint to match gallery overlay
-        content_painter.fillRect(self.rect(), QColor(20, 20, 20, 180))
+        # DEBUG MODE: Show the gradient rectangle ON TOP of everything
+        if debug_mask:
+            # Create semi-transparent gradient overlay with colors
+            debug_gradient = QLinearGradient(0, 0, 0, self.height())
+            top_color = QColor(255, 0, 0, min(mask_top, 200))  # Red
+            bottom_color = QColor(0, 255, 0, min(mask_bottom, 200))  # Green
+            
+            debug_gradient.setColorAt(0.0, top_color)
+            debug_gradient.setColorAt(1.0, bottom_color)
+            
+            painter.fillRect(self.rect(), debug_gradient)
+            
+            # Draw debug text
+            painter.setPen(QColor(255, 255, 255))
+            painter.drawText(10, 20, f"GRADIENT: Top={mask_top} → Bottom={mask_bottom}")
         
-        content_painter.end()
-        
-        # Apply vertical alpha gradient mask (fade to transparent at bottom)
-        mask = QPixmap(self.size())
-        mask.fill(Qt.GlobalColor.transparent)
-        mask_painter = QPainter(mask)
-        
-        # Gradient from opaque at top to transparent at bottom
-        alpha_gradient = QLinearGradient(0, 0, 0, self.height())
-        alpha_gradient.setColorAt(0.0, QColor(255, 255, 255, 255))  # Fully opaque
-        alpha_gradient.setColorAt(0.6, QColor(255, 255, 255, 200))  # Still mostly opaque
-        alpha_gradient.setColorAt(1.0, QColor(255, 255, 255, 0))    # Fully transparent
-        mask_painter.fillRect(self.rect(), alpha_gradient)
-        mask_painter.end()
-        
-        # Apply mask to content using DestinationIn composition
-        result_painter = QPainter(content)
-        result_painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_DestinationIn)
-        result_painter.drawPixmap(0, 0, mask)
-        result_painter.end()
-        
-        # Draw final result to widget
-        painter = QPainter(self)
-        painter.drawPixmap(0, 0, content)
         painter.end()
+
 
     
     def set_categories(self, presets: List[PresetDefinition]) -> None:
@@ -257,11 +315,24 @@ class CategoryFilterBar(QWidget):
     
     def _get_button_style(self, checked: bool) -> str:
         """Get CSS stylesheet for button based on state."""
+        from client.gui.theme_variables import get_color
+        from client.gui.theme_manager import ThemeManager
+        
+        is_dark = ThemeManager.instance().is_dark_mode()
+        
+        # Get button colors from theme
+        active_bg = get_color("gallery_filter_btn_active_bg", is_dark)
+        active_text = get_color("gallery_filter_btn_active_text", is_dark)
+        inactive_bg = get_color("gallery_filter_btn_inactive_bg", is_dark)
+        inactive_text = get_color("gallery_filter_btn_inactive_text", is_dark)
+        border_color = get_color("gallery_filter_btn_border", is_dark)
+        
         if checked:
+            # Opaque active button (green)
             return f"""
                 QPushButton {{
-                    background-color: {Theme.success()};
-                    color: {Theme.bg()};
+                    background-color: {active_bg};
+                    color: {active_text};
                     border: none;
                     font-weight: bold;
                     font-size: {Theme.FONT_SIZE_SM}px;
@@ -269,23 +340,24 @@ class CategoryFilterBar(QWidget):
                     padding: {self.BUTTON_PADDING_V}px {self.BUTTON_PADDING_H}px;
                 }}
                 QPushButton:hover {{
-                    background-color: {Theme.success()};
+                    background-color: {active_bg};
                     opacity: 0.9;
                 }}
             """
         else:
+            # Opaque inactive button
             return f"""
                 QPushButton {{
-                    background-color: {Theme.surface_element()};
-                    color: {Theme.text_muted()};
-                    border: 1px solid {Theme.border()};
+                    background-color: {inactive_bg};
+                    color: {inactive_text};
+                    border: 1px solid {border_color};
                     font-size: {Theme.FONT_SIZE_SM}px;
                     border-radius: {self.BUTTON_HEIGHT // 2}px;
                     padding: {self.BUTTON_PADDING_V}px {self.BUTTON_PADDING_H}px;
                 }}
                 QPushButton:hover {{
-                    background-color: {Theme.color('surface_hover')};
-                    color: {Theme.text()};
+                    background-color: {border_color};
+                    color: {active_text};
                 }}
             """
     
