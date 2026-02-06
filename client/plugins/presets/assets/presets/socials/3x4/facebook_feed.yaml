@@ -1,0 +1,25 @@
+# Facebook Feed Pro (4:5)
+# Optimized for the FB News Feed and Meta Ad Manager
+
+meta:
+  id: "facebook_pro_4x5"
+  name: "Facebook Feed 4:5"
+  category: "social"
+  description: "1080x1350 Portrait. Optimized for high engagement in the Meta News Feed."
+  version: "1.0"
+
+style:
+  accent_color: "#1877F2" # Facebook Blue
+  icon: "facebook"
+  glow_strength: "medium"
+
+pipeline:
+  - tool: "ffmpeg"
+    description: "FB Feed Conversion"
+    filename_suffix: "_FB_4x5"
+    command_template: >
+      {{ tool_exe }} -y -i "{{ input_path }}"
+      -vf "scale=1080:1350:force_original_aspect_ratio=increase,crop=1080:1350,unsharp=3:3:0.4:3:3:0.0"
+      -c:v libx264 -preset medium -crf 19 -maxrate 10M -bufsize 20M
+      -pix_fmt yuv420p -c:a aac -b:a 192k -movflags +faststart
+      "{{ output_path }}"

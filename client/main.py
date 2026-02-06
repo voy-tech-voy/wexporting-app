@@ -15,12 +15,12 @@ from client.gui.login_window_new import ModernLoginWindow, VideoPlaybackThread
 from client.gui.main_window import MainWindow
 from client.utils.font_manager import AppFonts
 from client.version import get_version, APP_NAME
-from client.core.conversion_engine import init_bundled_tools
+from client.core.tool_manager import init_bundled_tools
 
 # Import MessageManager for centralized message handling
 try:
     from client.utils.message_manager import get_message_manager
-    from client.config.app_config import SERVER_BASE_URL
+    from client.config.config import API_BASE_URL as SERVER_BASE_URL
     MESSAGE_MANAGER_AVAILABLE = True
 except ImportError as e:
     print(f"Warning: MessageManager not available: {e}")
@@ -472,7 +472,7 @@ if __name__ == "__main__":
         # extraction + checksum logic after packaging.
         import json as _json
         try:
-            from client.core.conversion_engine import verify_bundled_tools
+            from client.core.tool_manager import verify_bundled_tools
             results = verify_bundled_tools(timeout=10)
             print(_json.dumps(results, indent=2))
             # Determine success: every tool that has a path and an expected_sha256 must match

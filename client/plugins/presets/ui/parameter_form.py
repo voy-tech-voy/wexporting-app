@@ -67,7 +67,7 @@ class SegmentedPill(QWidget):
                 btn.setStyleSheet(f"""
                     QPushButton {{
                         background-color: {Theme.success()};
-                        color: {Theme.bg()};
+                        color: white;
                         border: none;
                         font-weight: bold;
                         font-size: {Theme.FONT_SIZE_LG}px;

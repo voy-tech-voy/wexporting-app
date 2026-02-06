@@ -2,7 +2,7 @@ import sys
 import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from client.core.conversion_engine import init_bundled_tools
+from client.core.tool_manager import init_bundled_tools
 import subprocess
 
 def test_bundled_ffmpeg_extraction_and_usage():

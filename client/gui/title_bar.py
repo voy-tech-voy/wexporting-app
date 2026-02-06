@@ -286,8 +286,14 @@ class TitleBarWindow(QMainWindow):
         bg_color = Theme.translucent_bg()
         
         text_color = Theme.text()
-        btn_bg = Theme.surface_element()
-        btn_hover = Theme.color("surface_hover")
+        
+        # Use dedicated title bar button colors
+        from client.gui.theme_variables import get_color
+        from client.gui.theme_manager import ThemeManager
+        is_dark = ThemeManager.instance().is_dark_mode()
+        
+        btn_bg = get_color("titlebar_btn_bg", is_dark)
+        btn_hover = get_color("titlebar_btn_hover", is_dark)
         border_color = Theme.border()
         
         # Frame style (rounded top corners, translucent bg for blur)

@@ -1,0 +1,87 @@
+# LinkedIn Landscape Pro (16:9)
+# Optimized for high-bitrate desktop viewing and professional audio standards
+
+meta:
+  id: "linkedin_landscape_16x9"
+  name: "LinkedIn Landscape 16:9"
+  category: "social"
+  description: "Native 1920x1080 landscape. Ideal for webinars, case studies, and corporate presentations."
+  version: "1.0"
+
+style:
+  accent_color: "#0A66C2" # LinkedIn Blue
+  icon: "monitor"
+  glow_strength: "medium"
+
+constraints:
+  accepted_types: ["video"]
+  accepted_extensions: [".mp4", ".mov", ".mkv"]
+  min_duration: 5.0
+
+# --- THE USER INTERFACE ---
+parameters:
+  - id: "fill_method"
+    type: "segmented_pill"
+    label: "Fill Method"
+    options: ["Blur", "Crop", "Fit"]
+    default: "Blur"
+    tooltip: "How to handle vertical/square footage in a 16:9 frame."
+
+  - id: "audio_boost"
+    type: "toggle"
+    label: "Professional Voice Normalization"
+    default: true
+    tooltip: "Targets -16 LUFS for clear, consistent office-friendly audio."
+
+# --- THE EXECUTION LOGIC ---
+pipeline:
+  - tool: "ffmpeg"
+    description: "LinkedIn 16:9 Conversion"
+    
+    filename_suffix: "_LI_16x9"
+
+    command_template: >
+      {{ tool_exe }} -y -i "{{ input_path }}"
+
+      {# --- FPS FILTER CALCULATION --- #}
+      {% set fps_filter %}
+        {% if meta.fps > 31 %}
+          ,tmix=frames=2:weights='1 1',fps=30
+        {% else %}
+          ,fps=30
+        {% endif %}
+      {% endset %}
+
+      {# --- GEOMETRY & FILTERS (Target 1920x1080) --- #}
+      
+      {# SCENARIO A: BLUR BACKGROUND (Ideal for putting Reels/Portrait on LinkedIn) #}
+      {% if fill_method == 'Blur' %}
+        -filter_complex "[0:v]split[bg][fg];
+        [bg]scale=1920:1080:force_original_aspect_ratio=increase,crop=1920:1080,boxblur=15:5[bg_b];
+        [fg]scale=1920:1080:force_original_aspect_ratio=decrease[fg_s];
+        [bg_b][fg_s]overlay=(W-w)/2:(H-h)/2{{ fps_filter }},unsharp=3:3:0.5:3:3:0.0[v]"
+        -map "[v]" -map 0:a?
+
+      {# SCENARIO B: CROP CENTER #}
+      {% elif fill_method == 'Crop' %}
+        -vf "scale=1920:1080:force_original_aspect_ratio=increase,crop=1920:1080{{ fps_filter }},unsharp=3:3:0.5:3:3:0.0"
+
+      {# SCENARIO C: FIT (Pillarbox/Letterbox) #}
+      {% else %}
+        -vf "scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:black{{ fps_filter }},unsharp=3:3:0.5:3:3:0.0"
+      {% endif %}
+
+      {# --- ENCODING SETTINGS --- #}
+      -c:v libx264 -preset medium -crf 19
+      -pix_fmt yuv420p
+      -g 60 -bf 2 
+      
+      {# --- AUDIO (LinkedIn Pro Standard) --- #}
+      {% if audio_boost %}
+        -c:a aac -b:a 256k -af "loudnorm=I=-16:TP=-1.5:LRA=11"
+      {% else %}
+        -c:a aac -b:a 256k
+      {% endif %}
+      
+      -movflags +faststart
+      "{{ output_path }}"

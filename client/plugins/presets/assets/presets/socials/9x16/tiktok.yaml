@@ -1,0 +1,92 @@
+# TikTok Pro Universal
+# Optimized for FYP with Safe-Zone padding and High-Bitrate encoding
+
+meta:
+  id: "tiktok_pro_v2"
+  name: "TikTok Pro 9:16"
+  category: "social"
+  ratio: "9x16"
+  description: "Immersive vertical output with UI Safe-Zone protection and 60fps support."
+  version: "2.1"
+
+style:
+  accent_color: "#EE1D52" # TikTok Red
+  icon: "tiktok"
+  glow_strength: "strong"
+
+constraints:
+  accepted_types: ["video"]
+  accepted_extensions: [".mp4", ".mov", ".mkv"]
+
+# --- THE USER INTERFACE ---
+parameters:
+  - id: "mode"
+    type: "segmented_pill"
+    label: "Output Style"
+    options: ["Immersive", "Safe-Zone"]
+    default: "Immersive"
+    tooltip: "Safe-Zone shrinks video slightly so TikTok UI buttons don't cover your content."
+
+  - id: "fps_target"
+    type: "segmented_pill"
+    label: "FPS Mode"
+    options: ["Native", "Smooth 60"]
+    default: "Native"
+
+  - id: "fill_method"
+    type: "segmented_pill"
+    label: "Fill (for Landscape)"
+    options: ["Blur", "Crop"]
+    default: "Blur"
+
+# --- THE EXECUTION LOGIC ---
+pipeline:
+  - tool: "ffmpeg"
+    description: "TikTok Optimization Pass"
+    
+    filename_suffix: >-
+      _TT_{{ mode|lower }}_{{ '60fps' if fps_target == 'Smooth 60' else '30fps' }}
+
+    command_template: >
+      {{ tool_exe }} -y -i "{{ input_path }}"
+
+      {# --- FPS LOGIC --- #}
+      {% set fps_filter %}
+        {% if fps_target == 'Smooth 60' %}
+          ,fps=60,minterpolate='fps=60:mi_mode=mci:mc_mode=aobmc:me_mode=bidir:vsbmc=1'
+        {% else %}
+          ,fps=30
+        {% endif %}
+      {% endset %}
+
+      {# --- GEOMETRY LOGIC --- #}
+      
+      {# SCENARIO A: IMMERSIVE (Standard Full Screen) #}
+      {% if mode == 'Immersive' %}
+        {% if fill_method == 'Blur' and meta.is_landscape %}
+          -filter_complex "[0:v]split[bg][fg];
+          [bg]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=25:15[bg_b];
+          [fg]scale=1080:1920:force_original_aspect_ratio=decrease[fg_s];
+          [bg_b][fg_s]overlay=(W-w)/2:(H-h)/2{{ fps_filter }},unsharp=3:3:0.8:3:3:0.0[outv]"
+          -map "[outv]"
+        {% else %}
+          -vf "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920{{ fps_filter }},unsharp=3:3:0.8:3:3:0.0"
+        {% endif %}
+
+      {# SCENARIO B: SAFE-ZONE (Shrink 10% to clear UI) #}
+      {% else %}
+        -vf "scale=972:1728:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:black{{ fps_filter }},unsharp=3:3:0.8:3:3:0.0"
+      {% endif %}
+
+      {# --- TIKTOK ENCODING SPEC --- #}
+      -c:v libx264 -preset slow -profile:v high -level:v 4.2
+      -crf 18
+      -maxrate 12M -bufsize 24M
+      -pix_fmt yuv420p
+      -g {{ 120 if fps_target == 'Smooth 60' else 60 }}
+      
+      {# Audio Optimization for TikTok #}
+      -c:a aac -b:a 192k -ar 48000 -af "loudnorm=I=-14:LRA=11:TP=-1"
+      
+      -movflags +faststart
+      "{{ output_path }}"

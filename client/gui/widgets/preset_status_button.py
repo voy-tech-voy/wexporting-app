@@ -113,16 +113,19 @@ class PresetStatusButton(QWidget):
         
     def _update_colors(self):
         """Update instance colors based on state and theme"""
+        from client.gui.theme_variables import get_color
+        
         if self._is_active:
-             self._bg_color = QColor("#00AA00")
-             # Text is always white on green background
+             self._bg_color = QColor(get_color("btn_preset_active", self._is_dark))
+             # Text is always white on active background
              self._text_color = QColor(255, 255, 255, 255)
         else:
-            if self._is_dark:
-                self._bg_color = QColor(255, 255, 255, 12)
+             self._bg_color = QColor(get_color("btn_preset_ghost", self._is_dark))
+             # Text reuse existing theme logic for secondary/primary if needed, but keeping existing dim logic for now
+             # or we could add text variables later. For now, matching the ghost bg is the key.
+             if self._is_dark:
                 self._text_color = QColor(255, 255, 255, 150) # Dim white
-            else:
-                self._bg_color = QColor(0, 0, 0, 12) # Dark ghost
+             else:
                 self._text_color = QColor(0, 0, 0, 150) # Dim black
         
     def mousePressEvent(self, event):

@@ -1,0 +1,60 @@
+# ============================================================================
+# PRO RECONSTRUCTION MASTER (VULKAN)
+# ============================================================================
+# Elite 4K Reconstruction using Vulkan GPU. Zero external files required.
+# Uses libplacebo with hardware upload/download for maximum performance
+# Features: EWA Lanczos upscaling, anti-ringing, debanding, CAS sharpening
+# ============================================================================
+
+meta:
+  id: "pro_reconstruction_vulkan"
+  name: "Pro Reconstruction Master"
+  category: "utils"
+  description: "Elite 4K Reconstruction using Vulkan GPU. Zero external files required."
+  version: "1.0"
+
+style:
+  accent_color: "#E91E63"  # Pink/Magenta for Pro
+  icon: "sparkles"
+  glow_strength: "strong"
+
+constraints:
+  accepted_types: ["image", "video"]
+  accepted_extensions: [".jpg", ".jpeg", ".png", ".webp", ".bmp", ".mp4", ".mov", ".mkv", ".avi", ".webm"]
+  min_duration: 0.0
+
+parameters:
+  - id: "target_scale"
+    type: "segmented_pill"
+    label: "Scale Factor"
+    options: ["2x", "4x"]
+    default: "2x"
+    tooltip: "Upscaling multiplier (2x or 4x)"
+
+  - id: "sharpness"
+    type: "segmented_pill"
+    label: "Sharpness"
+    options: ["Soft", "Balanced", "Sharp"]
+    default: "Balanced"
+    tooltip: "CAS sharpening intensity"
+
+pipeline:
+  - tool: "ffmpeg"
+    description: "Vulkan Hardware Pass"
+    filename_suffix: "_PRO_MASTER_{{ target_scale }}"
+
+    command_template: |
+      {# --- DYNAMIC DIMENSIONS --- #}
+      {% set scale_mult = 2 if target_scale == '2x' else 4 %}
+      {% set out_w = (meta.width * scale_mult) | int %}
+      {% set out_h = (meta.height * scale_mult) | int %}
+      {% set cas_strength = 0.4 if sharpness == 'Soft' else (0.7 if sharpness == 'Balanced' else 1.0) %}
+      
+      {# --- IMAGE OR VIDEO? --- #}
+      {% if meta.duration < 0.1 or not meta.fps %}
+        {# IMAGE: Vulkan processing with libplacebo #}
+        {{ tool_exe }} -init_hw_device vulkan -y -i "{{ input_path }}" -vf "format=yuv420p,hwupload,libplacebo=w={{ out_w }}:h={{ out_h }}:upscaler=ewa_lanczos:antiringing=0.9:deband=1,hwdownload,format=yuv420p,cas={{ cas_strength }}" -c:v png "{{ output_path_no_ext }}.png"
+      {% else %}
+        {# VIDEO: Vulkan processing + Auto GPU encoding #}
+        {{ tool_exe }} -init_hw_device vulkan -y -i "{{ input_path }}" -vf "format=yuv420p,hwupload,libplacebo=w={{ out_w }}:h={{ out_h }}:upscaler=ewa_lanczos:antiringing=0.9:deband=1,hwdownload,format=yuv420p,cas={{ cas_strength }}" -c:v {{ gpu_encoder }} {% if gpu_type == 'nvidia' %} -preset p7 -cq 17 {% elif gpu_type == 'amd' %} -quality quality -rc cqp -qp 17 {% else %} -preset slow -crf 17 {% endif %} -pix_fmt yuv420p {% if meta.has_audio %} -c:a aac -b:a 256k {% else %} -an {% endif %} -movflags +faststart "{{ output_path }}"
+      {% endif %}

@@ -138,7 +138,7 @@ def save_webhook_log(data, status, response):
     }
     
     try:
-        with open('webhook_logs.jsonl', 'a') as f:
+        with open('webhook_logs.jsonl', 'a', encoding='utf-8') as f:
             f.write(json.dumps(log_entry) + '\n')
         logger.info(f"Webhook logged to webhook_logs.jsonl")
     except Exception as e:
@@ -387,7 +387,7 @@ def gumroad_test_refund():
     
     # Log to debug file
     try:
-        with open(WEBHOOK_DEBUG_LOG, 'a') as f:
+        with open(WEBHOOK_DEBUG_LOG, 'a', encoding='utf-8') as f:
             f.write(json.dumps(debug_record, default=str) + '\n')
         logger.info(f"Test webhook logged - check {WEBHOOK_DEBUG_LOG}")
     except Exception as e:
@@ -411,7 +411,7 @@ def gumroad_webhook_logs():
         
         # Read from webhook_debug.jsonl (detailed logs)
         if os.path.exists(WEBHOOK_DEBUG_LOG):
-            with open(WEBHOOK_DEBUG_LOG, 'r') as f:
+            with open(WEBHOOK_DEBUG_LOG, 'r', encoding='utf-8') as f:
                 for line in f.readlines()[-50:]:  # Last 50 entries
                     try:
                         logs.append(json.loads(line))
@@ -436,7 +436,7 @@ def gumroad_debug():
     """View recent webhook logs for debugging"""
     try:
         logs = []
-        with open('webhook_logs.jsonl', 'r') as f:
+        with open('webhook_logs.jsonl', 'r', encoding='utf-8') as f:
             for line in f.readlines()[-20:]:  # Last 20 entries
                 logs.append(json.loads(line))
         return jsonify(logs), 200

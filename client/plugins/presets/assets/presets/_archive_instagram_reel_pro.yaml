@@ -1,0 +1,91 @@
+# Instagram Reel Pro Preset
+# Smart conversion with Auto-Rotation, Blur fill, and FPS normalization
+
+meta:
+  id: "instagram_reel_pro"
+  name: "Instagram Reel Pro"
+  category: "social"
+  description: "Smart conversion with Auto-Rotation, Blur fill, and FPS normalization."
+  version: "2.0"
+
+style:
+  accent_color: "#E1306C"
+  icon: "insta"
+  glow_strength: "strong"
+
+constraints:
+  accepted_types: ["video"]
+  accepted_extensions: [".mp4", ".mov", ".mkv", ".avi", ".webm"]
+  min_duration: 1.0
+
+# --- THE USER INTERFACE ---
+parameters:
+  - id: "allow_rotate"
+    type: "toggle"
+    label: "Auto-Rotate Landscape"
+    default: true
+    tooltip: "If video is horizontal, rotate it 90 degrees to fill screen."
+
+  - id: "fill_method"
+    type: "segmented_pill"
+    label: "Fill Method"
+    options: ["Blur", "Crop", "Fit"]
+    default: "Blur"
+    visibility_rule: "not (allow_rotate and meta.is_landscape)"
+
+# --- THE EXECUTION LOGIC ---
+pipeline:
+  - tool: "ffmpeg"
+    description: "Main conversion pass"
+    
+    filename_suffix: >-
+      _{{ 'rot' if (allow_rotate and meta.is_landscape) else fill_method|lower }}_{{ '30fps' if meta.fps > 31 or meta.fps < 29 else 'native' }}
+
+    command_template: >
+      {{ tool_exe }} -y -i "{{ input_path }}"
+
+      {# --- FPS FILTER CALCULATION --- #}
+      {% set fps_filter %}
+        {% if meta.fps > 31 %}
+          ,tmix=frames=2:weights='1 1',fps=30
+        {% elif meta.fps < 29 %}
+          {# Keep native cinematic fps #}
+        {% else %}
+          ,fps=30
+        {% endif %}
+      {% endset %}
+
+      {# --- GEOMETRY & FILTERS --- #}
+      
+      {# SCENARIO A: AUTO-ROTATE (Landscape -> Portrait) #}
+      {% if allow_rotate and meta.is_landscape %}
+        -vf "transpose=1,scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920{{ fps_filter }},unsharp=5:5:0.5:5:5:0.0"
+
+      {# SCENARIO B: BLUR BACKGROUND #}
+      {% elif fill_method == 'Blur' %}
+        -filter_complex "[0:v]split[bg][fg];
+        [bg]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=20:10[bg_blur];
+        [fg]scale=1080:1920:force_original_aspect_ratio=decrease[fg_scaled];
+        [bg_blur][fg_scaled]overlay=(W-w)/2:(H-h)/2{{ fps_filter }},unsharp=5:5:0.5:5:5:0.0[outv]"
+        -map "[outv]" -map 0:a?
+
+      {# SCENARIO C: CROP CENTER #}
+      {% elif fill_method == 'Crop' %}
+        -vf "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920{{ fps_filter }},unsharp=5:5:0.5:5:5:0.0"
+
+      {# SCENARIO D: FIT (Black Bars) #}
+      {% else %}
+        -vf "scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:black{{ fps_filter }},unsharp=5:5:0.5:5:5:0.0"
+      {% endif %}
+
+      {# --- ENCODING SETTINGS --- #}
+      -c:v libx264 -preset medium -profile:v high -level:v 4.2
+      -g {{ 60 if meta.fps >= 29 else (meta.fps * 2)|int }}
+      -bf 2 
+      -b:v 15M -maxrate 20M -bufsize 30M
+      -pix_fmt yuv420p -colorspace bt709 -color_trc bt709 -color_primaries bt709
+      
+      -c:a aac -b:a 320k -ar 48000
+      -movflags +faststart
+      
+      "{{ output_path }}"

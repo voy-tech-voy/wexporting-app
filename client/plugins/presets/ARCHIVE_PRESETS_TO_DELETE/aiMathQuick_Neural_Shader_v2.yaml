@@ -1,0 +1,84 @@
+# ============================================================================
+# TRUE NEURAL SHADER UPSCALE (FSRCNNX)
+# ============================================================================
+# Logic: Single-pass AI reconstruction via libplacebo + FSRCNNX GLSL shader.
+# GPU: Optimized for Vulkan acceleration.
+# This uses the ACTUAL FSRCNNX neural network shader (x2 upscaling).
+# ============================================================================
+
+meta:
+  id: "pro_neural_shader_upscale"
+  name: "quick Neural Upscale (FSRCNNX) _v2"
+  category: "utils"
+  description: "One-pass FSRCNNX AI via GPU Shader. True Neural Reconstruction."
+  version: "2.0"
+
+style:
+  accent_color: "#7B61FF"  # Purple for Neural/AI
+  icon: "zap"
+  glow_strength: "strong"
+
+constraints:
+  accepted_types: ["image", "video"]
+  accepted_extensions: [".jpg", ".jpeg", ".png", ".webp", ".bmp", ".mp4", ".mov", ".mkv", ".avi", ".webm"]
+  min_duration: 0.0
+
+parameters:
+  - id: "scale"
+    type: "segmented_pill"
+    label: "Upscale Factor"
+    options: ["x2", "x3", "x4"]
+    default: "x2"
+    tooltip: "FSRCNNX shader provides x2 upscaling. Higher scales use additional processing."
+
+pipeline:
+  - tool: "ffmpeg"
+    description: "Running FSRCNNX Neural Shader (Vulkan)..."
+    filename_suffix: "_FSRCNNX_{{ scale }}"
+
+    command_template: |
+      {# --- SCALE EXTRACTION --- #}
+      {% set scale_num = scale.replace('x', '') | int %}
+      
+      {# --- FSRCNNX SHADER PATH --- #}
+      {% set shader_path = "tools/models/FSRCNNX_x2_16-0-4-1.glsl" %}
+      
+      {# --- RESOLUTION CALCULATION --- #}
+      {# FSRCNNX shader does x2, so we need to apply it multiple times for x3/x4 #}
+      {% if scale_num == 2 %}
+        {% set out_w = (meta.width * 2) | int %}
+        {% set out_h = (meta.height * 2) | int %}
+        {% set shader_filter = "format=yuv420p,hwupload,libplacebo=custom_shader_path=" + shader_path + ":w=" + (out_w|string) + ":h=" + (out_h|string) + ",hwdownload,format=yuv420p" %}
+      {% elif scale_num == 3 %}
+        {# x3 = x2 (shader) + 1.5x (lanczos) #}
+        {% set intermediate_w = (meta.width * 2) | int %}
+        {% set intermediate_h = (meta.height * 2) | int %}
+        {% set out_w = (meta.width * 3) | int %}
+        {% set out_h = (meta.height * 3) | int %}
+        {% set shader_filter = "format=yuv420p,hwupload,libplacebo=custom_shader_path=" + shader_path + ":w=" + (intermediate_w|string) + ":h=" + (intermediate_h|string) + ",libplacebo=w=" + (out_w|string) + ":h=" + (out_h|string) + ":upscaler=ewa_lanczos,hwdownload,format=yuv420p" %}
+      {% else %}
+        {# x4 = x2 (shader) + x2 (shader again) #}
+        {% set intermediate_w = (meta.width * 2) | int %}
+        {% set intermediate_h = (meta.height * 2) | int %}
+        {% set out_w = (meta.width * 4) | int %}
+        {% set out_h = (meta.height * 4) | int %}
+        {% set shader_filter = "format=yuv420p,hwupload,libplacebo=custom_shader_path=" + shader_path + ":w=" + (intermediate_w|string) + ":h=" + (intermediate_h|string) + ",libplacebo=custom_shader_path=" + shader_path + ":w=" + (out_w|string) + ":h=" + (out_h|string) + ",hwdownload,format=yuv420p" %}
+      {% endif %}
+      
+      {# --- GPU ENCODER LIMIT CHECK --- #}
+      {# NVIDIA h264_nvenc has 4096px width limit, fallback to CPU for larger resolutions #}
+      {% set max_dimension = out_w if out_w > out_h else out_h %}
+      {% set use_cpu_encoder = max_dimension > 4096 %}
+      {% set final_encoder = 'libx264' if use_cpu_encoder else gpu_encoder %}
+      
+      {# --- IMAGE OR VIDEO? --- #}
+      {# Check file extension - use individual checks for Jinja2 compatibility #}
+      {% set is_video = input_path.lower().endswith('.mp4') or input_path.lower().endswith('.mov') or input_path.lower().endswith('.mkv') or input_path.lower().endswith('.avi') or input_path.lower().endswith('.webm') %}
+      
+      {% if not is_video %}
+        {# IMAGE: FSRCNNX shader processing #}
+        {{ tool_exe }} -init_hw_device vulkan -y -i "{{ input_path }}" -vf "{{ shader_filter }}" -c:v png "{{ output_path_no_ext }}.png"
+      {% else %}
+        {# VIDEO: FSRCNNX shader + encoding (GPU or CPU based on resolution) #}
+        {{ tool_exe }} -init_hw_device vulkan -y -i "{{ input_path }}" -vf "{{ shader_filter }}" -c:v {{ final_encoder }} {% if use_cpu_encoder %} -preset slow -crf 17 {% elif gpu_type == 'nvidia' %} -preset p7 -cq 17 {% elif gpu_type == 'amd' %} -quality quality -rc cqp -qp 17 {% else %} -preset slow -crf 17 {% endif %} -pix_fmt yuv420p {% if meta.has_audio %} -c:a aac -b:a 256k {% else %} -an {% endif %} -movflags +faststart "{{ output_path }}"
+      {% endif %}

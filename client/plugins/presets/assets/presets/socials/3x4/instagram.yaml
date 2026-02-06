@@ -1,0 +1,92 @@
+# Instagram Portrait Pro (3:4)
+# Smart conversion to 3:4 with Blur fill, Center-Crop, and FPS normalization
+
+meta:
+  id: "instagram_portrait_3x4"
+  name: "Instagram Portrait 3:4"
+  category: "social"
+  ratio: "3x4"
+  description: "High-end 3:4 (1080x1440) conversion. Ideal for professional feed posts and carousels."
+  version: "2.0"
+
+style:
+  accent_color: "#833AB4" # Instagram Purple
+  icon: "insta"
+  glow_strength: "strong"
+
+constraints:
+  accepted_types: ["video"]
+  accepted_extensions: [".mp4", ".mov", ".mkv", ".avi", ".webm"]
+  min_duration: 1.0
+
+# --- THE USER INTERFACE ---
+parameters:
+  - id: "fill_method"
+    type: "segmented_pill"
+    label: "Fill Method"
+    options: ["Blur", "Crop", "Fit"]
+    default: "Crop"
+    tooltip: "Crop: Standard for 3:4 | Blur: Fills gaps with blurred video | Fit: Adds black bars"
+
+  - id: "allow_rotate"
+    type: "toggle"
+    label: "Auto-Rotate Landscape"
+    default: false
+    tooltip: "If video is horizontal, rotate it 90 degrees to fill the 3:4 frame."
+
+# --- THE EXECUTION LOGIC ---
+pipeline:
+  - tool: "ffmpeg"
+    description: "3:4 Portrait conversion"
+    
+    filename_suffix: >-
+      _3x4_{{ fill_method|lower }}_{{ '30fps' if meta.fps > 31 or meta.fps < 29 else 'native' }}
+
+    command_template: >
+      {{ tool_exe }} -y -i "{{ input_path }}"
+
+      {# --- FPS FILTER CALCULATION --- #}
+      {% set fps_filter %}
+        {% if meta.fps > 31 %}
+          ,tmix=frames=2:weights='1 1',fps=30
+        {% elif meta.fps < 29 %}
+          {# Keep cinematic source fps #}
+        {% else %}
+          ,fps=30
+        {% endif %}
+      {% endset %}
+
+      {# --- GEOMETRY & FILTERS (Target 1080x1440) --- #}
+      
+      {# SCENARIO A: ROTATION #}
+      {% if allow_rotate and meta.is_landscape %}
+        -vf "transpose=1,scale=1080:1440:force_original_aspect_ratio=increase,crop=1080:1440{{ fps_filter }},unsharp=5:5:0.5:5:5:0.0"
+
+      {# SCENARIO B: BLUR BACKGROUND #}
+      {% elif fill_method == 'Blur' %}
+        -filter_complex "[0:v]split[bg][fg];
+        [bg]scale=1080:1440:force_original_aspect_ratio=increase,crop=1080:1440,boxblur=20:10[bg_blur];
+        [fg]scale=1080:1440:force_original_aspect_ratio=decrease[fg_scaled];
+        [bg_blur][fg_scaled]overlay=(W-w)/2:(H-h)/2{{ fps_filter }},unsharp=5:5:0.5:5:5:0.0[outv]"
+        -map "[outv]" -map 0:a?
+
+      {# SCENARIO C: CROP CENTER #}
+      {% elif fill_method == 'Crop' %}
+        -vf "scale=1080:1440:force_original_aspect_ratio=increase,crop=1080:1440{{ fps_filter }},unsharp=5:5:0.5:5:5:0.0"
+
+      {# SCENARIO D: FIT (Pillarbox) #}
+      {% else %}
+        -vf "scale=1080:1440:force_original_aspect_ratio=decrease,pad=1080:1440:(ow-iw)/2:(oh-ih)/2:black{{ fps_filter }},unsharp=5:5:0.5:5:5:0.0"
+      {% endif %}
+
+      {# --- ENCODING SETTINGS --- #}
+      -c:v libx264 -preset medium -profile:v high -level:v 4.2
+      -g {{ (meta.fps * 2)|int if meta.fps < 29 else 60 }}
+      -bf 2 
+      -b:v 14M -maxrate 18M -bufsize 28M
+      -pix_fmt yuv420p -colorspace bt709 -color_trc bt709 -color_primaries bt709
+      
+      -c:a aac -b:a 320k -ar 48000
+      -movflags +faststart
+      
+      "{{ output_path }}"

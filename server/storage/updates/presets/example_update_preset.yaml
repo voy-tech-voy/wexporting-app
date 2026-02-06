@@ -1,0 +1,25 @@
+# Example Preset Update
+# This is a sample preset to demonstrate the update system
+
+meta:
+  id: example_update_preset
+  name: "Example Update Preset"
+  category: "utilities"
+  version: "1.1"  # Incremented version
+  description: "Sample preset for testing remote updates"
+
+style:
+  accent_color: "#FF6B35"
+  icon: "update"
+  glow_strength: "normal"
+
+constraints:
+  accepted_types: ["video", "image"]
+  requires_gpu: false
+
+pipeline:
+  - tool: ffmpeg
+    description: "Convert to MP4"
+    command_template: |
+      -i "{{ input_file }}" -c:v libx264 -preset fast -crf 23 "{{ output_file }}"
+    filename_suffix: "_example"

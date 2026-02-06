@@ -22,7 +22,8 @@ from client.gui.custom_widgets import (
 from client.gui.widgets import EstimatorVersionSelector
 from client.gui.sections import ResizeSection, TargetSizeSection, TimeSection
 from client.gui.theme import get_combobox_style
-from client.gui.components.codec_tooltip import TooltipHoverFilter
+from client.gui.components.info_tooltip import TooltipHoverFilter
+from client.gui.components.tooltips.codec_info import CODEC_COMPARISONS
 
 COMBOBOX_STYLE = get_combobox_style(True)
 
@@ -89,7 +90,7 @@ class LoopTab(BaseTab):
         self.settings_group.get_content_layout().insertRow(0, self.format_selector)
         
         # Add efficiency tooltip with dynamic mode switching
-        self.format_tooltip = TooltipHoverFilter(self.format_selector, mode="loop")
+        self.format_tooltip = TooltipHoverFilter(self.format_selector, CODEC_COMPARISONS["loop"])
         
         # Install event filters on codec row to switch tooltip mode
         self.format_selector.codec_row.installEventFilter(self)

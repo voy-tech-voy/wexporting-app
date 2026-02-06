@@ -1,0 +1,55 @@
+# ============================================================================
+# AI UPSCALE (FSRCNNX Neural Network)
+# ============================================================================
+# Uses FSRCNNX neural network via libplacebo custom GLSL shader
+# This is a lightweight but effective neural upscaler (~250KB shader)
+# GPU: Uses Vulkan via libplacebo for GPU acceleration
+# ============================================================================
+
+meta:
+  id: "ai_upscale_fsrcnnx"
+  name: "AI Upscale (FSRCNNX)"
+  category: "utils"
+  description: "Neural network upscaling using FSRCNNX shader. Sharp, mathematical reconstruction."
+  version: "2.0"
+
+style:
+  accent_color: "#FF00FF"  # Magenta
+  icon: "cpu"
+  glow_strength: "strong"
+
+constraints:
+  accepted_types: ["video", "image"]
+  accepted_extensions: [".mp4", ".mov", ".mkv", ".avi", ".webm", ".jpg", ".jpeg", ".png", ".webp"]
+  min_duration: 0.0
+
+parameters:
+  - id: "antiringing"
+    type: "slider"
+    label: "Anti-Ringing"
+    default: 0.5
+    min_value: 0.0
+    max_value: 1.0
+    step: 0.1
+    tooltip: "Reduces halos around sharp edges. 0.5 is recommended."
+
+pipeline:
+  - tool: "ffmpeg"
+    description: "FSRCNNX Neural Upscale (2x)"
+    filename_suffix: "_FSRCNNX_2x"
+
+    command_template: |
+      {# --- RESOLUTION MATH (FSRCNNX is 2x only) --- #}
+      {% set out_w = (meta.width * 2) | int %}
+      {% set out_h = (meta.height * 2) | int %}
+      {% set input_ext = input_path.split('.')[-1].lower() %}
+      {% set shader_path = "V:\\_MY_APPS\\ImgApp_1\\tools\\models\\FSRCNNX_x2_16-0-4-1.glsl" %}
+
+      {# --- IMAGE OR VIDEO? --- #}
+      {% if meta.duration < 0.1 or not meta.fps %}
+        {# IMAGE: libplacebo with FSRCNNX shader #}
+        {{ tool_exe }} -y -i "{{ input_path }}" -vf "libplacebo=w={{ out_w }}:h={{ out_h }}:custom_shader_path={{ shader_path }}:antiringing={{ antiringing }}" {% if input_ext in ['png'] %} -c:v png -compression_level 9 "{{ output_path_no_ext }}.png" {% elif input_ext in ['webp'] %} -c:v libwebp -lossless 1 "{{ output_path_no_ext }}.webp" {% else %} -c:v mjpeg -q:v 2 "{{ output_path_no_ext }}.jpg" {% endif %}
+      {% else %}
+        {# VIDEO: libplacebo with FSRCNNX shader #}
+        {{ tool_exe }} -y -i "{{ input_path }}" -vf "libplacebo=w={{ out_w }}:h={{ out_h }}:custom_shader_path={{ shader_path }}:antiringing={{ antiringing }}" -c:v libx264 -preset slow -crf 17 -pix_fmt yuv420p {% if meta.has_audio %} -c:a aac -b:a 256k {% else %} -an {% endif %} -movflags +faststart "{{ output_path }}"
+      {% endif %}

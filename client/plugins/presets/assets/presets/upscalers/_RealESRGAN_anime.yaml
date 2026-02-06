@@ -1,0 +1,49 @@
+# ============================================================================
+# AI UPSCALE (Real-ESRGAN x4)
+# ============================================================================
+# Uses Real-ESRGAN ncnn-vulkan for true AI 4x upscaling
+# This is a standalone executable with GPU acceleration via Vulkan
+# Models: realesrgan-x4plus (general), realesrgan-x4plus-anime
+# Note: Uses ffmpeg tool registration but runs realesrgan executable directly
+# ============================================================================
+
+meta:
+  id: "ai_upscale_realesrgan"
+  name: "anime_AI Upscale (Real-ESRGAN x4)"
+  category: "utils"
+  description: "True AI upscaling using Real-ESRGAN. Best quality, 4x enlargement."
+  version: "1.0"
+
+style:
+  accent_color: "#00BFFF"  # Deep Sky Blue
+  icon: "cpu"
+  glow_strength: "strong"
+
+constraints:
+  accepted_types: ["image"]
+  accepted_extensions: [".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tiff"]
+  min_duration: 0.0
+
+parameters:
+  - id: "model"
+    type: "segmented_pill"
+    label: "Model Type"
+    options: ["General", "Anime"]
+    default: "General"
+    tooltip: "General for photos, Anime for illustration/animation."
+
+pipeline:
+  - tool: "ffmpeg"
+    description: "Real-ESRGAN 4x Neural Upscale"
+    filename_suffix: "_ESRGAN_x4"
+
+    command_template: |
+      {# --- MODEL SELECTION --- #}
+      {% set model_name = 'realesrgan-x4plus' if model == 'General' else 'realesrgan-x4plus-anime' %}
+      
+      {# --- Real-ESRGAN executable (bypasses ffmpeg, runs directly) --- #}
+      {% set realesrgan_exe = "V:/_MY_APPS/ImgApp_1/tools/realesrgan/realesrgan-ncnn-vulkan.exe" %}
+      {% set input_ext = input_path.split('.')[-1].lower() %}
+
+      {# --- THE COMMAND --- #}
+      {{ realesrgan_exe }} -i "{{ input_path }}" -o "{{ output_path_no_ext }}.png" -n {{ model_name }} -s 4

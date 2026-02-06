@@ -1,0 +1,65 @@
+# ============================================================================
+# ArtCNN C4F16 NEURAL UPSCALE
+# ============================================================================
+# Logic: Convolutional Neural Network upscaling with 16-bit precision
+# GPU: Optimized for Vulkan acceleration with compute shaders
+# ============================================================================
+
+meta:
+  id: "artcnn_c4f16_upscale"
+  name: "ArtCNN (16-bit)"
+  category: "upscale"
+  description: "CNN-based upscaling with 16-bit float precision - balanced quality and speed"
+  version: "1.0"
+
+style:
+  accent_color: "#00D9FF"  # Cyan
+  icon: "zap"
+  glow_strength: "medium"
+
+constraints:
+  accepted_types: ["image", "video"]
+  accepted_extensions: [".jpg", ".jpeg", ".png", ".webp", ".bmp", ".mp4", ".mov", ".mkv", ".avi", ".webm"]
+  min_duration: 0.0
+
+parameters:
+  - id: "scale"
+    type: "segmented_pill"
+    label: "Upscale Factor"
+    options: ["x2", "x4"]
+    default: "x2"
+    tooltip: "ArtCNN provides x2 or x4 upscaling"
+
+pipeline:
+  - tool: "ffmpeg"
+    description: "Running ArtCNN C4F16 Neural Shader (Vulkan)..."
+    filename_suffix: "_ArtCNN_C4F16_{{ scale }}"
+
+    command_template: |
+      {# --- SCALE EXTRACTION --- #}
+      {% set scale_num = scale.replace('x', '') | int %}
+      
+      {# --- ARTCNN SHADER PATH --- #}
+      {% set shader_path = "tools/shaders/ArtCNN_C4F16.glsl" %}
+      
+      {# --- RESOLUTION CALCULATION --- #}
+      {% set out_w = (meta.width * scale_num) | int %}
+      {% set out_h = (meta.height * scale_num) | int %}
+      {% set image_filter = "libplacebo=custom_shader_path=" + shader_path + ":w=" + (out_w|string) + ":h=" + (out_h|string) %}
+      {% set video_filter = "format=yuv420p,hwupload,libplacebo=custom_shader_path=" + shader_path + ":w=" + (out_w|string) + ":h=" + (out_h|string) + ",hwdownload,format=yuv420p" %}
+      
+      {# --- GPU ENCODER LIMIT CHECK --- #}
+      {% set max_dimension = out_w if out_w > out_h else out_h %}
+      {% set use_cpu_encoder = max_dimension > 4096 %}
+      {% set final_encoder = 'libx264' if use_cpu_encoder else gpu_encoder %}
+      
+      {# --- IMAGE OR VIDEO? --- #}
+      {% set is_video = input_path.lower().endswith('.mp4') or input_path.lower().endswith('.mov') or input_path.lower().endswith('.mkv') or input_path.lower().endswith('.avi') or input_path.lower().endswith('.webm') %}
+      
+      {% if not is_video %}
+        {# IMAGE: ArtCNN shader processing #}
+        {{ tool_exe }} -init_hw_device vulkan -y -i "{{ input_path }}" -vf "{{ image_filter }}" "{{ output_path }}"
+      {% else %}
+        {# VIDEO: ArtCNN shader + encoding #}
+        {{ tool_exe }} -init_hw_device vulkan -y -i "{{ input_path }}" -vf "{{ video_filter }}" -c:v {{ final_encoder }} {% if use_cpu_encoder %} -preset slow -crf 17 {% elif gpu_type == 'nvidia' %} -preset p7 -cq 17 {% elif gpu_type == 'amd' %} -quality quality -rc cqp -qp 17 {% else %} -preset slow -crf 17 {% endif %} -pix_fmt yuv420p {% if meta.has_audio %} -c:a aac -b:a 256k {% else %} -an {% endif %} -movflags +faststart "{{ output_path }}"
+      {% endif %}

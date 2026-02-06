@@ -75,6 +75,7 @@ class PresetConstraints:
     accepted_extensions: List[str] = field(default_factory=list)
     min_duration: Optional[float] = None
     max_duration: Optional[float] = None
+    requires_gpu: bool = False  # NEW: Indicates GPU acceleration is required
 
 
 @dataclass
@@ -107,6 +108,9 @@ class PresetDefinition:
     
     # Input constraints (Tier 2)
     constraints: PresetConstraints = field(default_factory=PresetConstraints)
+    
+    # Social media grouping - ratio for 2-step selection (e.g., "9x16", "1x1")
+    ratio: Optional[str] = None
     
     # Raw YAML for debugging/extension
     raw_yaml: Dict[str, Any] = field(default_factory=dict)

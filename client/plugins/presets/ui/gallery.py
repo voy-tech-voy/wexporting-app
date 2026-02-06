@@ -5,20 +5,23 @@ Overlay widget displaying a responsive grid of preset cards.
 Adapts to container width and groups presets by category when showing all.
 """
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QScrollArea, 
-    QGridLayout, QLabel, QGraphicsOpacityEffect, QFrame, QPushButton
+    QWidget, QVBoxLayout, QScrollArea, 
+    QLabel, QGraphicsOpacityEffect, QFrame
 )
-from PyQt6.QtCore import Qt, pyqtSignal, QPropertyAnimation, QEasingCurve, QTimer
-from PyQt6.QtGui import QPainter, QColor
+from PyQt6.QtCore import Qt, pyqtSignal, QPropertyAnimation, QEasingCurve, QTimer, QRectF
+from PyQt6.QtGui import QPainter, QPainterPath
 
 from typing import List, Dict
 from client.plugins.presets.logic.models import PresetDefinition
 from client.plugins.presets.ui.card import PresetCard
 from client.plugins.presets.ui.filter_bar import CategoryFilterBar
+from client.plugins.presets.ui.blur_mixin import BlurBackgroundMixin
+from client.plugins.presets.ui.grid_layout import GridLayoutManager
+from client.plugins.presets.ui.social_navigator import SocialNavigator
 from client.gui.theme import Theme
 
 
-class PresetGallery(QWidget):
+class PresetGallery(BlurBackgroundMixin, QWidget):
     """
     Overlay widget displaying preset cards in a responsive grid.
     
@@ -32,23 +35,20 @@ class PresetGallery(QWidget):
     preset_selected = pyqtSignal(object)  # PresetDefinition
     dismissed = pyqtSignal()
     
-    # Layout configuration
-    CARD_WIDTH = 120
-    CARD_SPACING = 16
-    PADDING = 24
-    MIN_CARDS_PER_ROW = 2
-    MAX_CARDS_PER_ROW = 6
+    # Animation configuration
     ANIMATION_DURATION = 250  # Fade-in duration in ms
     
     def __init__(self, parent=None):
-        super().__init__(parent)
+        super().__init__()
+        QWidget.__init__(self, parent)
         self.setObjectName("PresetGallery")
+        
         self._cards: List[PresetCard] = []
         self._presets: List[PresetDefinition] = []
         self._meta = {}
         self._row_widgets: List[QWidget] = []  # Track row widgets for cleanup
-        self._current_ratio_view = None  # Track drill-down state (None or ratio string)
         self._is_dark = True  # Default to dark mode
+        self.content_padding = 16 # Tunable layout padding
         
         # Animation state
         self._param_panel_animation = None
@@ -64,6 +64,11 @@ class PresetGallery(QWidget):
             parent.installEventFilter(self)
         
         self._setup_ui()
+        
+        # Initialize extracted components AFTER UI setup
+        self._grid_layout = GridLayoutManager(self._scroll, self._on_card_clicked)
+        self._social_nav = SocialNavigator(self)
+        
         self._apply_styles()
         
         # Initially hidden
@@ -75,10 +80,13 @@ class PresetGallery(QWidget):
         
         # Handle parent resize
         if obj == self.parent() and event.type() == QEvent.Type.Resize:
-            self.setGeometry(obj.rect())
+            # Expand slightly to cover drop area dashed outline
+            rect = obj.rect()
+            rect.adjust(-2, -2, 2, 2)  # Expand by 2px on all sides
+            self.setGeometry(rect)
             self._position_filter_bar()
             if self.isVisible():
-                self._capture_blur_background()
+                self.capture_blur_background()
             return super().eventFilter(obj, event)
         
         # Handle double-click on scroll viewport or card container
@@ -95,10 +103,11 @@ class PresetGallery(QWidget):
         return super().eventFilter(obj, event)
     
     def _position_filter_bar(self):
-        """Position the filter bar as an overlay at the top of the gallery."""
+        """Position the filter bar at the top of the gallery."""
         if hasattr(self, '_filter_bar'):
-            # Position at top with some padding from edges
-            self._filter_bar.setGeometry(16, 16, self.width() - 32, 60)
+            # Position at top spanning full width, touching top edge
+            # Extended height for more blur area below buttons
+            self._filter_bar.setGeometry(0, 0, self.width(), 80)
     
     def set_meta(self, meta):
         """Store media metadata for parameter visibility rules."""
@@ -106,12 +115,13 @@ class PresetGallery(QWidget):
     
     def _is_showing_ratio_platforms(self) -> bool:
         """Check if we are currently drilled down into a specific ratio."""
-        return getattr(self, '_current_ratio_view', None) is not None
+        return self._social_nav.is_in_ratio_view()
     
     def _setup_ui(self):
         """Setup the gallery layout."""
         main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(16, 16, 16, 16)
+        # No top padding so filter bar overlays correctly at the very top
+        main_layout.setContentsMargins(self.content_padding, 0, self.content_padding, self.content_padding)
         main_layout.setSpacing(0)  # No spacing - filter will overlay
         
         # Scroll area for cards (full height)
@@ -128,8 +138,9 @@ class PresetGallery(QWidget):
         self._card_container = QWidget()
         self._card_container.setStyleSheet("background: transparent;")
         self._container_layout = QVBoxLayout(self._card_container)
-        self._container_layout.setContentsMargins(0, 60, 0, 0)  # Top padding for filter bar overlay
-        self._container_layout.setSpacing(self.CARD_SPACING)
+        # Add top padding equal to filter bar height (80px) to prevent card overlap
+        self._container_layout.setContentsMargins(0, 80, 0, 0)
+        self._container_layout.setSpacing(GridLayoutManager.CARD_SPACING)
         self._container_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
         
         self._scroll.setWidget(self._card_container)
@@ -143,7 +154,7 @@ class PresetGallery(QWidget):
         # Category filter bar - positioned as overlay on top of scroll area
         self._filter_bar = CategoryFilterBar(self)
         self._filter_bar.filterChanged.connect(self._apply_filter)
-        self._filter_bar.raise_()  # Ensure it's on top
+        self._filter_bar.raise_()  # Ensure filter bar is on top
         
         # Install event filters to catch background clicks
         self._scroll.viewport().installEventFilter(self)
@@ -257,21 +268,12 @@ class PresetGallery(QWidget):
                 except RuntimeError:
                     pass  # Already deleted
     
-    def _calculate_cards_per_row(self) -> int:
-        """Calculate how many cards fit per row based on available width."""
-        available_width = self._scroll.viewport().width() - 2 * self.PADDING
-        if available_width <= 0:
-            return self.MIN_CARDS_PER_ROW
-        
-        card_with_spacing = self.CARD_WIDTH + self.CARD_SPACING
-        cols = max(self.MIN_CARDS_PER_ROW, available_width // card_with_spacing)
-        return min(cols, self.MAX_CARDS_PER_ROW)
+
     
     def _apply_filter(self):
         """Apply current filter and rebuild visible layout."""
-        # If we are in Ratio Drill-down mode, ignore filter bar changes locally or handle?
-        # Actually changing filter should probably reset drill-down.
-        self._current_ratio_view = None
+        # Reset drill-down state when filter changes
+        self._social_nav._current_ratio_view = None
         self._filter_bar.show()
 
         # Remove rows from layout but don't delete cards yet - safely
@@ -294,18 +296,17 @@ class PresetGallery(QWidget):
                     pass
         
         active_categories = self._filter_bar.get_active_categories()
-        cards_per_row = self._calculate_cards_per_row()
+        cards_per_row = self._grid_layout.calculate_cards_per_row()
         
         if not active_categories:
             # Show ALL with category grouping
-            self._layout_grouped(cards_per_row)
+            self._layout_grouped_all(cards_per_row)
         else:
             # Show filtered category
-            self._layout_filtered(active_categories[0], cards_per_row)
+            self._layout_filtered_category(active_categories[0], cards_per_row)
     
-    def _layout_grouped(self, cards_per_row: int):
+    def _layout_grouped_all(self, cards_per_row: int):
         """Layout cards grouped by category. Virtualizes social presets into Ratio Groups."""
-        
         # 1. Aggregate presets
         categories: Dict[str, List[PresetDefinition]] = {}
         social_presets: List[PresetDefinition] = []
@@ -322,149 +323,51 @@ class PresetGallery(QWidget):
         
         # 2. Add Social Category (with Ratio Aggregation)
         if social_presets:
-            # Group by ratio
-            ratio_groups = self._group_social_presets(social_presets)
-            
-            # Label
-            label = QLabel("SOCIAL")
-            label.setObjectName("CategoryLabel")
-            label.setStyleSheet("""
-                color: #86868B;
-                font-size: 13px;
-                font-weight: 600;
-                letter-spacing: 1px;
-                padding: 8px 0px 4px 0px;
-                background: transparent;
-            """)
+            ratio_groups = self._social_nav.group_social_presets(social_presets)
+            label = self._grid_layout.create_category_label("SOCIAL")
             self._container_layout.addWidget(label)
-            self._add_preset_rows(ratio_groups, cards_per_row)
+            
+            rows = self._grid_layout.create_rows_for_presets(ratio_groups, cards_per_row)
+            for row in rows:
+                self._container_layout.addWidget(row)
+                self._row_widgets.append(row)
 
         # 3. Layout other categories
-        for category in sorted(categories.keys()):
-            presets = categories[category]
+        other_widgets = self._grid_layout.layout_grouped(categories, cards_per_row)
+        for widget in other_widgets:
+            self._container_layout.addWidget(widget)
+            if not isinstance(widget, QLabel):
+                self._row_widgets.append(widget)
             
-            # Category label
-            label = QLabel(category.upper())
-            label.setObjectName("CategoryLabel")
-            label.setStyleSheet("""
-                color: #86868B;
-                font-size: 13px;
-                font-weight: 600;
-                letter-spacing: 1px;
-                padding: 8px 0px 4px 0px;
-                background: transparent;
-            """)
-            self._container_layout.addWidget(label)
-            
-            # Cards for this category
-            self._add_preset_rows(presets, cards_per_row)
-            
-    def _layout_filtered(self, category: str, cards_per_row: int):
+    def _layout_filtered_category(self, category: str, cards_per_row: int):
         """Layout only cards for a specific category."""
         target_cat = category.lower()
         
         if target_cat == 'social':
-            # Ratio aggregation for social filter too
             presets = [p for p in self._presets if (p.category or "").lower() == 'social']
-            aggregated = self._group_social_presets(presets)
-            self._add_preset_rows(aggregated, cards_per_row)
+            aggregated = self._social_nav.group_social_presets(presets)
+            rows = self._grid_layout.create_rows_for_presets(aggregated, cards_per_row)
         else:
             presets = [p for p in self._presets if (p.category or "").lower() == target_cat]
-            self._add_preset_rows(presets, cards_per_row)
+            rows = self._grid_layout.layout_filtered(presets, cards_per_row)
+        
+        for row in rows:
+            self._container_layout.addWidget(row)
+            self._row_widgets.append(row)
 
-    def _group_social_presets(self, presets: List[PresetDefinition]) -> List[PresetDefinition]:
-        """Aggregate list of social presets into Virtual Ratio Presets."""
-        from client.plugins.presets.logic.models import PresetStyle
-        
-        # 1. Bucket by ratio
-        ratio_buckets = {}
-        for p in presets:
-            ratio = getattr(p, 'ratio', None) or 'other'
-            if ratio not in ratio_buckets:
-                ratio_buckets[ratio] = []
-            ratio_buckets[ratio].append(p)
-            
-        aggregated_cards = []
-        
-        # 2. Create Virtual Preset for each ratio
-        # Map ratio codes to nice names/icons
-        RATIO_META = {
-            "9x16": {"name": "Vertical 9:16", "icon": "916", "desc": "Reels / Shorts / TikTok"},
-            "1x1": {"name": "Square 1:1", "icon": "11", "desc": "Feeds / Carousel Posts"},
-            "3x4": {"name": "Portrait 3:4", "icon": "34", "desc": "Instagram / FB Feed"},
-            "16x9": {"name": "Landscape 16:9", "icon": "169", "desc": "YouTube / LinkedIn"},
-            "4x5": {"name": "Portrait 4:5", "icon": "mobile", "desc": "Optimized Feed Portrait"}, # Fallback icon
-            "other": {"name": "Other Social", "icon": "settings", "desc": "Miscellaneous social presets"}
-        }
-        
-        # Sort keys to ensure consistent order (e.g. 9x16 first)
-        # Custom sort order: 9x16, 3x4, 4x5, 1x1, 16x9, other
-        sort_order = ["9x16", "3x4", "4x5", "1x1", "16x9", "other"]
-        sorted_ratios = sorted(ratio_buckets.keys(), key=lambda x: sort_order.index(x) if x in sort_order else 99)
-        
-        for ratio in sorted_ratios:
-            count = len(ratio_buckets[ratio])
-            meta = RATIO_META.get(ratio, RATIO_META['other'])
-            
-            # Create a virtual preset definition that acts as a folder
-            # We tag it with a special attribute '_is_virtual_group' and '_child_presets'
-            virtual_preset = PresetDefinition(
-                id=f"group_ratio_{ratio}",
-                name=meta['name'],
-                category="social",
-                pipeline=[], # Empty pipeline
-                description=meta['desc'],
-                style=PresetStyle(
-                    accent_color="#86868B", # Neutral color for groups
-                    icon=meta['icon']
-                )
-            )
-            # Attach magic attributes for our gallery logic
-            virtual_preset._is_virtual_group = True
-            virtual_preset._group_ratio = ratio
-            virtual_preset._child_presets = ratio_buckets[ratio]
-            
-            aggregated_cards.append(virtual_preset)
-            
-        return aggregated_cards
-    
-    def _add_preset_rows(self, presets: List[PresetDefinition], cards_per_row: int):
-        """Add rows of cards for the given presets."""
-        for i in range(0, len(presets), cards_per_row):
-            row_presets = presets[i:i + cards_per_row]
-            row_widget = self._create_row(row_presets)
-            self._row_widgets.append(row_widget)
-            self._container_layout.addWidget(row_widget)
-    
-    def _create_row(self, presets: List[PresetDefinition]) -> QWidget:
-        """Create a centered row of new cards."""
-        row = QWidget()
-        row.setStyleSheet("background: transparent;")
-        layout = QHBoxLayout(row)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(self.CARD_SPACING)
-        
-        # Center with stretch
-        layout.addStretch()
-        for preset in presets:
-            card = PresetCard(preset)
-            card.clicked.connect(self._on_card_clicked)
-            layout.addWidget(card)
-        layout.addStretch()
-        
-        return row
+
     
     def _on_card_clicked(self, preset: PresetDefinition):
         """Handle card click with smooth animations."""
         
         # 0. Handle Back Click
         if getattr(preset, '_is_back_card', False):
-            self._exit_ratio_view()
+            self._social_nav.exit_ratio_view()
             return
             
         # 1. Handle Virtual Group Click (Drill Down)
         if getattr(preset, '_is_virtual_group', False):
-            self._enter_ratio_view(preset._group_ratio, preset._child_presets)
+            self._social_nav.enter_ratio_view(preset._group_ratio, preset._child_presets)
             return
 
         # 2. Standard Preset Click
@@ -486,249 +389,7 @@ class PresetGallery(QWidget):
         
         self.preset_selected.emit(preset)
 
-    def _enter_ratio_view(self, ratio_id: str, presets: List[PresetDefinition]):
-        """Enter step 2: Show platform presets for a specific ratio using fade transition."""
-        self._current_ratio_view = ratio_id
-        
-        # Save scroll position
-        scroll_pos = self._scroll.verticalScrollBar().value()
-        
-        # 1. Find the social category widgets to replace
-        social_widgets = []
-        social_start_index = -1
-        
-        for i in range(self._container_layout.count()):
-            item = self._container_layout.itemAt(i)
-            if not item or not item.widget():
-                continue
-            
-            widget = item.widget()
-            
-            # Check if this is the SOCIAL label
-            if isinstance(widget, QLabel) and widget.objectName() == "CategoryLabel":
-                text = widget.text()
-                if "SOCIAL" in text:
-                    social_start_index = i
-                    social_widgets.append(widget)
-                    continue
-            
-            # If we've found the social section, collect widgets until next category
-            if social_start_index >= 0:
-                # Check if we've hit the next category label
-                if isinstance(widget, QLabel) and widget.objectName() == "CategoryLabel":
-                    break  # Stop collecting
-                social_widgets.append(widget)
-        
-        # 2. Create new platform content
-        items_to_add = []
-        
-        # Helper label for context
-        label = QLabel(f"SOCIAL: {ratio_id.replace('x', ':').upper()}")
-        label.setObjectName("CategoryLabel")
-        label.setStyleSheet("""
-            color: #86868B;
-            font-size: 13px;
-            font-weight: 600;
-            letter-spacing: 1px;
-            padding: 8px 0px 4px 0px;
-            background: transparent;
-        """)
-        items_to_add.append(label)
-        
-        # Create Back Card
-        from client.plugins.presets.logic.models import PresetStyle
-        back_preset = PresetDefinition(
-            id="back_card",
-            name="Back", 
-            category="social",
-            pipeline=[],
-            description="Return to ratios",
-            style=PresetStyle(accent_color="#666666", icon="chevron-left")
-        )
-        back_preset._is_back_card = True
-        
-        # Prepend back card to presets list
-        display_presets = [back_preset] + presets
-        
-        # Create rows
-        cards_per_row = self._calculate_cards_per_row()
-        rows = self._create_rows_for_presets(display_presets, cards_per_row)
-        items_to_add.extend(rows)
-        
-        # 3. Perform in-place crossfade for social section only
-        self._crossfade_social_section(social_widgets, items_to_add, social_start_index)
-        
-        # 4. Hide filter bar
-        self._filter_bar.hide()
-        
-        # 5. Restore scroll position
-        QTimer.singleShot(0, lambda: self._scroll.verticalScrollBar().setValue(scroll_pos))
 
-        
-    def _exit_ratio_view(self):
-        """Exit ratio view and return to main gallery using selective crossfade."""
-        self._current_ratio_view = None
-        self._filter_bar.show()
-        
-        # Save scroll position
-        scroll_pos = self._scroll.verticalScrollBar().value()
-        
-        # 1. Find platform widgets to replace
-        platform_widgets = []
-        platform_start_index = -1
-        
-        for i in range(self._container_layout.count()):
-            item = self._container_layout.itemAt(i)
-            if not item or not item.widget():
-                continue
-            
-            widget = item.widget()
-            
-            # Check if this is the SOCIAL: X:X label (platform view)
-            if isinstance(widget, QLabel) and widget.objectName() == "CategoryLabel":
-                text = widget.text()
-                if "SOCIAL:" in text and ":" in text:
-                    platform_start_index = i
-                    platform_widgets.append(widget)
-                    continue
-            
-            # If we've found the platform section, collect widgets until next category
-            if platform_start_index >= 0:
-                # Check if we've hit the next category label
-                if isinstance(widget, QLabel) and widget.objectName() == "CategoryLabel":
-                    break  # Stop collecting
-                platform_widgets.append(widget)
-        
-        # 2. Recreate ratio cards for social category
-        social_presets = [p for p in self._presets if (p.category or "").lower() == 'social']
-        ratio_groups = self._group_social_presets(social_presets)
-        
-        items_to_add = []
-        
-        # Label
-        label = QLabel("SOCIAL")
-        label.setObjectName("CategoryLabel")
-        label.setStyleSheet("""
-            color: #86868B;
-            font-size: 13px;
-            font-weight: 600;
-            letter-spacing: 1px;
-            padding: 8px 0px 4px 0px;
-            background: transparent;
-        """)
-        items_to_add.append(label)
-        
-        # Create ratio card rows
-        cards_per_row = self._calculate_cards_per_row()
-        rows = self._create_rows_for_presets(ratio_groups, cards_per_row)
-        items_to_add.extend(rows)
-        
-        # 3. Crossfade back to ratio cards
-        if platform_start_index >= 0:
-            self._crossfade_social_section(platform_widgets, items_to_add, platform_start_index)
-        
-        # 4. Restore scroll position
-        QTimer.singleShot(0, lambda: self._scroll.verticalScrollBar().setValue(scroll_pos)) 
-        
-    def _crossfade_social_section(self, old_widgets: List[QWidget], new_widgets: List[QWidget], insert_index: int):
-        """
-        Simple, stable swap of social section widgets.
-        No opacity effects - just hide old, show new, cleanup after delay.
-        """
-        # 1. Hide old widgets immediately
-        for widget in old_widgets:
-            try:
-                widget.hide()
-            except RuntimeError:
-                pass
-        
-        # 2. Add and show new widgets at the same position
-        for i, widget in enumerate(new_widgets):
-            self._container_layout.insertWidget(insert_index + i, widget)
-            widget.show()
-        
-        # 3. Schedule cleanup of old widgets after a short delay
-        def cleanup():
-            for widget in old_widgets:
-                try:
-                    if widget is not None:
-                        self._container_layout.removeWidget(widget)
-                        widget.setParent(None)
-                        widget.deleteLater()
-                except RuntimeError:
-                    pass
-        
-        QTimer.singleShot(50, cleanup)
-
-
-    
-    def _create_rows_for_presets(self, presets: List[PresetDefinition], cards_per_row: int) -> List[QWidget]:
-        """Helper to create row widgets without adding them to layout immediately."""
-        rows = []
-        for i in range(0, len(presets), cards_per_row):
-            row_presets = presets[i:i + cards_per_row]
-            row_widget = self._create_row(row_presets)
-            rows.append(row_widget)
-        return rows
-
-    def _fade_switch_content(self, new_widgets: List[QWidget]):
-        """
-        Simple, stable content swap.
-        No opacity effects - just hide old, show new, cleanup after delay.
-        """
-        # Save scroll position
-        scroll_pos = self._scroll.verticalScrollBar().value()
-        
-        # 1. Collect and hide old widgets
-        old_widgets = []
-        for i in range(self._container_layout.count()):
-            item = self._container_layout.itemAt(i)
-            if item and item.widget():
-                old_widgets.append(item.widget())
-                try:
-                    item.widget().hide()
-                except RuntimeError:
-                    pass
-        
-        # 2. Add and show new widgets
-        for widget in new_widgets:
-            self._container_layout.addWidget(widget)
-            widget.show()
-        
-        # 3. Handle filter bar visibility
-        if self._current_ratio_view:
-            self._filter_bar.hide()
-        else:
-            self._filter_bar.show()
-        
-        # 4. Restore scroll position
-        QTimer.singleShot(0, lambda: self._scroll.verticalScrollBar().setValue(scroll_pos))
-        
-        # 5. Schedule cleanup of old widgets after a short delay
-        def cleanup():
-            for widget in old_widgets:
-                try:
-                    if widget is not None:
-                        self._container_layout.removeWidget(widget)
-                        widget.setParent(None)
-                        widget.deleteLater()
-                except RuntimeError:
-                    pass
-        
-        QTimer.singleShot(50, cleanup)
-
-
-    
-    def _cleanup_old_widgets(self, old_widgets: List[QWidget]):
-        """Clean up old widgets after fade-out animation completes."""
-        for widget in old_widgets:
-            try:
-                if widget is not None:
-                    self._container_layout.removeWidget(widget)
-                    widget.setParent(None)
-                    widget.deleteLater()
-            except RuntimeError:
-                pass  # Widget already deleted
     
     def mouseDoubleClickEvent(self, event):
         """Handle double-click on gallery background - dismiss gallery."""
@@ -743,8 +404,11 @@ class PresetGallery(QWidget):
     def show_animated(self):
         """Show the gallery with fade-in animation and blur background."""
         if self.parent():
-            self.setGeometry(self.parent().rect())
-            self._capture_blur_background()
+            # Expand slightly to cover drop area dashed outline
+            rect = self.parent().rect()
+            rect.adjust(-2, -2, 2, 2)  # Expand by 2px on all sides
+            self.setGeometry(rect)
+            self.capture_blur_background()
         
         # Position filter bar overlay
         self._position_filter_bar()
@@ -773,73 +437,7 @@ class PresetGallery(QWidget):
         if hasattr(self, '_filter_bar'):
             self._filter_bar.capture_blur()
     
-    def _capture_blur_background(self):
-        """
-        Capture parent window content and apply optimized blur effect.
-        """
-        if not self.parent() or getattr(self, '_is_capturing_blur', False):
-            return
-            
-        self._is_capturing_blur = True
-        try:
-            # Hide self temporarily to capture what's behind
-            was_visible = self.isVisible()
-            if was_visible:
-                self.setVisible(False)
-                
-            # Grab parent pixmap
-            # Use minimal grab to avoid heavy painting
-            parent_rect = self.parent().rect()
-            
-            try:
-                parent_pixmap = self.parent().grab(parent_rect)
-            except Exception:
-                # Fallback if grab fails
-                parent_pixmap = None
-            
-            if was_visible:
-                self.setVisible(True)
-            
-            if not parent_pixmap:
-                self._is_capturing_blur = False
-                return
-            
-            # OPTIMIZATION: Downscale to ~10% size
-            target_width = max(1, parent_rect.width() // 4) # Even smaller for speed
-            small_pixmap = parent_pixmap.scaledToWidth(target_width, Qt.TransformationMode.SmoothTransformation)
-            
-            # Apply blur to the small pixmap
-            from PyQt6.QtWidgets import QGraphicsScene, QGraphicsPixmapItem, QGraphicsBlurEffect
-            from PyQt6.QtGui import QPainter, QPixmap
-            
-            # Effective blur radius
-            blur_radius = 12
-            
-            scene = QGraphicsScene()
-            item = QGraphicsPixmapItem(small_pixmap)
-            blur = QGraphicsBlurEffect()
-            blur.setBlurRadius(blur_radius)
-            blur.setBlurHints(QGraphicsBlurEffect.BlurHint.PerformanceHint)
-            item.setGraphicsEffect(blur)
-            scene.addItem(item)
-            
-            # Render scene to new small pixmap
-            output_pixmap = QPixmap(small_pixmap.size())
-            output_pixmap.fill(Qt.GlobalColor.transparent)
-            
-            painter = QPainter()
-            try:
-                if painter.begin(output_pixmap):
-                    scene.render(painter)
-            finally:
-                painter.end()
-            
-            self._blurred_background = output_pixmap
-            
-        except Exception as e:
-            print(f"[PresetGallery] Blur capture error: {e}")
-        finally:
-            self._is_capturing_blur = False
+
     
     def hide_animated(self):
         """Hide the gallery with fade-out animation."""
@@ -871,14 +469,8 @@ class PresetGallery(QWidget):
         path.addRoundedRect(QRectF(self.rect()), radius, radius)
         painter.setClipPath(path)
         
-        # 1. Draw blurred background if available (Upscale smoothly)
-        if hasattr(self, '_blurred_background') and self._blurred_background:
-            # Scale the small blurry pixmap to fill the rect
-            painter.drawPixmap(self.rect(), self._blurred_background)
-        
-        # 2. Draw dark tint overlay
-        # Dark grey with 70% opacity (alpha = 180 out of 255)
-        painter.fillRect(self.rect(), QColor(20, 20, 20, 180))
+        # Use mixin to paint blurred background with dark overlay
+        self.paint_blur_background(painter, self.rect(), overlay_alpha=180)
         
         super().paintEvent(event)
     
@@ -915,6 +507,28 @@ class PresetGallery(QWidget):
                 source_file=dynamic_panel_file,
                 on_change=None
             )
+            
+            # --- Tune Gallery Layout ---
+            def update_layout():
+                # Apply padding to main layout
+                self.layout().setContentsMargins(
+                    self.content_padding, self.content_padding, 
+                    self.content_padding, self.content_padding
+                )
+                self._position_filter_bar() # Re-position filter bar
+                self.update()
+
+            layout_params = {
+                'content_padding': (0, 100, 2),
+            }
+            
+            self._dev_panel.add_section(
+                target=self,
+                params=layout_params,
+                title="Gallery Layout", 
+                source_file=__file__,
+                on_change=update_layout
+            )
         
         if self._dev_panel.isVisible():
             self._dev_panel.hide()
@@ -922,11 +536,23 @@ class PresetGallery(QWidget):
             self._dev_panel.show()
             self._dev_panel.raise_()
     
+    def toggle_gallery_color_panel(self):
+        """Toggle gallery color panel for F12."""
+        if not hasattr(self, '_gallery_color_panel') or self._gallery_color_panel is None:
+            from client.gui.dev_gallery_color_panel import DevGalleryColorPanel
+            self._gallery_color_panel = DevGalleryColorPanel(self)
+        
+        if self._gallery_color_panel.isVisible():
+            self._gallery_color_panel.hide()
+        else:
+            self._gallery_color_panel.show()
+            self._gallery_color_panel.raise_()
+    
     def keyPressEvent(self, event):
-        """Handle F12 key for dev panel in dev mode."""
+        """Handle F12 key to open gallery color panel."""
         from PyQt6.QtCore import Qt
         if event.key() == Qt.Key.Key_F12:
-            self.toggle_dev_panel()
+            self.toggle_gallery_color_panel()
         super().keyPressEvent(event)
     
     def update_theme(self, is_dark: bool):
@@ -936,8 +562,11 @@ class PresetGallery(QWidget):
         
         # Update gallery styles
         self._apply_styles()
-        self._update_param_panel_style()
         self._update_preset_label_style()
+        
+        # Update parameter panel
+        if hasattr(self, '_param_panel') and hasattr(self._param_panel, 'update_theme'):
+            self._param_panel.update_theme(is_dark)
         
         # Update parameter form
         self._parameter_form.update_theme(is_dark)

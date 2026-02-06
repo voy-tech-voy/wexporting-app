@@ -158,8 +158,8 @@ class Theme:
     @classmethod
     def param_bg(cls) -> str:
         """Background for parameter inputs (text, dropdowns, pills).
-        Uses surface_element for clear contrast against panel backgrounds."""
-        return cls.color("surface_element")
+        Uses gallery_param_bg for gallery-specific styling."""
+        return cls.color("gallery_param_bg")
     
     @classmethod
     def translucent_bg(cls) -> str:

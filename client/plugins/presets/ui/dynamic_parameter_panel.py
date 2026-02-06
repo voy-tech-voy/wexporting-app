@@ -85,23 +85,41 @@ class DynamicParameterPanel(QFrame):
     
     def _apply_styles(self):
         """Apply panel styling."""
-        from client.gui.theme import Theme
+        from client.gui.theme_variables import get_color
+        from client.gui.theme_manager import ThemeManager
+        
+        is_dark = ThemeManager.instance().is_dark_mode()
+        panel_bg = get_color("gallery_param_panel_bg", is_dark)
+        
         self.setStyleSheet(f"""
             QFrame#DynamicParamPanel {{
-                background: {Theme.surface()};
+                background: {panel_bg};
                 border-radius: 8px;
             }}
         """)
     
     def _update_title_style(self):
         """Update title label styling."""
-        self._title_label.setStyleSheet("""
-            QLabel#ParamPanelTitle {
+        from client.gui.theme_variables import get_color
+        from client.gui.theme_manager import ThemeManager
+        
+        is_dark = ThemeManager.instance().is_dark_mode()
+        text_color = get_color("text_primary", is_dark)
+        
+        self._title_label.setStyleSheet(f"""
+            QLabel#ParamPanelTitle {{
                 font-size: 16px;
                 font-weight: bold;
-                color: #ffffff;
-            }
+                color: {text_color};
+            }}
         """)
+    
+    def update_theme(self, is_dark: bool):
+        """Update theme when dark/light mode changes."""
+        self._apply_styles()
+        self._update_title_style()
+        if self._parameter_form and hasattr(self._parameter_form, 'update_theme'):
+            self._parameter_form.update_theme(is_dark)
     
     def set_content(self, title: str, parameter_form):
         """

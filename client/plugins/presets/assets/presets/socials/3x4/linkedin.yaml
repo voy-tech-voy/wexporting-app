@@ -1,0 +1,72 @@
+# LinkedIn Professional Feed (4:5)
+# Optimized for professional clarity, desktop/mobile balance, and audio leveling
+
+meta:
+  id: "linkedin_pro_4x5"
+  name: "LinkedIn Pro 4:5"
+  category: "social"
+  ratio: "3x4"
+  description: "Optimized 1080x1350 format. Maximum mobile real estate without looking unprofessional on desktop."
+  version: "1.0"
+
+style:
+  accent_color: "#0A66C2" # LinkedIn Blue
+  icon: "briefcase"
+  glow_strength: "medium"
+
+constraints:
+  accepted_types: ["video"]
+  accepted_extensions: [".mp4", ".mov", ".mkv"]
+  min_duration: 3.0 # Professional videos usually need more time
+
+# --- THE USER INTERFACE ---
+parameters:
+  - id: "fill_method"
+    type: "segmented_pill"
+    label: "Fill Method"
+    options: ["Blur", "Crop", "Fit"]
+    default: "Blur"
+
+  - id: "audio_boost"
+    type: "toggle"
+    label: "Professional Voice Normalization"
+    default: true
+    tooltip: "Standardizes audio to -16 LUFS (Professional Broadcast Standard)."
+
+# --- THE EXECUTION LOGIC ---
+pipeline:
+  - tool: "ffmpeg"
+    description: "LinkedIn 4:5 Conversion"
+    
+    filename_suffix: "_LI_4x5"
+
+    command_template: >
+      {{ tool_exe }} -y -i "{{ input_path }}"
+
+      {# --- GEOMETRY (1080x1350) --- #}
+      {% if fill_method == 'Blur' %}
+        -filter_complex "[0:v]split[bg][fg];
+        [bg]scale=1080:1350:force_original_aspect_ratio=increase,crop=1080:1350,boxblur=15:5[bg_b];
+        [fg]scale=1080:1350:force_original_aspect_ratio=decrease[fg_s];
+        [bg_b][fg_s]overlay=(W-w)/2:(H-h)/2,unsharp=3:3:0.5:3:3:0.0[v]"
+      {% elif fill_method == 'Crop' %}
+        -vf "scale=1080:1350:force_original_aspect_ratio=increase,crop=1080:1350,unsharp=3:3:0.5:3:3:0.0"
+      {% else %}
+        -vf "scale=1080:1350:force_original_aspect_ratio=decrease,pad=1080:1350:(ow-iw)/2:(oh-ih)/2:black,unsharp=3:3:0.5:3:3:0.0"
+      {% endif %}
+
+      {# --- ENCODING --- #}
+      -c:v libx264 -preset medium -crf 20
+      -pix_fmt yuv420p
+      -r 30
+      -g 60
+      
+      {# --- AUDIO (LinkedIn Pro Standard) --- #}
+      {% if audio_boost %}
+        -c:a aac -b:a 192k -af "loudnorm=I=-16:TP=-1.5:LRA=11"
+      {% else %}
+        -c:a aac -b:a 192k
+      {% endif %}
+      
+      -movflags +faststart
+      "{{ output_path }}"

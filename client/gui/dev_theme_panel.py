@@ -131,6 +131,13 @@ class DevThemePanel(QWidget):
         # Current theme colors from theme_variables.py
         self.theme_colors = self._load_current_colors()
         
+        # Debounce timer for theme updates (prevents lag during rapid changes)
+        from PyQt6.QtCore import QTimer
+        self._update_timer = QTimer(self)
+        self._update_timer.setSingleShot(True)
+        self._update_timer.setInterval(200)  # 200ms debounce
+        self._update_timer.timeout.connect(self._broadcast_theme_change)
+        
         self._setup_ui()
         
         # Apply dark theme to this panel
@@ -217,6 +224,16 @@ class DevThemePanel(QWidget):
             ("scrollbar_bg", "Scrollbar track"),
             ("scrollbar_thumb", "Scrollbar handle"),
             ("tooltip_bg", "Tooltip Background"),
+            
+            # Header Button Colors
+            ("btn_preset_active", "Preset button active (green)"),
+            ("btn_preset_ghost", "Preset button ghost/inactive"),
+            ("btn_lab_solid", "Lab button solid (blue)"),
+            ("btn_lab_ghost", "Lab button ghost/inactive"),
+            ("btn_file_normal", "File button normal (grey)"),
+            ("btn_file_hover", "File button hover (white)"),
+            ("titlebar_btn_bg", "Title bar button background"),
+            ("titlebar_btn_hover", "Title bar button hover"),
         ]
         
         for var_name, description in dark_colors:
@@ -316,23 +333,29 @@ class DevThemePanel(QWidget):
         main_layout.addLayout(button_layout)
     
     def _on_color_changed(self, mode: str, var_name: str, color: str):
-        """Handle color change and apply in real-time"""
+        """Handle color change and apply in real-time (debounced)"""
         # Store the change
         if mode not in self.color_changes:
             self.color_changes[mode] = {}
         self.color_changes[mode][var_name] = color
         
-        # Apply to current theme immediately
+        # Apply to current theme dictionary immediately (fast)
         from client.gui.theme_variables import DARK_THEME, LIGHT_THEME
-        from client.gui.theme import Theme
-        from client.gui.theme_manager import ThemeManager
         
         if mode == 'dark':
             DARK_THEME[var_name] = color
         else:
             LIGHT_THEME[var_name] = color
         
-        # Notify the app to refresh - broadcast theme change
+        # Debounce the expensive broadcast operation
+        # This prevents lag when typing hex codes or dragging sliders
+        self._update_timer.start()  # Restart timer on each change
+    
+    def _broadcast_theme_change(self):
+        """Broadcast theme change to all components (called after debounce delay)"""
+        from client.gui.theme import Theme
+        from client.gui.theme_manager import ThemeManager
+        
         if self.parent():
             # Force theme refresh through ThemeManager to update all components
             theme_manager = ThemeManager.instance()
@@ -373,8 +396,8 @@ class DevThemePanel(QWidget):
             # Replace dark mode colors
             if 'dark' in self.color_changes:
                 for var_name, color in self.color_changes['dark'].items():
-                    # Match the pattern: "var_name": "#HEXCODE",
-                    pattern = f'"{var_name}":\\s*"#[0-9A-Fa-f]{{6}}"'
+                    # Match both hex colors (#RRGGBB) and rgba values (rgba(...))
+                    pattern = f'"{var_name}":\\s*"(?:#[0-9A-Fa-f]{{6}}|rgba\\([^)]+\\))"'
                     replacement = f'"{var_name}": "{color}"'
                     
                     # Find the first occurrence (dark mode section)
@@ -385,8 +408,8 @@ class DevThemePanel(QWidget):
             # Replace light mode colors
             if 'light' in self.color_changes:
                 for var_name, color in self.color_changes['light'].items():
-                    # Match the pattern but skip the first occurrence (dark mode)
-                    pattern = f'"{var_name}":\\s*"#[0-9A-Fa-f]{{6}}"'
+                    # Match both hex colors and rgba values
+                    pattern = f'"{var_name}":\\s*"(?:#[0-9A-Fa-f]{{6}}|rgba\\([^)]+\\))"'
                     matches = list(re.finditer(pattern, content))
                     
                     if len(matches) >= 2:

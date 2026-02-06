@@ -37,17 +37,26 @@ class PresetManager:
         presets = manager.load_all()
     """
     
-    def __init__(self, registry: 'ToolRegistryProtocol', presets_dir: Optional[str] = None):
+    def __init__(self, registry: 'ToolRegistryProtocol', presets_dir: Optional[str] = None, gpu_detector=None):
         """
         Initialize PresetManager.
         
         Args:
             registry: Tool registry for validation (injected, not created)
             presets_dir: Directory containing YAML preset files (optional)
+            gpu_detector: GPU detector instance for hardware validation (optional)
         """
         self._registry = registry
         self._presets_dir = presets_dir or self._get_default_presets_dir()
         self._presets: Dict[str, PresetDefinition] = {}
+        self._gpu_detector = gpu_detector
+        self._gpu_available = False
+        
+        # Detect GPU availability if detector provided
+        if self._gpu_detector:
+            encoders = self._gpu_detector.detect_encoders()
+            self._gpu_available = any('nvenc' in e or 'qsv' in e or 'amf' in e for e in encoders)
+            print(f"[PresetManager] GPU available: {self._gpu_available}")
     
     def _get_default_presets_dir(self) -> str:
         """Get the default presets directory path."""
@@ -69,7 +78,8 @@ class PresetManager:
             print(f"[PresetManager] Presets directory not found: {presets_path}")
             return []
         
-        yaml_files = list(presets_path.glob("*.yaml")) + list(presets_path.glob("*.yml"))
+        # Scan recursively for YAML files in all subdirectories
+        yaml_files = list(presets_path.glob("**/*.yaml")) + list(presets_path.glob("**/*.yml"))
         
         for yaml_file in yaml_files:
             try:
@@ -144,7 +154,8 @@ class PresetManager:
             accepted_types=constraints_data.get('accepted_types', ['video', 'image']),
             accepted_extensions=constraints_data.get('accepted_extensions', []),
             min_duration=constraints_data.get('min_duration'),
-            max_duration=constraints_data.get('max_duration')
+            max_duration=constraints_data.get('max_duration'),
+            requires_gpu=constraints_data.get('requires_gpu', False)
         )
         
         # Parse parameters (Tier 2 - loaded but not rendered in Phase 1)
@@ -178,12 +189,14 @@ class PresetManager:
             style=style,
             constraints=constraints,
             parameters=parameters,
+            ratio=meta.get('ratio'),  # For social media 2-step selection
             raw_yaml=data
         )
     
     def _validate_tools(self, preset: PresetDefinition) -> PresetDefinition:
         """
         Validate that all tools required by the preset are available.
+        Also validates GPU requirements if GPU detector is available.
         
         Uses registry.is_tool_available(tool_id) for each pipeline step.
         Sets status to MISSING_TOOL and populates missing_tools list if any fail.
@@ -193,6 +206,12 @@ class PresetManager:
         for step in preset.pipeline:
             if not self._registry.is_tool_available(step.tool):
                 missing.append(step.tool)
+        
+        # Check GPU requirement
+        if preset.constraints.requires_gpu and not self._gpu_available:
+            preset.status = PresetStatus.MISSING_TOOL
+            preset.missing_tools = ["GPU (NVIDIA/AMD/Intel)"]
+            return preset
         
         if missing:
             preset.status = PresetStatus.MISSING_TOOL

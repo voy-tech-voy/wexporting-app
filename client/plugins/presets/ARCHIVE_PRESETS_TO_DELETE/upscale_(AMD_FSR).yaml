@@ -1,0 +1,62 @@
+# ============================================================================
+# UNIVERSAL PRO AI UPSCALE (libplacebo EWA Lanczos)
+# ============================================================================
+# Uses libplacebo's highest quality upscaler: ewa_lanczossharp
+# This is the same algorithm used in libplacebo's "high_quality" preset
+# GPU: Works with Vulkan-capable GPUs (AMD, NVIDIA, Intel)
+# ============================================================================
+
+meta:
+  id: "universal_upscale_fsr"
+  name: "Universal AI Upscale"
+  category: "utils"
+  description: "Highest quality upscaling using libplacebo ewa_lanczossharp algorithm."
+  version: "2.0"
+
+style:
+  accent_color: "#EDFF21"
+  icon: "maximize"
+  glow_strength: "strong"
+
+constraints:
+  accepted_types: ["video", "image"]
+  accepted_extensions: [".mp4", ".mov", ".mkv", ".avi", ".webm", ".jpg", ".jpeg", ".png", ".webp", ".heic"]
+  min_duration: 0.0
+
+parameters:
+  - id: "target_scale"
+    type: "segmented_pill"
+    label: "Upscale Factor"
+    options: ["2x", "4x"]
+    default: "2x"
+    tooltip: "2x (1080p -> 4K) or 4x (720p -> 4K+)"
+
+  - id: "antiringing"
+    type: "slider"
+    label: "Anti-Ringing"
+    default: 0.5
+    min_value: 0.0
+    max_value: 1.0
+    step: 0.1
+    tooltip: "Reduces halos around sharp edges. 0.5 is recommended."
+
+pipeline:
+  - tool: "ffmpeg"
+    description: "libplacebo High-Quality Upscale"
+    filename_suffix: "_upscaled_{{ target_scale }}"
+
+    command_template: |
+      {# --- RESOLUTION MATH --- #}
+      {% set scale_mult = 2 if target_scale == '2x' else 4 %}
+      {% set out_w = (meta.width * scale_mult) | int %}
+      {% set out_h = (meta.height * scale_mult) | int %}
+      {% set input_ext = input_path.split('.')[-1].lower() %}
+
+      {# --- IMAGE OR VIDEO? --- #}
+      {% if meta.duration < 0.1 or not meta.fps %}
+        {# IMAGE: Simple libplacebo without GPU upload (more compatible) #}
+        {{ tool_exe }} -y -i "{{ input_path }}" -vf "libplacebo=w={{ out_w }}:h={{ out_h }}:upscaler=ewa_lanczossharp:antiringing={{ antiringing }}" {% if input_ext in ['png'] %} -c:v png -compression_level 9 "{{ output_path_no_ext }}.png" {% elif input_ext in ['jpg', 'jpeg'] %} -c:v mjpeg -q:v 2 "{{ output_path_no_ext }}.jpg" {% elif input_ext in ['webp'] %} -c:v libwebp -lossless 1 "{{ output_path_no_ext }}.webp" {% else %} -c:v png -compression_level 9 "{{ output_path_no_ext }}.png" {% endif %}
+      {% else %}
+        {# VIDEO: Use Vulkan GPU acceleration #}
+        {{ tool_exe }} -init_hw_device vulkan -y -i "{{ input_path }}" -vf "hwupload,libplacebo=w={{ out_w }}:h={{ out_h }}:upscaler=ewa_lanczossharp:antiringing={{ antiringing }},hwdownload,format=yuv420p" -c:v libx264 -preset slow -crf 17 -pix_fmt yuv420p {% if meta.has_audio %} -c:a aac -b:a 256k {% else %} -an {% endif %} -movflags +faststart "{{ output_path }}"
+      {% endif %}

@@ -1,0 +1,92 @@
+# Instagram Landscape Pro (16:9)
+# Smart conversion to 16:9 with Blur fill, Center-Crop, and FPS normalization
+
+meta:
+  id: "instagram_landscape_16x9"
+  name: "Instagram Landscape 16:9"
+  category: "social"
+  ratio: "16x9"
+  description: "High-quality 16:9 (1920x1080) landscape conversion. Best for cinematic clips and widescreen feed posts."
+  version: "2.0"
+
+style:
+  accent_color: "#FCAF45" # Instagram Orange/Yellow
+  icon: "insta"
+  glow_strength: "strong"
+
+constraints:
+  accepted_types: ["video"]
+  accepted_extensions: [".mp4", ".mov", ".mkv", ".avi", ".webm"]
+  min_duration: 1.0
+
+# --- THE USER INTERFACE ---
+parameters:
+  - id: "fill_method"
+    type: "segmented_pill"
+    label: "Fill Method"
+    options: ["Blur", "Crop", "Fit"]
+    default: "Blur"
+    tooltip: "Blur: For portrait videos in landscape | Crop: Zooms into center | Fit: Pillarbox"
+
+  - id: "allow_rotate"
+    type: "toggle"
+    label: "Auto-Rotate Portrait"
+    default: false
+    tooltip: "If video is vertical, rotate it 90 degrees to lay it flat across the landscape frame."
+
+# --- THE EXECUTION LOGIC ---
+pipeline:
+  - tool: "ffmpeg"
+    description: "16:9 Landscape conversion"
+    
+    filename_suffix: >-
+      _16x9_{{ fill_method|lower }}_{{ '30fps' if meta.fps > 31 or meta.fps < 29 else 'native' }}
+
+    command_template: >
+      {{ tool_exe }} -y -i "{{ input_path }}"
+
+      {# --- FPS FILTER CALCULATION --- #}
+      {% set fps_filter %}
+        {% if meta.fps > 31 %}
+          ,tmix=frames=2:weights='1 1',fps=30
+        {% elif meta.fps < 29 %}
+          {# Keep cinematic source fps #}
+        {% else %}
+          ,fps=30
+        {% endif %}
+      {% endset %}
+
+      {# --- GEOMETRY & FILTERS (Target 1920x1080) --- #}
+      
+      {# SCENARIO A: ROTATE (Portrait -> Landscape) #}
+      {% if allow_rotate and meta.is_portrait %}
+        -vf "transpose=1,scale=1920:1080:force_original_aspect_ratio=increase,crop=1920:1080{{ fps_filter }},unsharp=5:5:0.5:5:5:0.0"
+
+      {# SCENARIO B: BLUR BACKGROUND (Common for sharing Reels in 16:9) #}
+      {% elif fill_method == 'Blur' %}
+        -filter_complex "[0:v]split[bg][fg];
+        [bg]scale=1920:1080:force_original_aspect_ratio=increase,crop=1920:1080,boxblur=20:10[bg_blur];
+        [fg]scale=1920:1080:force_original_aspect_ratio=decrease[fg_scaled];
+        [bg_blur][fg_scaled]overlay=(W-w)/2:(H-h)/2{{ fps_filter }},unsharp=5:5:0.5:5:5:0.0[outv]"
+        -map "[outv]" -map 0:a?
+
+      {# SCENARIO C: CROP CENTER #}
+      {% elif fill_method == 'Crop' %}
+        -vf "scale=1920:1080:force_original_aspect_ratio=increase,crop=1920:1080{{ fps_filter }},unsharp=5:5:0.5:5:5:0.0"
+
+      {# SCENARIO D: FIT (Pillarbox) #}
+      {% else %}
+        -vf "scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:black{{ fps_filter }},unsharp=5:5:0.5:5:5:0.0"
+      {% endif %}
+
+      {# --- ENCODING SETTINGS (Standard 1080p HD) --- #}
+      -c:v libx264 -preset medium -profile:v high -level:v 4.2
+      -g {{ (meta.fps * 2)|int if meta.fps < 29 else 60 }}
+      -bf 2 
+      -b:v 15M -maxrate 20M -bufsize 30M
+      -pix_fmt yuv420p -colorspace bt709 -color_trc bt709 -color_primaries bt709
+      
+      -c:a aac -b:a 320k -ar 48000
+      -movflags +faststart
+      
+      "{{ output_path }}"

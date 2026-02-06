@@ -1,0 +1,53 @@
+# ============================================================================
+# PRO NEURAL RESTORATION (REAL-ESRGAN ONNX)
+# ============================================================================
+# Uses FFmpeg's dnn_processing filter with Real-ESRGAN ONNX model
+# Single-pass processing - much faster than frame extraction
+# Supports both images and videos with Vulkan GPU acceleration
+# ============================================================================
+
+meta:
+  id: "pro_ai_restoration"
+  name: "AI Restoration (Real-ESRGAN)"
+  category: "utils"
+  description: "Pro-tier neural restoration using Real-ESRGAN ONNX. Single-pass 4x upscaling for images and videos."
+  version: "2.0"
+
+style:
+  accent_color: "#9B59B6"  # Purple for AI/Neural
+  icon: "sparkles"
+  glow_strength: "strong"
+
+constraints:
+  accepted_types: ["image", "video"]
+  accepted_extensions: [".jpg", ".jpeg", ".png", ".webp", ".bmp", ".mp4", ".mov", ".mkv", ".avi", ".webm"]
+  min_duration: 0.0
+
+parameters:
+  - id: "quality"
+    type: "segmented_pill"
+    label: "Quality Mode"
+    options: ["Balanced", "High Quality"]
+    default: "Balanced"
+    tooltip: "Balanced: Faster processing | High Quality: Better results, slower"
+
+pipeline:
+  - tool: "ffmpeg"
+    description: "Real-ESRGAN 4x Neural Restoration"
+    filename_suffix: "_AI_RESTORED_4x"
+
+    command_template: |
+      {# --- RESOLUTION MATH (4x upscale) --- #}
+      {% set out_w = (meta.width * 4) | int %}
+      {% set out_h = (meta.height * 4) | int %}
+      {# Use relative path to avoid Windows drive letter colon issues #}
+      {% set model_path = "tools/models/REAL_ESRGAN/Real-ESRGAN-General-x4v3.onnx" %}
+      
+      {# --- IMAGE OR VIDEO? --- #}
+      {% if meta.duration < 0.1 or not meta.fps %}
+        {# IMAGE: Direct ONNX processing #}
+        {{ tool_exe }} -init_hw_device vulkan -y -i "{{ input_path }}" -vf "format=rgb24,dnn_processing=model={{ model_path }}:dnn_backend=onnx:input=input:output=output,format=yuv420p" -c:v png "{{ output_path_no_ext }}.png"
+      {% else %}
+        {# VIDEO: ONNX processing + GPU encoding #}
+        {{ tool_exe }} -init_hw_device vulkan -y -i "{{ input_path }}" -vf "format=rgb24,dnn_processing=model={{ model_path }}:dnn_backend=onnx:input=input:output=output,format=yuv420p" -c:v {{ gpu_encoder }} {% if gpu_type == 'nvidia' %} -preset p7 -cq 18 {% elif gpu_type == 'amd' %} -quality quality -rc cqp -qp 18 {% else %} -preset slow -crf 18 {% endif %} -pix_fmt yuv420p {% if meta.has_audio %} -c:a aac -b:a 256k {% else %} -an {% endif %} -movflags +faststart "{{ output_path }}"
+      {% endif %}

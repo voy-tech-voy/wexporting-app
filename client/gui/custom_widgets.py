@@ -50,10 +50,13 @@ class HoverIconButton(QPushButton):
         super().leaveEvent(event)
 
     def set_dark_mode(self, is_dark):
-        if self._is_dark != is_dark:
-            self._is_dark = is_dark
-            self.update_icons()
-            self.setIcon(self.hover_icon if self.underMouse() else self.normal_icon)
+        # Update mode flag
+        mode_changed = self._is_dark != is_dark
+        self._is_dark = is_dark
+        
+        # Always update icons (colors may have changed even if mode didn't)
+        self.update_icons()
+        self.setIcon(self.hover_icon if self.underMouse() else self.normal_icon)
 
     def update_icons(self):
         if not os.path.exists(self.svg_path):
@@ -64,10 +67,12 @@ class HoverIconButton(QPushButton):
             svg_content = f.read()
         
         # Determine theme colors
+        from client.gui.theme_variables import get_color
+        
         # Normal: Grey shades
-        normal_color = "#AAAAAA" if self._is_dark else "#444444"
+        normal_color = get_color("btn_file_normal", self._is_dark)
         # Hover: Stark White/Black
-        hover_color = "white" if self._is_dark else "black"
+        hover_color = get_color("btn_file_hover", self._is_dark)
         
         # 1. Create Base SVGs for Normal and Hover with different stroke colors
         def apply_stroke_color(content, color):

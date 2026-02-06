@@ -192,14 +192,13 @@ class MorphingButton(QPushButton):
         radius = curr_height / 2
         
         # Background color
+        from client.gui.theme_variables import get_color
+        
         if self._is_solid_style:
-            bg_color = QColor("#2196F3")
+            bg_color = QColor(get_color("btn_lab_solid", self._is_dark))
         else:
             # Ghost Style
-            if self._is_dark:
-                bg_color = QColor(255, 255, 255, 12)
-            else:
-                bg_color = QColor(0, 0, 0, 12) # Dark ghost for light mode
+            bg_color = QColor(get_color("btn_lab_ghost", self._is_dark))
         
         # Border
         if self._is_flashing:

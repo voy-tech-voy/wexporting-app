@@ -1,0 +1,27 @@
+# ============================================================================
+# FAVICON ARCHITECT (.ICO)
+# ============================================================================
+meta:
+  id: "utility_favicon_master"
+  name: "Favicon Master (.ico)"
+  category: "utility"
+  description: "Creates a multi-resolution 16/32/48/256 icon pack in one file."
+  version: "1.0"
+
+style:
+  accent_color: "#61DAFB"         # Favicon Blue
+  icon: "favicon"
+  glow_strength: "normal"
+
+constraints:
+  accepted_types: ["image"]
+  accepted_extensions: [".png", ".jpg", ".jpeg", ".svg", ".webp"]
+
+pipeline:
+  - tool: "magick"
+    description: "Packing multi-resolution icon container"
+    command_template: |
+      "tools/magick.exe" "{{ input_path }}" 
+      -background none 
+      -define icon:auto-resize=16,32,48,256 
+      "{{ output_path_no_ext }}.ico"

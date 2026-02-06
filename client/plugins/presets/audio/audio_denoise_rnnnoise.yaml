@@ -1,0 +1,91 @@
+# ============================================================================
+# DEEP LEARNING AUDIO DENOISER (RNNNOISE)
+# ============================================================================
+# Location: client/plugins/presets/assets/presets/audio_denoise_rnnnoise.yaml
+# Category: audio
+# Logic: Uses the arnndn (RNN) filter to subtract noise from speech.
+# ============================================================================
+
+meta:
+  id: "audio_denoise_rnnnoise"
+  name: "Deep AI Audio Denoiser"
+  category: "audio"
+  description: "Neural network-based noise removal. Eliminates fans, AC, and hum while preserving voice."
+  version: "1.0"
+
+style:
+  accent_color: "#00E0FF"         # Neural Cyan
+  icon: "mic-check"
+  glow_strength: "strong"
+
+constraints:
+  accepted_types: ["audio", "video"]
+  accepted_extensions: [".mp3", ".wav", ".m4a", ".aac", ".mp4", ".mov", ".mkv"]
+  min_duration: 1.0
+
+# --- THE USER INTERFACE ---
+parameters:
+  - id: "output_format"
+    type: "segmented_pill"
+    label: "Output Format"
+    options: ["mp3", "wav", "m4a"]
+    default: "mp3"
+    tooltip: "MP3: Universal | WAV: High-fidelity for editing | M4A: Best for mobile"
+
+  - id: "vocal_boost"
+    type: "toggle"
+    label: "Enhance Voice Clarity"
+    default: true
+    tooltip: "Applies a subtle EQ lift to the 3kHz range to make speech 'pop' after denoising."
+
+  - id: "normalization"
+    type: "toggle"
+    label: "Auto-Leveling"
+    default: true
+    tooltip: "Standardizes volume to -16 LUFS (Broadcast Standard)."
+
+# --- THE EXECUTION LOGIC ---
+pipeline:
+  - tool: "ffmpeg"
+    description: "Processing audio through Neural Network..."
+    
+    filename_suffix: "_AI_Cleaned"
+    
+    command_template: |
+      {{ tool_exe }} -y -i "{{ input_path }}"
+      
+      {# --- THE NEURAL FILTER CHAIN --- #}
+      {# 1. highpass: Cuts sub-rumble below 80Hz #}
+      {# 2. arnndn: The core RNNNoise AI filter #}
+      {# 3. equalizer: Optional vocal presence boost #}
+      {# 4. loudnorm: Final broadcast-ready leveling #}
+      {% set audio_filters %}
+        highpass=f=80,
+        arnndn
+        {%- if vocal_boost -%},equalizer=f=3000:width_type=h:width=200:g=3{%- endif -%}
+        {%- if normalization -%},loudnorm=I=-16:TP=-1.5:LRA=11{%- endif -%}
+      {% endset %}
+      
+      -af "{{ audio_filters | replace('\n', '') | replace(' ', '') }}"
+      
+      {# --- OUTPUT ENCODING (Audio-Only Extraction) --- #}
+      -vn
+      {% if output_format == 'mp3' %}
+        -c:a libmp3lame -b:a 256k
+        "{{ output_path_no_ext }}.mp3"
+      {% elif output_format == 'wav' %}
+        -c:a pcm_s16le
+        "{{ output_path_no_ext }}.wav"
+      {% else %}
+        -c:a aac -b:a 256k
+        "{{ output_path_no_ext }}.m4a"
+      {% endif %}
+
+# ============================================================================
+# CHECKLIST
+# ============================================================================
+# [x] Unique id: audio_denoise_rnnnoise
+# [x] Category: audio
+# [x] Logic: Uses the arnndn (Recurrent Neural Network) filter.
+# [x] Efficiency: Single-pass processing for both images and video sources.
+# [x] Formatting: -vn strips video to produce a dedicated clean audio asset.

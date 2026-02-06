@@ -54,8 +54,8 @@ DARK_THEME = {
     # Preset Gallery Colors
     "gallery_overlay_color": "#141414",      # Gallery blur overlay base color
     "gallery_overlay_alpha": "180",          # Gallery overlay transparency (0-255)
-    "gallery_filter_bg": "#232323",          # Filter bar background
-    "gallery_filter_overlay": "#000000",     # Filter bar overlay tint
+    "gallery_filter_bg": "#1B1B1B",          # Filter bar background
+    "gallery_filter_overlay": "#1B1B1B",     # Filter bar overlay tint
     "gallery_filter_overlay_alpha": "180",   # Filter bar overlay alpha
     "gallery_param_bg": "#1F1F1F",            # Parameter form input background
     "gallery_param_panel_bg": "#232323",      # Parameter panel window background
@@ -128,7 +128,7 @@ LIGHT_THEME = {
     # Preset Gallery Colors
     "gallery_overlay_color": "#D2D2D4",      # Gallery blur overlay base color (light)
     "gallery_overlay_alpha": "255",          # Gallery overlay transparency (0-255)
-    "gallery_filter_bg": "#9E9EA0",          # Filter bar background (light)
+    "gallery_filter_bg": "#D2D2D4",          # Filter bar background (light)
     "gallery_filter_overlay": "#D2D2D4",     # Filter bar overlay tint (light)
     "gallery_filter_overlay_alpha": "255",   # Filter bar overlay alpha
     "gallery_param_bg": "#F8F8FA",            # Parameter form input background (light)
@@ -142,7 +142,7 @@ LIGHT_THEME = {
     # Filter Button Colors
     "gallery_filter_btn_active_bg": "#30D158",     # Active button background (green)
     "gallery_filter_btn_active_text": "#FFFFFF",   # Active button text
-    "gallery_filter_btn_inactive_bg": "#DEDEE2",   # Inactive button background (light)
+    "gallery_filter_btn_inactive_bg": "#EBEBF1",   # Inactive button background (light)
     "gallery_filter_btn_inactive_text": "#6C6C70", # Inactive button text
     "gallery_filter_btn_border": "#C4C4C6",        # Button border color (light)
     

@@ -81,6 +81,8 @@ class MediaAnalyzer:
                 cmd,
                 capture_output=True,
                 text=True,
+                encoding='utf-8',
+                errors='replace',  # Replace invalid chars instead of crashing
                 timeout=10,
                 creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
             )

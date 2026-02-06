@@ -1,0 +1,70 @@
+# ============================================================================
+# PRO-MASTER RECONSTRUCTION (3-Step FFmpeg Upscaling)
+# ============================================================================
+# Multi-stage pipeline: Denoise -> EWA Upscale -> CAS Reconstruction
+# Best For: Making 1080p look like native 4K with natural textures
+# Note: Requires FFmpeg with libplacebo support
+# ============================================================================
+
+meta:
+  id: "pro_master_reconstruction"
+  name: "3-Step FFmpeg Upscaling"
+  category: "utils"
+  description: "Multi-pass reconstruction: denoise, upscale, sharpen. No external AI needed."
+  version: "2.0"
+
+style:
+  accent_color: "#FF3E00"  # Deep Racing Red
+  icon: "maximize"
+  glow_strength: "strong"
+
+constraints:
+  accepted_types: ["video", "image"]
+  accepted_extensions: [".mp4", ".mov", ".mkv", ".avi", ".webm", ".jpg", ".jpeg", ".png", ".webp"]
+  min_duration: 0.0
+
+parameters:
+  - id: "target_scale"
+    type: "segmented_pill"
+    label: "Upscale Factor"
+    options: ["2x", "4x"]
+    default: "2x"
+    tooltip: "2x (1080p -> 4K) or 4x (720p -> 4K+)"
+
+  - id: "texture_recovery"
+    type: "slider"
+    label: "Texture Recovery"
+    default: 0.8
+    min_value: 0.0
+    max_value: 1.0
+    step: 0.1
+    tooltip: "Restores fine details. 0.8 is cinematic, 1.0 is ultra-sharp."
+
+  - id: "deband"
+    type: "toggle"
+    label: "Fix Gradients (Deband)"
+    default: true
+    tooltip: "Prevents color 'rings' in skies and dark areas."
+
+pipeline:
+  - tool: "ffmpeg"
+    description: "Multi-Pass Reconstruction"
+    filename_suffix: "_3STEP_{{ target_scale }}"
+
+    command_template: |
+      {# --- RESOLUTION MATH --- #}
+      {% set scale_mult = 2 if target_scale == '2x' else 4 %}
+      {% set out_w = (meta.width * scale_mult) | int %}
+      {% set out_h = (meta.height * scale_mult) | int %}
+      {% set input_ext = input_path.split('.')[-1].lower() %}
+
+      {# --- IMAGE OR VIDEO? --- #}
+      {% if meta.duration < 0.1 or not meta.fps %}
+        {# IMAGE: Simple pipeline without GPU upload (more compatible) #}
+        {# Step 1: libplacebo upscale with optional deband #}
+        {# Step 2: unsharp for texture recovery (CAS-like effect) #}
+        {{ tool_exe }} -y -i "{{ input_path }}" -vf "libplacebo=w={{ out_w }}:h={{ out_h }}:upscaler=ewa_lanczos{% if deband %}:deband=1:deband_iterations=2:deband_threshold=4{% endif %},unsharp=5:5:{{ texture_recovery }}:5:5:{{ texture_recovery * 0.5 }}" {% if input_ext in ['png'] %} -c:v png -compression_level 9 "{{ output_path_no_ext }}.png" {% elif input_ext in ['webp'] %} -c:v libwebp -lossless 1 "{{ output_path_no_ext }}.webp" {% else %} -c:v mjpeg -q:v 2 "{{ output_path_no_ext }}.jpg" {% endif %}
+      {% else %}
+        {# VIDEO: Multi-pass pipeline with libplacebo + sharpening #}
+        {{ tool_exe }} -y -i "{{ input_path }}" -vf "libplacebo=w={{ out_w }}:h={{ out_h }}:upscaler=ewa_lanczos{% if deband %}:deband=1:deband_iterations=2:deband_threshold=4{% endif %},unsharp=5:5:{{ texture_recovery }}:5:5:{{ texture_recovery * 0.5 }}" -c:v libx264 -preset slow -crf 16 -pix_fmt yuv420p {% if meta.has_audio %} -c:a aac -b:a 320k {% else %} -an {% endif %} -movflags +faststart "{{ output_path }}"
+      {% endif %}

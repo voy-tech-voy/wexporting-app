@@ -1,0 +1,19 @@
+# ============================================================================
+# VECTOR RASTERIZER (SVG TO PNG)
+# ============================================================================
+meta:
+  id: "utility_svg_rasterizer"
+  name: "SVG to Pro PNG"
+  category: "utility"
+  description: "High-DPI rasterization of vector graphics with transparency."
+  version: "1.0"
+
+pipeline:
+  - tool: "magick"
+    description: "Rasterizing vector at 300 DPI"
+    command_template: |
+      "tools/magick.exe" 
+      -background none 
+      -density 300 
+      "{{ input_path }}" 
+      "{{ output_path_no_ext }}.png"

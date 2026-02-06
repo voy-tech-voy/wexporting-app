@@ -1,0 +1,52 @@
+meta:
+  id: "util_extract_audio"
+  name: "Extract Audio"
+  category: "utility"
+  description: "Rip audio track from video files (MP3/WAV)."
+  version: "1.0"
+
+style:
+  accent_color: "#FF9900" # Soundwave Orange
+  icon: "music"
+  glow_strength: "weak"
+
+constraints:
+  accepted_types: ["video"]
+
+parameters:
+  - id: "format"
+    type: "segmented_pill"
+    label: "Output Format"
+    options: ["MP3", "WAV", "M4A"]
+    default: "MP3"
+
+  - id: "bitrate"
+    type: "dropdown"
+    label: "Bitrate"
+    options: ["128k (Speech)", "192k (Standard)", "320k (High)"]
+    default: "192k (Standard)"
+    # Hide bitrate if WAV (Lossless) is selected
+    visibility_rule: "format != 'WAV'"
+
+pipeline:
+  - tool: "ffmpeg"
+    description: "Extract Audio Track"
+    filename_suffix: "_audio"
+    
+    command_template: |
+      {{ tool_exe }} -y -i "{{ input_path }}"
+      -vn
+      
+      {% if format == 'MP3' %}
+        -c:a libmp3lame -b:a {{ bitrate.split(' ')[0] }}
+        "{{ output_path_no_ext }}.mp3"
+        
+      {% elif format == 'M4A' %}
+        -c:a aac -b:a {{ bitrate.split(' ')[0] }}
+        "{{ output_path_no_ext }}.m4a"
+        
+      {% else %}
+        {# WAV is PCM (Lossless) #}
+        -c:a pcm_s16le
+        "{{ output_path_no_ext }}.wav"
+      {% endif %}

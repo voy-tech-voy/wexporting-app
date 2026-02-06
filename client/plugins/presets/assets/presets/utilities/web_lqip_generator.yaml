@@ -1,0 +1,33 @@
+# ============================================================================
+# LQIP GENERATOR (LAZY LOADING)
+# ============================================================================
+meta:
+  id: "web_lqip_generator"
+  name: "LQIP Placeholder"
+  category: "web"
+  description: "Creates a tiny 20px blurred placeholder for lazy-loading web logic."
+  version: "1.0"
+
+style:
+  accent_color: "#E91E63"         # Design Pink
+  icon: "blur"
+  glow_strength: "weak"
+
+pipeline:
+  - tool: "magick"
+    description: "Creating tiny blurred placeholder"
+    command_template: |
+      "tools/magick.exe" "{{ input_path }}" 
+      -resize 20x20 
+      -strip 
+      -blur 0x8 
+      -quality 20 
+      "{{ output_path_no_ext }}_placeholder.jpg"
+
+# ============================================================================
+# CHECKLIST
+# ============================================================================
+# [x] Unique id: web_lqip_generator
+# [x] Category: web
+# [x] Logic: Uses -resize 20x20 and -blur to create a tiny placeholder.
+# [x] Output: Generates a separate file (e.g., image_placeholder.jpg) for easy JS integration.

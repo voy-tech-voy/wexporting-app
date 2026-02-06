@@ -1,0 +1,29 @@
+# LinkedIn 9:16 Preset
+meta:
+  id: "linkedin_916"
+  name: "LinkedIn"
+  category: "social"
+  ratio: "9x16"
+  description: "LinkedIn - 9:16 vertical format"
+  version: "1.0"
+
+style:
+  accent_color: "#0A66C2"
+  icon: "in"
+  glow_strength: "normal"
+
+constraints:
+  accepted_types: ["video"]
+
+parameters: []
+
+pipeline:
+  - tool: "ffmpeg"
+    description: "Convert to LinkedIn format"
+    command_template: |
+      {{ tool_exe }} -y -i "{{ input_path }}"
+      -vf "scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:black"
+      -c:v libx264 -preset medium -crf 23
+      -c:a aac -b:a 128k
+      -movflags +faststart
+      "{{ output_path }}"

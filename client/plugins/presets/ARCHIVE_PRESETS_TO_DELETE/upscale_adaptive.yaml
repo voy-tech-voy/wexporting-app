@@ -1,0 +1,61 @@
+# ============================================================================
+# PRO ADAPTIVE UPSCALE (EWA Lanczos + CAS Sharpening)
+# ============================================================================
+# Uses libplacebo's EWA Lanczos + software CAS (Contrast Adaptive Sharpening)
+# Note: CAS filter may not be available in all FFmpeg builds
+# ============================================================================
+
+meta:
+  id: "pro_upscale_cas"
+  name: "Pro Adaptive Upscale (CAS)"
+  category: "utils"
+  description: "EWA Lanczos + Contrast Adaptive Sharpening. Gaming-grade upscaling."
+  version: "2.0"
+
+style:
+  accent_color: "#00FF7F"
+  icon: "maximize"
+  glow_strength: "strong"
+
+constraints:
+  accepted_types: ["video", "image"]
+  accepted_extensions: [".mp4", ".mov", ".mkv", ".avi", ".webm", ".jpg", ".jpeg", ".png", ".webp", ".heic"]
+  min_duration: 0.0
+
+parameters:
+  - id: "target_scale"
+    type: "segmented_pill"
+    label: "Upscale Factor"
+    options: ["2x", "4x"]
+    default: "2x"
+    tooltip: "2x (1080p -> 4K) or 4x (720p -> 4K+)"
+
+  - id: "cas_strength"
+    type: "slider"
+    label: "CAS Sharpening"
+    default: 0.8
+    min_value: 0.0
+    max_value: 1.0
+    step: 0.1
+    tooltip: "Contrast Adaptive Sharpening strength. 0.8 is gaming standard."
+
+pipeline:
+  - tool: "ffmpeg"
+    description: "EWA + CAS Pass"
+    filename_suffix: "_CAS_{{ target_scale }}"
+
+    command_template: |
+      {# --- RESOLUTION MATH --- #}
+      {% set scale_mult = 2 if target_scale == '2x' else 4 %}
+      {% set out_w = (meta.width * scale_mult) | int %}
+      {% set out_h = (meta.height * scale_mult) | int %}
+      {% set input_ext = input_path.split('.')[-1].lower() %}
+
+      {# --- IMAGE OR VIDEO? --- #}
+      {% if meta.duration < 0.1 or not meta.fps %}
+        {# IMAGE: libplacebo upscale + unsharp for CAS-like effect #}
+        {{ tool_exe }} -y -i "{{ input_path }}" -vf "libplacebo=w={{ out_w }}:h={{ out_h }}:upscaler=ewa_lanczos,unsharp=5:5:{{ cas_strength }}:5:5:{{ cas_strength * 0.5 }}" {% if input_ext in ['png'] %} -c:v png -compression_level 9 "{{ output_path_no_ext }}.png" {% elif input_ext in ['jpg', 'jpeg'] %} -c:v mjpeg -q:v 2 "{{ output_path_no_ext }}.jpg" {% elif input_ext in ['webp'] %} -c:v libwebp -lossless 1 "{{ output_path_no_ext }}.webp" {% else %} -c:v png -compression_level 9 "{{ output_path_no_ext }}.png" {% endif %}
+      {% else %}
+        {# VIDEO: libplacebo upscale + unsharp (CAS filter not universally available) #}
+        {{ tool_exe }} -y -i "{{ input_path }}" -vf "libplacebo=w={{ out_w }}:h={{ out_h }}:upscaler=ewa_lanczos,unsharp=5:5:{{ cas_strength }}:5:5:{{ cas_strength * 0.5 }}" -c:v libx264 -preset slow -crf 17 -pix_fmt yuv420p {% if meta.has_audio %} -c:a aac -b:a 256k {% else %} -an {% endif %} -movflags +faststart "{{ output_path }}"
+      {% endif %}

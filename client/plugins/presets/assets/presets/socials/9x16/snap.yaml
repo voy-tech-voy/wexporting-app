@@ -1,0 +1,27 @@
+# Snapchat Pro (9:16)
+# Low-latency vertical for instant Snap sending
+
+meta:
+  id: "snapchat_pro_9x16"
+  name: "Snapchat Pro"
+  category: "social"
+  description: "9:16 Vertical. Optimized for fast uploads and low-latency playback on Snapchat."
+  version: "1.0"
+
+style:
+  accent_color: "#FFFC00" # Snapchat Yellow
+  icon: "snapchat"
+  glow_strength: "strong"
+
+pipeline:
+  - tool: "ffmpeg"
+    description: "Snapchat Optimization"
+    filename_suffix: "_SNAP"
+    command_template: >
+      {{ tool_exe }} -y -i "{{ input_path }}"
+      -vf "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920"
+      -c:v libx264 -preset fast -crf 23 -maxrate 6M -bufsize 12M
+      -pix_fmt yuv420p -r 30 -g 30
+      -c:a aac -b:a 96k -ar 44100
+      -movflags +faststart
+      "{{ output_path }}"

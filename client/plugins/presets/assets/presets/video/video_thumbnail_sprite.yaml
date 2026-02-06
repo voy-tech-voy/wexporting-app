@@ -1,0 +1,93 @@
+# ============================================================================
+# INTELLIGENT THUMBNAIL SPRITE (WEB VIDEO PREVIEW)
+# ============================================================================
+# Location: client/plugins/presets/assets/presets/video_thumbnail_sprite.yaml
+# Category: video
+# Logic: Uses fps and tile filters to create a single-image grid of the video.
+# ============================================================================
+
+meta:
+  id: "video_thumbnail_sprite"
+  name: "Thumbnail Sprite Sheet"
+  category: "video"
+  description: "Creates a tiled 'storyboard' image for seek-bar previews on websites."
+  version: "1.0"
+
+style:
+  accent_color: "#F28C28"         # Developer Orange
+  icon: "grid-view"
+  glow_strength: "normal"
+
+constraints:
+  accepted_types: ["video"]
+  accepted_extensions: [".mp4", ".mov", ".mkv", ".webm"]
+  min_duration: 1.0
+
+# --- THE USER INTERFACE ---
+parameters:
+  - id: "interval"
+    type: "slider"
+    label: "Snapshot Every (s)"
+    default: 5
+    min_value: 1
+    max_value: 60
+    tooltip: "Time in seconds between each thumbnail."
+
+  - id: "thumb_width"
+    type: "slider"
+    label: "Tile Width (px)"
+    default: 160
+    min_value: 80
+    max_value: 320
+    tooltip: "The width of each individual thumbnail in the grid."
+
+  - id: "columns"
+    type: "slider"
+    label: "Grid Columns"
+    default: 10
+    min_value: 5
+    max_value: 20
+    tooltip: "How many thumbnails to place in each row."
+
+  - id: "image_quality"
+    type: "slider"
+    label: "Sprite Quality"
+    default: 80
+    min_value: 50
+    max_value: 100
+    tooltip: "Higher = clearer thumbs, but larger file size for web loading."
+
+# --- THE EXECUTION LOGIC ---
+pipeline:
+  - tool: "ffmpeg"
+    description: "Generating storyboard sprite sheet..."
+    
+    filename_suffix: "_sprite"
+    
+    command_template: |
+      {{ tool_exe }} -y -i "{{ input_path }}"
+      
+      {# --- MATH: Calculate rows based on duration and interval --- #}
+      {# Formula: (Total Duration / Interval) / Columns = Rows #}
+      {% set total_thumbs = (meta.duration / interval) | round(0, 'ceil') | int %}
+      {% set rows = ((total_thumbs / columns) | round(0, 'ceil')) | int %}
+      
+      {# --- FILTER CHAIN --- #}
+      {# 1. fps: Captures one frame every X seconds #}
+      {# 2. scale: Shrinks frames to thumbnail size #}
+      {# 3. tile: Stitches them into a grid #}
+      -vf "fps=1/{{ interval }},scale={{ thumb_width }}:-1,tile={{ columns }}x{{ rows }}"
+      
+      {# --- OUTPUT SETTINGS --- #}
+      -an 
+      -frames:v 1
+      -q:v {{ ((101 - image_quality) / 3.2) | int }}
+      "{{ output_path_no_ext }}.jpg"
+
+# ============================================================================
+# CHECKLIST
+# ============================================================================
+# [x] Unique id: video_thumbnail_sprite
+# [x] Logic: Uses -frames:v 1 to ensure only ONE giant image is exported.
+# [x] Layout: Dynamic Jinja2 row calculation prevents grid overflow.
+# [x] Web Optimized: Uses JPG for maximum browser compatibility.

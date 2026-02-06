@@ -64,10 +64,7 @@ class OutputFooter(QWidget):
         self.segment_control.setMaximumWidth(600) # Increased width to prevent clipping
         layout.addWidget(self.segment_control)
         
-        # Tooltip for "Organized" mode
-        self.organized_tooltip = QLabel("Everything in its own folder")
-        self.organized_tooltip.setVisible(False)
-        layout.addWidget(self.organized_tooltip)
+
         
         # Spacer
         layout.addStretch()
@@ -86,8 +83,6 @@ class OutputFooter(QWidget):
         self.segment_control.set_selected("organized")
         
     def _on_mode_changed(self, mode):
-        # Show tooltip for organized mode
-        self.organized_tooltip.setVisible(mode == "organized")
         self.output_mode_changed.emit(mode)
         
     def _on_start_clicked(self):
@@ -168,10 +163,7 @@ class OutputFooter(QWidget):
         
         self._apply_start_style()
         
-        # Tooltip styling
-        self.organized_tooltip.setStyleSheet(
-            f"font-family: '{Theme.FONT_BODY}'; font-size: {Theme.FONT_SIZE_SM}px; color: {Theme.text_muted()}; font-style: italic;"
-        )
+
         
     def _apply_start_style(self):
         Theme.set_dark_mode(self._is_dark)

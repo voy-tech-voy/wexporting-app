@@ -1,0 +1,152 @@
+# ============================================================================
+# SPATIO-TEMPORAL VIDEO UPSCALING (4-STEP NCNN-VULKAN)
+# ============================================================================
+# Step 1: Extract frames to directory (Lossless PNG)
+# Step 2: Spatial upscaling using RealESRGAN (Vulkan)
+# Step 3: Temporal smoothing using RIFE (Vulkan) - fixes jitter/shimmering
+# Step 4: Reassemble video with original audio
+# ============================================================================
+
+meta:
+  id: "spatiotemporal_upscale_4step"
+  name: "Spatio-Temporal (4-Step)"
+  category: "upscale"
+  description: "Professional video upscaling with temporal smoothing. Eliminates jitter and shimmering."
+  version: "1.0"
+
+style:
+  accent_color: "#00D4FF"         # Bright Cyan
+  icon: "sparkles"
+  glow_strength: "strong"
+
+constraints:
+  accepted_types: ["video"]
+  accepted_extensions: [".mp4", ".mov", ".mkv", ".avi", ".webm"]
+  min_duration: 0.1
+
+parameters:
+  - id: "model_type"
+    type: "segmented_pill"
+    label: "AI Model"
+    options: ["Anime (Fast)", "General (x4 only)"]
+    default: "Anime (Fast)"
+    tooltip: "Anime model (realesr-animevideov3) supports x2/x3/x4. General model is x4 only."
+
+  - id: "scale"
+    type: "segmented_pill"
+    label: "Upscale Factor"
+    options: ["x2", "x3", "x4"]
+    default: "x2"
+    tooltip: "Spatial upscaling factor. Higher scales require more processing time."
+
+  - id: "rife_model"
+    type: "segmented_pill"
+    label: "RIFE Model"
+    options: ["v4.6 (Best)", "v4.0 (Faster)"]
+    default: "v4.6 (Best)"
+    tooltip: "RIFE temporal smoothing model. v4.6 provides best quality."
+
+  - id: "gpu_threads"
+    type: "segmented_pill"
+    label: "GPU Threads"
+    options: ["Auto", "Conservative (1:1:1)"]
+    default: "Auto"
+    tooltip: "Conservative mode limits GPU usage to prevent crashes on lower VRAM systems."
+
+  - id: "output_fps"
+    type: "segmented_pill"
+    label: "Output FPS"
+    options: ["Smooth (2x FPS)", "Cinematic (Original FPS)"]
+    default: "Smooth (2x FPS)"
+    tooltip: "Smooth: Uses all RIFE frames for ultra-smooth motion. Cinematic: Blends frames to original FPS for natural motion blur."
+
+
+pipeline:
+  # --------------------------------------------------------------------------
+  # STEP 1: LOSSLESS FRAME EXTRACTION TO DIRECTORY
+  # --------------------------------------------------------------------------
+  - tool: "ffmpeg"
+    description: "Step 1/4: Extracting Frames..."
+    filename_suffix: "_ST_{{ scale }}{% if model_type == 'Anime (Fast)' %}_Anime{% else %}_Gen{% endif %}{% if rife_model == 'v4.6 (Best)' %}_v4.6{% else %}_v4{% endif %}{% if output_fps == 'Smooth (2x FPS)' %}_2xFPS{% else %}_OrigFPS{% endif %}"
+    command_template: |
+      {# Create frames directory first (Windows PowerShell) #}
+      powershell -Command "New-Item -ItemType Directory -Force -Path '{{ output_path_no_ext }}_frames'" && {{ tool_exe }} -y -i "{{ input_path }}" -qscale:v 1 -pix_fmt rgb24 "{{ output_path_no_ext }}_frames/frame_%08d.png"
+
+
+
+  # --------------------------------------------------------------------------
+  # STEP 2: SPATIAL UPSCALING (REALESRGAN)
+  # --------------------------------------------------------------------------
+  - tool: "ffmpeg"
+    description: "Step 2/4: Spatial Upscaling (RealESRGAN)..."
+    command_template: |
+      {# --- MODEL LOGIC --- #}
+      {% if model_type == 'Anime (Fast)' %}
+        {% set model_name = 'realesr-animevideov3' %}
+        {% set actual_scale = scale.replace('x', '') %}
+      {% else %}
+        {% set model_name = 'realesrgan-x4plus' %}
+        {% set actual_scale = '4' %}
+      {% endif %}
+      
+      {# --- GPU THREAD LOGIC --- #}
+      {% if gpu_threads == 'Conservative (1:1:1)' %}
+        {% set thread_args = '-j 1:1:1' %}
+      {% else %}
+        {% set thread_args = '' %}
+      {% endif %}
+      
+      {# --- REALESRGAN EXECUTABLE (RELATIVE PATH) --- #}
+      {% set realesr_exe = "tools/realesrgan/realesrgan-ncnn-vulkan.exe" %}
+      
+      {# Create upscaled directory and process frames #}
+      powershell -Command "New-Item -ItemType Directory -Force -Path '{{ output_path_no_ext }}_upscaled'" && "{{ realesr_exe }}" -i "{{ output_path_no_ext }}_frames" -o "{{ output_path_no_ext }}_upscaled" -n {{ model_name }} -s {{ actual_scale }} {{ thread_args }} -f png
+
+
+  # --------------------------------------------------------------------------
+  # STEP 3: TEMPORAL SMOOTHING (RIFE)
+  # --------------------------------------------------------------------------
+  - tool: "ffmpeg"
+    description: "Step 3/4: Temporal Smoothing (RIFE)..."
+    command_template: |
+      {# --- RIFE MODEL LOGIC --- #}
+      {% if rife_model == 'v4.6 (Best)' %}
+        {% set rife_model_name = 'rife-v4.6' %}
+      {% else %}
+        {% set rife_model_name = 'rife-v4' %}
+      {% endif %}
+      
+      {# --- GPU THREAD LOGIC --- #}
+      {% if gpu_threads == 'Conservative (1:1:1)' %}
+        {% set thread_args = '-j 1:1:1' %}
+      {% else %}
+        {% set thread_args = '' %}
+      {% endif %}
+      
+      {# --- RIFE EXECUTABLE (RELATIVE PATH) --- #}
+      {% set rife_exe = "tools/rife/rife-ncnn-vulkan.exe" %}
+      
+      {# Create final directory and process frames with RIFE #}
+      powershell -Command "New-Item -ItemType Directory -Force -Path '{{ output_path_no_ext }}_final'" && "{{ rife_exe }}" -i "{{ output_path_no_ext }}_upscaled" -o "{{ output_path_no_ext }}_final" -m {{ rife_model_name }} {{ thread_args }}
+
+
+  # --------------------------------------------------------------------------
+  # STEP 4: REASSEMBLY & AUDIO MERGE
+  # --------------------------------------------------------------------------
+  - tool: "ffmpeg"
+    description: "Step 4/4: Reassembling Video..."
+    command_template: |
+      {# --- FPS LOGIC --- #}
+      {# RIFE doubles the frame count, so we need to handle 2x FPS #}
+      {% set doubled_fps = (meta.fps * 2) | int %}
+      
+      {# --- OUTPUT MODE LOGIC --- #}
+      {% if output_fps == 'Smooth (2x FPS)' %}
+        {# Option A: Smooth 2x FPS - Use all RIFE frames for ultra-smooth motion #}
+        {{ tool_exe }} -y -framerate {{ doubled_fps }} -i "{{ output_path_no_ext }}_final/%08d.png" -i "{{ input_path }}" -map 0:v -map 1:a? -c:v libx264 -preset slow -crf 17 -pix_fmt yuv420p -movflags +faststart "{{ output_path }}"
+      {% else %}
+        {# Option B: Cinematic Original FPS - Blend frames for natural motion blur #}
+        {# tblend averages adjacent frames, fps filter reduces back to original framerate #}
+        {{ tool_exe }} -y -framerate {{ doubled_fps }} -i "{{ output_path_no_ext }}_final/%08d.png" -i "{{ input_path }}" -vf "tblend=all_mode=average,fps={{ meta.fps }}" -map 0:v -map 1:a? -c:v libx264 -preset slow -crf 17 -pix_fmt yuv420p -movflags +faststart "{{ output_path }}"
+      {% endif %}
+

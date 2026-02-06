@@ -1,0 +1,54 @@
+# ============================================================================
+# AI UPSCALE (AMD Hardware Super-Resolution)
+# ============================================================================
+# Uses AMD's sr_amf filter for GPU-accelerated video upscaling
+# Works with AMD GPUs only - hardware accelerated, very fast
+# ============================================================================
+
+meta:
+  id: "ai_upscale_gpu"
+  name: "AI Upscale (GPU)"
+  category: "utils"
+  description: "GPU-accelerated AI upscaling using libplacebo. Fast NVIDIA/AMD encoding."
+  version: "1.0"
+
+style:
+  accent_color: "#76B900"  # NVIDIA Green
+  icon: "cpu"
+  glow_strength: "strong"
+
+constraints:
+  accepted_types: ["video"]
+  accepted_extensions: [".mp4", ".mov", ".mkv", ".avi", ".webm"]
+  min_duration: 0.1
+
+parameters:
+  - id: "target_scale"
+    type: "segmented_pill"
+    label: "Scale Factor"
+    options: ["2x", "4x"]
+    default: "2x"
+    tooltip: "Upscaling factor (2x or 4x)"
+
+pipeline:
+  - tool: "ffmpeg"
+    description: "AMD Hardware AI Upscale"
+    filename_suffix: "_AMD_SR_{{ target_scale }}"
+
+    command_template: |
+      {# --- RESOLUTION MATH --- #}
+      {% set scale_factor = 2 if target_scale == '2x' else 4 %}
+      {% set out_w = (meta.width * scale_factor) | int %}
+      {% set out_h = (meta.height * scale_factor) | int %}
+
+      {# --- AUTO GPU DETECTION: Use best available encoder --- #}
+      {% if gpu_type == 'nvidia' %}
+        {# NVIDIA GPU: h264_nvenc #}
+        {{ tool_exe }} -y -i "{{ input_path }}" -vf "libplacebo=w={{ out_w }}:h={{ out_h }}:upscaler=ewa_lanczos" -c:v {{ gpu_encoder }} -preset p7 -cq 18 -pix_fmt yuv420p {% if meta.has_audio %} -c:a aac -b:a 256k {% else %} -an {% endif %} -movflags +faststart "{{ output_path }}"
+      {% elif gpu_type == 'amd' %}
+        {# AMD GPU: h264_amf #}
+        {{ tool_exe }} -y -i "{{ input_path }}" -vf "libplacebo=w={{ out_w }}:h={{ out_h }}:upscaler=ewa_lanczos" -c:v {{ gpu_encoder }} -quality quality -rc cqp -qp 18 -pix_fmt yuv420p {% if meta.has_audio %} -c:a aac -b:a 256k {% else %} -an {% endif %} -movflags +faststart "{{ output_path }}"
+      {% else %}
+        {# CPU Fallback: libx264 #}
+        {{ tool_exe }} -y -i "{{ input_path }}" -vf "libplacebo=w={{ out_w }}:h={{ out_h }}:upscaler=ewa_lanczos" -c:v {{ gpu_encoder }} -preset slow -crf 18 -pix_fmt yuv420p {% if meta.has_audio %} -c:a aac -b:a 256k {% else %} -an {% endif %} -movflags +faststart "{{ output_path }}"
+      {% endif %}

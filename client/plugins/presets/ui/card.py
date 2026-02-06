@@ -11,6 +11,8 @@ from PyQt6.QtGui import QPixmap, QIcon, QColor, QPainter
 from client.plugins.presets.logic.models import PresetDefinition
 from client.utils.resource_path import get_resource_path
 from client.gui.theme import Theme
+from client.gui.components.info_tooltip import TooltipHoverFilter
+from client.gui.components.tooltips.preset_info import PRESET_MESSAGES
 
 
 class PresetCard(QFrame):
@@ -50,9 +52,11 @@ class PresetCard(QFrame):
         self._setup_ui()
         self._apply_styles()
         
-        # Ghost effect for unavailable presets
+        # Ghost effect and badge for unavailable presets
         if not self._is_available:
             self._apply_ghost_effect()
+            self._add_unavailable_badge()
+            self._attach_tooltip()
     
     def _setup_ui(self):
         """Setup the card layout with icon and text zones."""
@@ -192,9 +196,76 @@ class PresetCard(QFrame):
     def _apply_ghost_effect(self):
         """Apply ghost effect for unavailable presets."""
         opacity = QGraphicsOpacityEffect(self)
-        opacity.setOpacity(0.4)
+        opacity.setOpacity(0.5)  # 50% opacity for disabled state
         self.setGraphicsEffect(opacity)
         self.setCursor(Qt.CursorShape.ForbiddenCursor)
+    
+    def _add_unavailable_badge(self):
+        """Add badge overlay indicating why preset is unavailable."""
+        # Determine badge text based on missing tools
+        if self._preset.missing_tools:
+            if "GPU (NVIDIA/AMD/Intel)" in self._preset.missing_tools:
+                badge_text = "GPU REQUIRED"
+                badge_color = Theme.warning()
+            else:
+                badge_text = "TOOL MISSING"
+                badge_color = Theme.error()
+        else:
+            badge_text = "UNAVAILABLE"
+            badge_color = Theme.text_muted()
+        
+        # Create badge label
+        self.badge_label = QLabel(badge_text)
+        self.badge_label.setParent(self)
+        self.badge_label.setObjectName("UnavailableBadge")
+        self.badge_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        
+        # Position badge at bottom of card
+        badge_height = 20
+        self.badge_label.setGeometry(
+            0, 
+            self.CARD_HEIGHT - badge_height, 
+            self.CARD_WIDTH, 
+            badge_height
+        )
+        
+        # Style badge
+        self.badge_label.setStyleSheet(f"""
+            QLabel#UnavailableBadge {{
+                background-color: {badge_color};
+                color: {Theme.surface()};
+                font-size: {Theme.FONT_SIZE_XS}px;
+                font-weight: bold;
+                border-bottom-left-radius: {Theme.RADIUS_LG}px;
+                border-bottom-right-radius: {Theme.RADIUS_LG}px;
+                padding: 2px;
+            }}
+        """)
+        
+        self.badge_label.show()
+    
+    def _attach_tooltip(self):
+        """Attach InfoTooltip explaining why preset is unavailable."""
+        if self._preset.missing_tools and "GPU (NVIDIA/AMD/Intel)" in self._preset.missing_tools:
+            # GPU required tooltip
+            self.tooltip_filter = TooltipHoverFilter(
+                self, 
+                PRESET_MESSAGES["gpu_required"],
+                simple_mode=True
+            )
+        elif self._preset.missing_tools:
+            # Missing tool tooltip
+            tool_names = ", ".join(self._preset.missing_tools)
+            tooltip_data = {
+                "title": "Tool Not Found",
+                "message": f"Required tool(s) not available: {tool_names}",
+                "icon": "error"
+            }
+            self.tooltip_filter = TooltipHoverFilter(
+                self,
+                tooltip_data,
+                simple_mode=True
+            )
     
     def set_drag_active(self, active: bool):
         """Set drag-active state for visual feedback."""

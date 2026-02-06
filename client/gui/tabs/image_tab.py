@@ -21,7 +21,8 @@ from client.gui.custom_widgets import (
 from client.gui.widgets import EstimatorVersionSelector
 from client.gui.sections import ResizeSection, TargetSizeSection
 from client.gui.theme import get_combobox_style
-from client.gui.components.codec_tooltip import TooltipHoverFilter
+from client.gui.components.info_tooltip import TooltipHoverFilter
+from client.gui.components.tooltips.codec_info import CODEC_COMPARISONS
 
 COMBOBOX_STYLE = get_combobox_style(True)  # Default dark mode
 
@@ -89,7 +90,7 @@ class ImageTab(BaseTab):
         self.format.currentTextChanged.connect(self._on_format_changed)
         
         # Add efficiency tooltip
-        self.format_tooltip = TooltipHoverFilter(self.format, mode="image")
+        self.format_tooltip = TooltipHoverFilter(self.format, CODEC_COMPARISONS["image"])
         
         # Target Size Section
         self.target_size_section = TargetSizeSection(

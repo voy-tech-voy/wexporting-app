@@ -10,6 +10,7 @@ from PyQt6.QtCore import QObject, pyqtSignal
 
 from client.plugins.presets.logic import PresetManager, CommandBuilder, PresetDefinition, MediaAnalyzer
 from client.plugins.presets.ui import PresetGallery, ParameterForm
+from client.utils.gpu_detector import get_gpu_detector
 
 if TYPE_CHECKING:
     from client.core.tool_registry.protocol import ToolRegistryProtocol
@@ -55,7 +56,8 @@ class PresetOrchestrator(QObject):
         self._parent_widget = parent_widget
         
         # Initialize logic components
-        self._manager = PresetManager(registry)
+        gpu_detector = get_gpu_detector()
+        self._manager = PresetManager(registry, gpu_detector=gpu_detector)
         self._builder = CommandBuilder(registry)
         self._analyzer = MediaAnalyzer(registry)
         
@@ -133,45 +135,94 @@ class PresetOrchestrator(QObject):
                 else:
                     output_dir = input_p.parent
                 
-                output_path = output_dir / f"{input_p.stem}_preset{input_p.suffix}"
-                
                 # Analyze media for smart presets
                 meta = self.analyze_file(str(input_path))
-                print(f"[PresetOrchestrator] Meta: fps={meta.get('fps')}, landscape={meta.get('is_landscape')}")
+                print(f"[PresetOrchestrator] Meta: fps={meta.get('fps')}, landscape={meta.get('is_landscape')}, width={meta.get('width')}, height={meta.get('height')}")
                 
                 # Get parameter values
                 param_values = self.get_parameter_values()
                 print(f"[PresetOrchestrator] Params: {param_values}")
                 
+                # Render filename suffix from YAML template (e.g., "_upscaled_2x")
+                filename_suffix = ""
+                if preset.pipeline and preset.pipeline[0].filename_suffix:
+                    # Build minimal context for suffix rendering
+                    suffix_context = {
+                        'meta': meta,
+                        **param_values,
+                    }
+                    filename_suffix = self._builder.render_filename_suffix(preset.pipeline[0], suffix_context)
+                    print(f"[PresetOrchestrator] Rendered suffix: '{filename_suffix}'")
+                else:
+                    filename_suffix = "_preset"
+                
+                # Construct output path with dynamic suffix
+                output_path = output_dir / f"{input_p.stem}{filename_suffix}{input_p.suffix}"
+                
                 # Build context for template
+                # Detect best available GPU encoder
+                gpu_detector = get_gpu_detector(self._registry.get_tool_path('ffmpeg'))
+                h264_encoder, encoder_type = gpu_detector.get_best_encoder("MP4 (H.264)", prefer_gpu=True)
+                
                 context = {
                     'input_path': str(input_path),
                     'output_path': str(output_path),
-                    'output_path_no_ext': str(output_dir / input_p.stem),
+                    'output_path_no_ext': str(output_dir / f"{input_p.stem}{filename_suffix}"),
                     'meta': meta,
+                    'gpu_encoder': h264_encoder,  # Best h264 encoder (h264_nvenc, h264_amf, or libx264)
+                    'gpu_type': encoder_type.value,  # 'nvidia', 'amd', or 'cpu'
                     **param_values,
                 }
                 
-                # Build and execute command
+                
+                # Build and execute all pipeline steps sequentially
                 if preset.pipeline:
-                    cmd = self._builder.build_command(preset.pipeline[0], context)
-                    print(f"[PresetOrchestrator] Command: {cmd[:200]}...")
+                    pipeline_success = True
                     
-                    result = subprocess.run(
-                        cmd,
-                        shell=True,
-                        capture_output=True,
-                        text=True,
-                        creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
-                    )
+                    for step_idx, step in enumerate(preset.pipeline):
+                        cmd = self._builder.build_command(step, context)
+                        step_num = step_idx + 1
+                        total_steps = len(preset.pipeline)
+                        
+                        print(f"[PresetOrchestrator] ===== STEP {step_num}/{total_steps}: {step.description} =====")
+                        print(f"[PresetOrchestrator] {cmd}")
+                        print(f"[PresetOrchestrator] ====================================")
+                        
+                        result = subprocess.run(
+                            cmd,
+                            shell=True,
+                            capture_output=True,
+                            text=True,
+                            encoding='utf-8',
+                            errors='replace',  # Replace invalid chars instead of crashing
+                            creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
+                        )
+                        
+                        # Check if step succeeded
+                        if result.returncode != 0:
+                            pipeline_success = False
+                            print(f"[PresetOrchestrator] [X] Step {step_num} failed: {step.description}")
+                            print(f"[PresetOrchestrator] stderr: {result.stderr[:500]}")
+                            break  # Stop pipeline on first failure
+                        else:
+                            print(f"[PresetOrchestrator] [OK] Step {step_num} completed: {step.description}")
                     
-                    if result.returncode == 0:
-                        success_count += 1
-                        print(f"[PresetOrchestrator] [OK] Success: {input_p.name}")
+                    # Check final output file exists (only after all steps complete)
+                    if pipeline_success:
+                        output_exists = output_path.exists()
+                        
+                        if output_exists:
+                            success_count += 1
+                            print(f"[PresetOrchestrator] [OK] Success: {input_p.name}")
+                        else:
+                            failed_count += 1
+                            print(f"[PresetOrchestrator] [X] Failed: {input_p.name}")
+                            print(f"[PresetOrchestrator] ERROR: Pipeline succeeded but output file not created!")
+                            print(f"[PresetOrchestrator] Expected output: {output_path}")
                     else:
                         failed_count += 1
-                        print(f"[PresetOrchestrator] [X] Failed: {input_p.name}")
-                        print(f"[PresetOrchestrator] stderr: {result.stderr[:200]}")
+                        print(f"[PresetOrchestrator] [X] Failed: {input_p.name} (pipeline step failed)")
+
                 
                 # Emit progress
                 self.conversion_progress.emit(i + 1, total_files, f"Processed: {input_p.name}")

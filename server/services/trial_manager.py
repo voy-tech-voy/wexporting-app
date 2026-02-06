@@ -39,7 +39,7 @@ class TrialManager:
         """Load trial rules (limits)"""
         try:
             if os.path.exists(self.rules_file):
-                with open(self.rules_file, 'r') as f:
+                with open(self.rules_file, 'r', encoding='utf-8') as f:
                     return json.load(f)
         except Exception:
             pass
@@ -49,14 +49,14 @@ class TrialManager:
         """Ensure trials file exists"""
         if not os.path.exists(self.trials_file):
             os.makedirs(os.path.dirname(self.trials_file), exist_ok=True)
-            with open(self.trials_file, 'w') as f:
+            with open(self.trials_file, 'w', encoding='utf-8') as f:
                 json.dump({}, f)
 
     def load_trials(self):
         """Load trials with thread safety"""
         with _trial_usage_lock:
             try:
-                with open(self.trials_file, 'r') as f:
+                with open(self.trials_file, 'r', encoding='utf-8') as f:
                     return json.load(f)
             except (FileNotFoundError, json.JSONDecodeError):
                 return {}
@@ -66,7 +66,7 @@ class TrialManager:
         with _trial_usage_lock:
             try:
                 temp_file = self.trials_file + '.tmp'
-                with open(temp_file, 'w') as f:
+                with open(temp_file, 'w', encoding='utf-8') as f:
                     json.dump(trials, f, indent=2)
                 os.replace(temp_file, self.trials_file)
                 return True

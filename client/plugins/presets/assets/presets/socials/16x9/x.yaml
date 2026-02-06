@@ -1,0 +1,28 @@
+# X Landscape Pro (16:9)
+# Cinematic landscape format for news, trailers, and widescreen clips
+
+meta:
+  id: "x_pro_16x9"
+  name: "X Landscape Pro"
+  category: "social"
+  description: "16:9 native widescreen. Optimized for desktop and widescreen timeline viewing."
+  version: "1.0"
+
+style:
+  accent_color: "#000000"
+  icon: "landscape"
+  glow_strength: "medium"
+
+pipeline:
+  - tool: "ffmpeg"
+    description: "X Landscape Conversion"
+    filename_suffix: "_X_16x9"
+    command_template: >
+      {{ tool_exe }} -y -i "{{ input_path }}"
+
+      -vf "scale=1920:1080:force_original_aspect_ratio=increase,crop=1920:1080,unsharp=3:3:0.5:3:3:0.0"
+
+      -c:v libx264 -preset medium -crf 19 -maxrate 15M -bufsize 30M
+      -pix_fmt yuv420p -r 30 -g 60 -c:a aac -b:a 160k
+      -movflags +faststart
+      "{{ output_path }}"

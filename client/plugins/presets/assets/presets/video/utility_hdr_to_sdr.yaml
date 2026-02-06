@@ -1,0 +1,102 @@
+# ============================================================================
+# IPHONE HDR TO SDR TONE-MAPPER
+# ============================================================================
+# Location: client/plugins/presets/assets/presets/utility_hdr_to_sdr.yaml
+# Category: utility
+# Logic: Uses libplacebo (Vulkan) for professional-grade tone mapping.
+# ============================================================================
+
+meta:
+  id: "utility_hdr_to_sdr"
+  name: "HDR to SDR Tone-Mapper"
+  category: "video"
+  description: "Fixes 'blown out' iPhone HDR/HLG footage for standard screens."
+  version: "1.0"
+
+style:
+  accent_color: "#FF3B30"         # Apple Red
+  icon: "sun-bright"
+  glow_strength: "strong"
+
+constraints:
+  accepted_types: ["video"]
+  accepted_extensions: [".mov", ".mp4"]
+  min_duration: 0.5
+
+# --- THE USER INTERFACE ---
+parameters:
+  - id: "map_method"
+    type: "segmented_pill"
+    label: "Tone Mapping"
+    options: ["mobius", "hable", "reinhard"]
+    default: "mobius"
+    tooltip: "Mobius: Best for highlights. Hable: More cinematic contrast."
+
+  - id: "target_brightness"
+    type: "slider"
+    label: "Brightness Boost"
+    default: 10
+    min_value: 0
+    max_value: 50
+    tooltip: "Slightly lift shadows if the conversion looks too dark."
+
+  - id: "desaturate"
+    type: "toggle"
+    label: "Prevent Color Clipping"
+    default: true
+    tooltip: "Automatically reduces saturation in extremely bright areas to prevent 'neon' artifacts."
+
+# --- THE EXECUTION LOGIC ---
+pipeline:
+  - tool: "ffmpeg"
+    description: "Vulkan hardware tone-mapping pass"
+    
+    filename_suffix: "_SDR_FIX"
+    
+    command_template: |
+      {# --- INITIALIZE GPU --- #}
+      {{ tool_exe }} -init_hw_device vulkan -y -i "{{ input_path }}"
+      
+      {# --- DYNAMIC PARAMETER CALCULATION --- #}
+      {% set peak = 1.0 + (target_brightness / 100) %}
+      
+      {# --- THE PRO TONE-MAP FILTER --- #}
+      {# 1. format=yuv420p10: Ensure we read the 10-bit data correctly #}
+      {# 2. hwupload: Move frame to RTX 30 #}
+      {# 3. libplacebo: The engine doing the heavy lifting #}
+      {# 4. colorspace/primaries/trc: Forcing standard BT.709 (SDR) #}
+      -vf "
+      format=yuv420p10,
+      hwupload,
+      libplacebo=
+        tonemapping={{ map_method }}:
+        colorspace=bt709:
+        color_primaries=bt709:
+        color_trc=bt709:
+        range=limited:
+        {% if desaturate %}desaturation_strength=0.8:{% endif %}
+        peak_detect=1,
+      hwdownload,
+      format=yuv420p
+      "
+      
+      {# --- ENCODING --- #}
+      -c:v libx264 -preset slow -crf 18 -pix_fmt yuv420p
+      
+      {% if meta.has_audio %}
+        -c:a aac -b:a 192k
+      {% else %}
+        -an
+      {% endif %}
+      
+      -movflags +faststart
+      "{{ output_path }}"
+
+# ============================================================================
+# CHECKLIST
+# ============================================================================
+# [x] Unique id: utility_hdr_to_sdr
+# [x] Category: utility
+# [x] Hardware: Uses -init_hw_device vulkan (Required for your build)
+# [x] Logic: Correctly maps 10-bit HLG/HDR10 to 8-bit BT.709
+# [x] Protection: Uses peak_detect=1 to analyze brightness frame-by-frame

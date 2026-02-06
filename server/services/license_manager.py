@@ -75,21 +75,21 @@ class LicenseManager:
         """Ensure license file exists"""
         if not os.path.exists(self.license_file):
             os.makedirs(os.path.dirname(self.license_file), exist_ok=True)
-            with open(self.license_file, 'w') as f:
+            with open(self.license_file, 'w', encoding='utf-8') as f:
                 json.dump({}, f)
     
     def ensure_trials_file(self):
         """Ensure trials.json file exists"""
         if not os.path.exists(self.trials_file):
             os.makedirs(os.path.dirname(self.trials_file), exist_ok=True)
-            with open(self.trials_file, 'w') as f:
+            with open(self.trials_file, 'w', encoding='utf-8') as f:
                 json.dump({}, f)
     
     def load_licenses(self):
         """Load licenses from file with thread safety"""
         with _licenses_lock:
             try:
-                with open(self.license_file, 'r') as f:
+                with open(self.license_file, 'r', encoding='utf-8') as f:
                     return json.load(f)
             except Exception as e:
                 logger.error(f"Failed to load licenses: {e}")
@@ -101,7 +101,7 @@ class LicenseManager:
             try:
                 # Write to temp file first, then rename (atomic on most filesystems)
                 temp_file = self.license_file + '.tmp'
-                with open(temp_file, 'w') as f:
+                with open(temp_file, 'w', encoding='utf-8') as f:
                     json.dump(licenses, f, indent=2)
                 
                 # Atomic rename
@@ -121,7 +121,7 @@ class LicenseManager:
         """Load trials from file with thread safety"""
         with _trials_lock:
             try:
-                with open(self.trials_file, 'r') as f:
+                with open(self.trials_file, 'r', encoding='utf-8') as f:
                     return json.load(f)
             except Exception as e:
                 logger.error(f"Failed to load trials: {e}")
@@ -133,7 +133,7 @@ class LicenseManager:
             try:
                 # Write to temp file first, then rename (atomic on most filesystems)
                 temp_file = self.trials_file + '.tmp'
-                with open(temp_file, 'w') as f:
+                with open(temp_file, 'w', encoding='utf-8') as f:
                     json.dump(trials, f, indent=2)
                 
                 # Atomic rename
@@ -255,7 +255,7 @@ class LicenseManager:
                     **purchase_info  # Unpack all purchase details
                 }
                 
-                with open(self.purchases_file, 'a') as f:
+                with open(self.purchases_file, 'a', encoding='utf-8') as f:
                     f.write(json.dumps(purchase_record) + '\n')
                 
                 logger.info(f"Purchase logged for license {license_key}")

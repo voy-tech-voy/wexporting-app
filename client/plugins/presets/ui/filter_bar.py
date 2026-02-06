@@ -161,10 +161,27 @@ class CategoryFilterBar(QWidget):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         
-        # Rounded corners clipping
+        # Rounded top corners only
         path = QPainterPath()
-        radius = 8
-        path.addRoundedRect(self.rect().toRectF(), radius, radius)
+        radius = 12
+        rect = self.rect().toRectF()
+        
+        # Start at top-left, after the radius
+        path.moveTo(rect.left() + radius, rect.top())
+        # Top edge to top-right corner
+        path.lineTo(rect.right() - radius, rect.top())
+        # Top-right arc
+        path.arcTo(rect.right() - radius * 2, rect.top(), radius * 2, radius * 2, 90, -90)
+        # Right edge
+        path.lineTo(rect.right(), rect.bottom())
+        # Bottom edge
+        path.lineTo(rect.left(), rect.bottom())
+        # Left edge
+        path.lineTo(rect.left(), rect.top() + radius)
+        # Top-left arc
+        path.arcTo(rect.left(), rect.top(), radius * 2, radius * 2, 180, -90)
+        path.closeSubpath()
+        
         painter.setClipPath(path)
         
         # Get filter bar background color for solid overlay
@@ -206,11 +223,14 @@ class CategoryFilterBar(QWidget):
             mask_painter.setRenderHint(QPainter.RenderHint.Antialiasing)
             mask_painter.drawPixmap(0, 0, self._blurred_bg)
             
-            # Multiply Alpha with Gradient
+            # Multiply Alpha with Gradient (biased toward bottom for button legibility)
             mask_painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_DestinationIn)
             
             alpha_gradient = QLinearGradient(0, 0, 0, self.height())
+            # Keep top area more opaque for button legibility
             alpha_gradient.setColorAt(0.0, QColor(0, 0, 0, mask_top))
+            alpha_gradient.setColorAt(0.6, QColor(0, 0, 0, mask_top))  # Hold opacity longer
+            # Fade more aggressively in the bottom 40%
             alpha_gradient.setColorAt(1.0, QColor(0, 0, 0, mask_bottom))
             
             mask_painter.fillRect(blurred_masked.rect(), alpha_gradient)
@@ -218,6 +238,15 @@ class CategoryFilterBar(QWidget):
             
             # Paint the masked blur
             painter.drawPixmap(0, 0, blurred_masked)
+        
+        # Draw smooth fade-out overlay at top edge
+        fade_height = 30  # Larger fade zone for smoother transition
+        top_fade = QLinearGradient(0, 0, 0, fade_height)
+        # Start with fully opaque gallery background at very top
+        top_fade.setColorAt(0.0, QColor(bg_r, bg_g, bg_b, 255))
+        # Fade to transparent
+        top_fade.setColorAt(1.0, QColor(bg_r, bg_g, bg_b, 0))
+        painter.fillRect(0, 0, self.width(), fade_height, top_fade)
         
         # DEBUG MODE: Show the gradient rectangle ON TOP of everything
         if debug_mask:

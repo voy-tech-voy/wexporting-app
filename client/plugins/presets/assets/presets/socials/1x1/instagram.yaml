@@ -1,0 +1,92 @@
+# Instagram Square Pro Preset
+# Smart conversion to 1:1 with Blur fill, Center-Crop, and FPS normalization
+
+meta:
+  id: "instagram_square_pro"
+  name: "Instagram Square Pro"
+  category: "social"
+  ratio: "1x1"
+  description: "Optimized 1:1 conversion with Blur fill, Center-crop, and high-bitrate encoding for the feed."
+  version: "2.0"
+
+style:
+  accent_color: "#3897F0" # Instagram Blue for Feed
+  icon: "insta"
+  glow_strength: "strong"
+
+constraints:
+  accepted_types: ["video"]
+  accepted_extensions: [".mp4", ".mov", ".mkv", ".avi", ".webm"]
+  min_duration: 1.0
+
+# --- THE USER INTERFACE ---
+parameters:
+  - id: "fill_method"
+    type: "segmented_pill"
+    label: "Fill Method"
+    options: ["Blur", "Crop", "Fit"]
+    default: "Blur"
+    tooltip: "Blur: Background fill | Crop: Zoom to fill | Fit: Letterbox/Pillarbox"
+
+  - id: "allow_rotate"
+    type: "toggle"
+    label: "Auto-Rotate Landscape"
+    default: false
+    tooltip: "If video is horizontal, rotate it 90 degrees before squaring (rare for 1:1, but available)."
+
+# --- THE EXECUTION LOGIC ---
+pipeline:
+  - tool: "ffmpeg"
+    description: "Square conversion pass"
+    
+    filename_suffix: >-
+      _1x1_{{ fill_method|lower }}_{{ '30fps' if meta.fps > 31 or meta.fps < 29 else 'native' }}
+
+    command_template: >
+      {{ tool_exe }} -y -i "{{ input_path }}"
+
+      {# --- FPS FILTER CALCULATION --- #}
+      {% set fps_filter %}
+        {% if meta.fps > 31 %}
+          ,tmix=frames=2:weights='1 1',fps=30
+        {% elif meta.fps < 29 %}
+          {# Keep native cinematic/source fps #}
+        {% else %}
+          ,fps=30
+        {% endif %}
+      {% endset %}
+
+      {# --- GEOMETRY & FILTERS (Target 1080x1080) --- #}
+      
+      {# SCENARIO A: ROTATION APPLIED #}
+      {% if allow_rotate and meta.is_landscape %}
+        -vf "transpose=1,scale=1080:1080:force_original_aspect_ratio=increase,crop=1080:1080{{ fps_filter }},unsharp=5:5:0.5:5:5:0.0"
+
+      {# SCENARIO B: BLUR BACKGROUND (Best for mixed content) #}
+      {% elif fill_method == 'Blur' %}
+        -filter_complex "[0:v]split[bg][fg];
+        [bg]scale=1080:1080:force_original_aspect_ratio=increase,crop=1080:1080,boxblur=20:10[bg_blur];
+        [fg]scale=1080:1080:force_original_aspect_ratio=decrease[fg_scaled];
+        [bg_blur][fg_scaled]overlay=(W-w)/2:(H-h)/2{{ fps_filter }},unsharp=5:5:0.5:5:5:0.0[outv]"
+        -map "[outv]" -map 0:a?
+
+      {# SCENARIO C: CROP CENTER (Full screen square) #}
+      {% elif fill_method == 'Crop' %}
+        -vf "scale=1080:1080:force_original_aspect_ratio=increase,crop=1080:1080{{ fps_filter }},unsharp=5:5:0.5:5:5:0.0"
+
+      {# SCENARIO D: FIT (Letterbox/Black Bars) #}
+      {% else %}
+        -vf "scale=1080:1080:force_original_aspect_ratio=decrease,pad=1080:1080:(ow-iw)/2:(oh-ih)/2:black{{ fps_filter }},unsharp=5:5:0.5:5:5:0.0"
+      {% endif %}
+
+      {# --- ENCODING SETTINGS (Optimized for IG Feed) --- #}
+      -c:v libx264 -preset medium -profile:v high -level:v 4.2
+      -g {{ (meta.fps * 2)|int if meta.fps < 29 else 60 }}
+      -bf 2 
+      -b:v 12M -maxrate 15M -bufsize 25M
+      -pix_fmt yuv420p -colorspace bt709 -color_trc bt709 -color_primaries bt709
+      
+      -c:a aac -b:a 256k -ar 48000
+      -movflags +faststart
+      
+      "{{ output_path }}"

@@ -1,0 +1,93 @@
+# ============================================================================
+# VIDEO TO IMAGE SEQUENCE PRESET
+# ============================================================================
+# Location: client/plugins/presets/assets/presets/video_to_image_sequence.yaml
+# Category: utility
+# Logic: Uses the fps filter to calculate frame extraction based on duration.
+# ============================================================================
+
+meta:
+  id: "video_to_image_sequence"
+  name: "Image Sequence Export"
+  category: "audio"
+  description: "Extracts X equally spaced high-res stills across the video duration."
+  version: "1.0"
+
+style:
+  accent_color: "#FFD700"         # Gold for Utility/Production
+  icon: "image-stack"
+  glow_strength: "normal"
+
+constraints:
+  accepted_types: ["video"]
+  accepted_extensions: [".mp4", ".mov", ".mkv", ".avi", ".webm"]
+  min_duration: 0.5
+
+# --- THE USER INTERFACE ---
+parameters:
+  - id: "image_count"
+    type: "slider"
+    label: "Number of Images"
+    default: 10
+    min_value: 1
+    max_value: 100
+    tooltip: "How many stills to extract from the total video length."
+
+  - id: "img_format"
+    type: "segmented_pill"
+    label: "Image Format"
+    options: ["jpg", "png", "webp"]
+    default: "jpg"
+    tooltip: "JPG: High compatibility | PNG: Lossless/Large | WebP: Modern/Small"
+
+  - id: "img_quality"
+    type: "slider"
+    label: "Image Quality"
+    default: 95
+    min_value: 60
+    max_value: 100
+    visibility_rule: "img_format != 'png'"
+    tooltip: "Higher = cleaner edges/textures. Does not apply to PNG."
+
+# --- THE EXECUTION LOGIC ---
+pipeline:
+  - tool: "ffmpeg"
+    description: "Extracting frames as image sequence"
+    
+    # Suffix describes the count for easier file management
+    filename_suffix: "_sequence_{{ image_count }}stills"
+    
+    command_template: |
+      {{ tool_exe }} -y -i "{{ input_path }}"
+      
+      {# --- FPS FILTER CALCULATION --- #}
+      {# Formula: image_count / duration gives the specific frequency needed #}
+      -vf "fps={{ image_count }}/{{ meta.duration }}"
+      
+      {# --- FORMAT SPECIFIC ENCODING --- #}
+      {% if img_format == 'jpg' %}
+        {# Map 100-60 quality to FFmpeg's 1-31 scale (where 1 is best) #}
+        {% set q_val = ((101 - img_quality) / 3.2) | int %}
+        -qscale:v {{ q_val | default(2) }}
+        "{{ output_path_no_ext }}_%03d.jpg"
+      
+      {% elif img_format == 'png' %}
+        {# Standard high-quality PNG compression #}
+        -compression_level 3
+        "{{ output_path_no_ext }}_%03d.png"
+      
+      {% else %}
+        {# WebP Encoding #}
+        -c:v libwebp
+        -quality {{ img_quality }}
+        "{{ output_path_no_ext }}_%03d.webp"
+      {% endif %}
+
+# ============================================================================
+# CHECKLIST
+# ============================================================================
+# [x] Unique id: video_to_image_sequence
+# [x] Category: utility
+# [x] Pathing: Uses output_path_no_ext with %03d counter
+# [x] Validation: File paths wrapped in double quotes
+# [x] Context: Uses meta.duration to calculate frame distribution

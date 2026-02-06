@@ -1,0 +1,89 @@
+# ============================================================================
+# THE STEADY-CAM (PRO SOFTWARE STABILIZATION)
+# ============================================================================
+# Location: client/plugins/presets/assets/presets/editing_steady_cam.yaml
+# Category: editing
+# Logic: Two-pass vid.stab analysis for cinematic smoothing.
+# ============================================================================
+
+meta:
+  id: "editing_steady_cam"
+  name: "Steady-Cam Stabilization"
+  category: "video"
+  description: "Advanced two-pass stabilization. Turns shaky handheld footage into smooth cinematic shots."
+  version: "1.0"
+
+style:
+  accent_color: "#00C8FF"         # Stabilizer Blue
+  icon: "camera-movie"
+  glow_strength: "strong"
+
+constraints:
+  accepted_types: ["video"]
+  accepted_extensions: [".mp4", ".mov", ".mkv", ".avi"]
+  min_duration: 1.0
+
+# --- THE USER INTERFACE ---
+parameters:
+  - id: "shake_sensitivity"
+    type: "slider"
+    label: "Shake Sensitivity"
+    default: 6
+    min_value: 1
+    max_value: 10
+    tooltip: "How much 'effort' the analyzer spends finding shakes. 1=Low, 10=Extreme."
+
+  - id: "smoothing_amount"
+    type: "slider"
+    label: "Smoothing (Fluidity)"
+    default: 30
+    min_value: 5
+    max_value: 60
+    tooltip: "Higher values create more fluid, 'crane-like' motion. Too high may cause weird warping."
+
+  - id: "tripod_mode"
+    type: "toggle"
+    label: "Tripod Mode"
+    default: false
+    tooltip: "Attempts to keep the camera completely static. Best for shots where the camera was meant to stay still."
+
+  - id: "max_zoom"
+    type: "slider"
+    label: "Max Smart-Zoom (%)"
+    default: 15
+    min_value: 0
+    max_value: 40
+    tooltip: "Limits how much the video can zoom in to hide black edges. 15% is usually the sweet spot."
+
+# --- THE EXECUTION LOGIC (2-PASS PIPELINE) ---
+pipeline:
+  # STEP 1: MOTION ANALYSIS
+  # This pass scans the video and generates a '.trf' (transform) file.
+  - tool: "ffmpeg"
+    description: "Step 1/2: Analyzing camera motion..."
+    command_template: |
+      {{ tool_exe }} -y -i "{{ input_path }}" 
+      -vf "vidstabdetect=result='{{ output_path_no_ext }}.trf':shakiness={{ shake_sensitivity }}:accuracy=15" 
+      -f null -
+
+  # STEP 2: STABILIZATION TRANSFORM
+  # This pass reads the .trf file and applies the actual smoothing and zoom.
+  - tool: "ffmpeg"
+    description: "Step 2/2: Applying cinematic smoothing..."
+    filename_suffix: "_Stabilized"
+    command_template: |
+      {{ tool_exe }} -y -i "{{ input_path }}" 
+      -vf "vidstabtransform=input='{{ output_path_no_ext }}.trf':smoothing={{ smoothing_amount }}:zoom={{ max_zoom }}:relative=1:unshakiness={{ shake_sensitivity }}:tripod={{ 1 if tripod_mode else 0 }}:optzoom=2" 
+      -c:v libx264 -preset slow -crf 18 -pix_fmt yuv420p 
+      {% if meta.has_audio %} -c:a aac -b:a 192k {% else %} -an {% endif %}
+      -movflags +faststart 
+      "{{ output_path }}"
+
+# ============================================================================
+# CHECKLIST
+# ============================================================================
+# [x] Unique id: editing_steady_cam
+# [x] Category: editing
+# [x] Logic: Uses -f null in pass 1 to save time (no video encoding).
+# [x] Feature: Includes optzoom=2 (Smart-Zoom) to minimize resolution loss.
+# [x] Feature: Tripod mode toggle for fixed-frame emulation.

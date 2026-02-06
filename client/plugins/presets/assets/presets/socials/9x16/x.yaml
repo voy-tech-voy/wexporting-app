@@ -1,0 +1,53 @@
+# X Vertical Pro (9:16)
+# Optimized for the immersive vertical feed with high-contrast sharpening
+
+meta:
+  id: "x_pro_9x16"
+  name: "X Vertical Pro"
+  category: "social"
+  description: "9:16 vertical optimized for X. Features scroll-stop sharpening and high-speed loading."
+  version: "1.0"
+
+style:
+  accent_color: "#000000" # X Black
+  icon: "mobile"
+  glow_strength: "strong"
+
+constraints:
+  accepted_types: ["video"]
+  accepted_extensions: [".mp4", ".mov"]
+
+parameters:
+  - id: "fill_method"
+    type: "segmented_pill"
+    label: "Fill Method"
+    options: ["Blur", "Crop", "Fit"]
+    default: "Blur"
+
+pipeline:
+  - tool: "ffmpeg"
+    description: "X Vertical Optimization"
+    filename_suffix: "_X_9x16"
+    command_template: >
+      {{ tool_exe }} -y -i "{{ input_path }}"
+
+      {# --- GEOMETRY (1080x1920) --- #}
+      {% if fill_method == 'Blur' %}
+        -filter_complex "[0:v]split[bg][fg];
+        [bg]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=20:10[bg_b];
+        [fg]scale=1080:1920:force_original_aspect_ratio=decrease[fg_s];
+        [bg_b][fg_s]overlay=(W-w)/2:(H-h)/2,unsharp=5:5:0.8:5:5:0.0[v]"
+        -map "[v]" -map 0:a?
+      {% elif fill_method == 'Crop' %}
+        -vf "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,unsharp=5:5:0.8:5:5:0.0"
+      {% else %}
+        -vf "scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:black,unsharp=5:5:0.8:5:5:0.0"
+      {% endif %}
+
+      {# --- X SPECIFIC ENCODING --- #}
+      -c:v libx264 -preset medium -crf 20 -maxrate 10M -bufsize 20M
+      -pix_fmt yuv420p -profile:v high -level:v 4.2
+      -r 30 -g 60 -bf 2
+      -c:a aac -b:a 128k -ar 44100
+      -movflags +faststart
+      "{{ output_path }}"

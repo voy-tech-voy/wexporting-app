@@ -19,7 +19,7 @@ from .command_panel import CommandPanel
 from .output_footer import OutputFooter
 from .theme_manager import ThemeManager
 from .title_bar import TitleBarWindow
-from client.core.conversion_engine import ToolChecker  # Only for tool status checking
+from client.core.tool_manager import ToolChecker  # Only for tool status checking
 from client.core.progress_manager import ConversionProgressManager
 from client.gui.custom_widgets import PresetStatusButton
 from client.utils.trial_manager import TrialManager

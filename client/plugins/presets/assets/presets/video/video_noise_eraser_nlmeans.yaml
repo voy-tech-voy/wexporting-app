@@ -1,0 +1,97 @@
+# ============================================================================
+# HIGH-ISO NOISE ERASER (NLMEANS PRO)
+# ============================================================================
+# Location: client/plugins/presets/assets/presets/video_noise_eraser.yaml
+# Category: video
+# Logic: Uses the Non-Local Means algorithm for edge-preserving denoising.
+# ============================================================================
+
+meta:
+  id: "video_noise_eraser_nlmeans"
+  name: "High-ISO Noise Eraser"
+  category: "video"
+  description: "Advanced neural-style denoising. Cleans low-light grain while keeping edges sharp."
+  version: "1.0"
+
+style:
+  accent_color: "#A855F7"         # Deep Purple (Luxury/Pro)
+  icon: "sparkles"
+  glow_strength: "strong"
+
+constraints:
+  accepted_types: ["video"]
+  accepted_extensions: [".mp4", ".mov", ".mkv", ".avi"]
+  min_duration: 0.5
+
+# --- THE USER INTERFACE ---
+parameters:
+  - id: "denoise_strength"
+    type: "slider"
+    label: "Denoise Strength"
+    default: 4
+    min_value: 1
+    max_value: 10
+    tooltip: "Higher values remove more noise but increase processing time."
+
+  - id: "keep_detail"
+    type: "segmented_pill"
+    label: "Detail Preservation"
+    options: ["Speed", "Balanced", "Maximum"]
+    default: "Balanced"
+    tooltip: "Maximum uses larger search patches for higher accuracy but is significantly slower."
+
+  - id: "color_noise_fix"
+    type: "toggle"
+    label: "Fix Color Blotching"
+    default: true
+    tooltip: "Specifically targets the 'rainbow' noise seen in dark shadows."
+
+# --- THE EXECUTION LOGIC ---
+pipeline:
+  - tool: "ffmpeg"
+    description: "Performing Non-Local Means denoising (CPU intensive)"
+    
+    filename_suffix: "_Denoised"
+    
+    command_template: |
+      {{ tool_exe }} -y -i "{{ input_path }}"
+      
+      {# --- NLMEANS PARAMETER MAPPING --- #}
+      {# s = Strength (Luma), p = Patch Size, r = Research Area #}
+      {% set luma_s = denoise_strength | float %}
+      {% set chroma_s = (denoise_strength * 1.5) if color_noise_fix else 0 %}
+      
+      {% if keep_detail == 'Speed' %}
+        {% set p_size = 3 %}{% set r_area = 7 %}
+      {% elif keep_detail == 'Balanced' %}
+        {% set p_size = 5 %}{% set r_area = 11 %}
+      {% else %}
+        {% set p_size = 7 %}{% set r_area = 15 %}
+      {% endif %}
+      
+      {# --- FILTER CHAIN --- #}
+      {# 1. format=yuv420p: Ensure standard pixel format #}
+      {# 2. nlmeans: The core denoising logic #}
+      -vf "format=yuv420p,nlmeans=s={{ luma_s }}:p={{ p_size }}:r={{ r_area }}:h={{ chroma_s }}"
+      
+      {# --- ENCODING SETTINGS --- #}
+      {# We use a very high quality (CRF 17) because noise-free video compresses better #}
+      -c:v libx264 -preset medium -crf 17 -pix_fmt yuv420p
+      
+      {% if meta.has_audio %}
+        -c:a aac -b:a 192k
+      {% else %}
+        -an
+      {% endif %}
+      
+      -movflags +faststart
+      "{{ output_path }}"
+
+# ============================================================================
+# CHECKLIST
+# ============================================================================
+# [x] Unique id: video_noise_eraser_nlmeans
+# [x] Category: video
+# [x] Logic: nlmeans is CPU-based but produces the highest possible 'clean' result.
+# [x] Efficiency: Mapped parameters to prevent users from accidentally setting impossible render times.
+# [x] Encoding: Uses CRF 17 to ensure the newly cleaned textures aren't lost to compression.

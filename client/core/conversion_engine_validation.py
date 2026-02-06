@@ -14,7 +14,7 @@ def get_bundled_ffmpeg_path():
     """Get the bundled FFmpeg path for production and development"""
     # Import here to avoid circular dependencies
     try:
-        from client.core.conversion_engine import bundled_tools_dir, _USER_BIN_CACHE
+        from client.core.tool_manager import bundled_tools_dir, _USER_BIN_CACHE
     except ImportError:
         # Fallback if conversion_engine is not available
         bundled_tools_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'tools')
@@ -305,7 +305,7 @@ def get_all_valid_ffmpeg_paths(timeout=5):
 
     # Also check bundled tools directory for any ffmpeg executables
     try:
-        from client.core.conversion_engine import bundled_tools_dir
+        from client.core.tool_manager import bundled_tools_dir
         if os.path.exists(bundled_tools_dir):
             for filename in os.listdir(bundled_tools_dir):
                 # Check for files starting with ffmpeg

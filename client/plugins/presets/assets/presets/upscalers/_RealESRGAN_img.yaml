@@ -1,0 +1,68 @@
+
+
+# ============================================================================
+# AI UPSCALE (Real-ESRGAN NCNN-Vulkan)
+# ============================================================================
+# Uses Real-ESRGAN ncnn-vulkan for true AI upscaling (x2/x3/x4)
+# This is a standalone executable with GPU acceleration via Vulkan
+# Anime model supports all scales, General model uses x4 only
+# ============================================================================
+
+meta:
+  id: "ai_upscale_realesrgan_multi"
+  name: "AI Upscale (Real-ESRGAN Multi-Scale)"
+  category: "utils"
+  description: "True AI upscaling using Real-ESRGAN. Supports x2, x3, and x4 enlargement."
+  version: "2.0"
+
+style:
+  accent_color: "#FF3E00"  # Orange for Pro
+  icon: "sparkles"
+  glow_strength: "strong"
+
+constraints:
+  accepted_types: ["image"]
+  accepted_extensions: [".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tiff"]
+  min_duration: 0.0
+
+parameters:
+  - id: "model"
+    type: "segmented_pill"
+    label: "AI Model"
+    options: ["General", "Anime"]
+    default: "General"
+    tooltip: "General for live action, Anime for animation/illustration."
+  
+  - id: "scale"
+    type: "segmented_pill"
+    label: "Upscale Factor"
+    options: ["x2", "x3", "x4"]
+    default: "x4"
+    tooltip: "x2/x3 only available for Anime model. General model uses x4 only."
+
+pipeline:
+  - tool: "ffmpeg"
+    description: "Real-ESRGAN Neural Upscale (RTX 30)..."
+    filename_suffix: "_ESRGAN_{{ scale }}"
+
+    command_template: |
+      {# --- SCALE EXTRACTION --- #}
+      {% set scale_num = scale.replace('x', '') | int %}
+      
+      {# --- MODEL SELECTION --- #}
+      {# Anime: Use realesr-animevideov3 (supports x2/x3/x4) #}
+      {# General: Use realesrgan-x4plus (x4 only, force scale to 4) #}
+      {% if model == 'Anime' %}
+        {% set model_name = 'realesr-animevideov3' %}
+        {% set actual_scale = scale_num %}
+      {% else %}
+        {% set model_name = 'realesrgan-x4plus' %}
+        {% set actual_scale = 4 %}
+      {% endif %}
+      
+      {# --- Real-ESRGAN executable (bypasses ffmpeg, runs directly) --- #}
+      {% set realesrgan_exe = "V:/_MY_APPS/ImgApp_1/tools/realesrgan/realesrgan-ncnn-vulkan.exe" %}
+
+      {# --- THE COMMAND --- #}
+      {{ realesrgan_exe }} -i "{{ input_path }}" -o "{{ output_path_no_ext }}.png" -n {{ model_name }} -s {{ actual_scale }}
+

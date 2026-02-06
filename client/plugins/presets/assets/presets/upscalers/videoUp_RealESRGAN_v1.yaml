@@ -1,0 +1,82 @@
+# ============================================================================
+# PRO AI VIDEO UPSCALING (3-STEP NCNN-VULKAN)
+# ============================================================================
+# Step 1: Extract frames to directory (Lossless PNG)
+# Step 2: Batch upscale directory using RealESRGAN (Vulkan)
+# Step 3: Reassemble video with original audio
+# ============================================================================
+
+meta:
+  id: "ai_upscale_3step_vulkan"
+  name: "Pro AI Video (3-Step)"
+  category: "upscale"
+  description: "Highest-stability AI upscaling. Best for long videos. Uses NCNN-Vulkan."
+  version: "1.0"
+
+style:
+  accent_color: "#FF3E00"         # Deep Orange
+  icon: "sparkles"
+  glow_strength: "strong"
+
+constraints:
+  accepted_types: ["video"]
+  accepted_extensions: [".mp4", ".mov", ".mkv", ".avi", ".webm"]
+  min_duration: 0.1
+
+parameters:
+  - id: "model_type"
+    type: "segmented_pill"
+    label: "AI Model"
+    options: ["Anime (Fast)", "General (x4 only)"]
+    default: "Anime (Fast)"
+    tooltip: "Anime model (realesr-animevideov3) supports x2/x3/x4. General model is x4 only."
+
+  - id: "scale"
+    type: "segmented_pill"
+    label: "Upscale Factor"
+    options: ["x2", "x3", "x4"]
+    default: "x2"
+    tooltip: "General model will ignore x2/x3 and force x4."
+
+pipeline:
+  # --------------------------------------------------------------------------
+  # STEP 1: LOSSLESS FRAME EXTRACTION TO DIRECTORY
+  # --------------------------------------------------------------------------
+  - tool: "ffmpeg"
+    description: "Step 1/3: Extracting Frames..."
+    filename_suffix: "_AI3Step_{{ scale }}"
+    command_template: |
+      {# Create frames directory first (Windows PowerShell) #}
+      powershell -Command "New-Item -ItemType Directory -Force -Path '{{ output_path_no_ext }}_frames'" && {{ tool_exe }} -y -i "{{ input_path }}" -qscale:v 1 -pix_fmt rgb24 "{{ output_path_no_ext }}_frames/frame_%08d.png"
+
+
+  # --------------------------------------------------------------------------
+  # STEP 2: BATCH NEURAL UPSCALING (DIRECTORY-TO-DIRECTORY)
+  # --------------------------------------------------------------------------
+  - tool: "ffmpeg"
+    description: "Step 2/3: AI Neural Upscaling..."
+    command_template: |
+      {# --- MODEL LOGIC --- #}
+      {% if model_type == 'Anime (Fast)' %}
+        {% set model_name = 'realesr-animevideov3' %}
+        {% set actual_scale = scale.replace('x', '') %}
+      {% else %}
+        {% set model_name = 'realesrgan-x4plus' %}
+        {% set actual_scale = '4' %}
+      {% endif %}
+      
+      {# --- REALESRGAN EXECUTABLE (RELATIVE PATH) --- #}
+      {% set realesr_exe = "tools/realesrgan/realesrgan-ncnn-vulkan.exe" %}
+      
+      {# Create output directory and process frames #}
+      powershell -Command "New-Item -ItemType Directory -Force -Path '{{ output_path_no_ext }}_upscaled'" && "{{ realesr_exe }}" -i "{{ output_path_no_ext }}_frames" -o "{{ output_path_no_ext }}_upscaled" -n {{ model_name }} -s {{ actual_scale }} -f png
+
+
+  # --------------------------------------------------------------------------
+  # STEP 3: REASSEMBLY & AUDIO MERGE
+  # --------------------------------------------------------------------------
+  - tool: "ffmpeg"
+    description: "Step 3/3: Reassembling Video..."
+    command_template: |
+      {# Reassemble from upscaled frames and merge original audio #}
+      {{ tool_exe }} -y -framerate {{ meta.fps }} -i "{{ output_path_no_ext }}_upscaled/frame_%08d.png" -i "{{ input_path }}" -map 0:v -map 1:a? -c:v libx264 -preset slow -crf 17 -pix_fmt yuv420p -movflags +faststart "{{ output_path }}"

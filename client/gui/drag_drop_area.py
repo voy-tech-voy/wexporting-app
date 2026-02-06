@@ -278,6 +278,22 @@ class DragDropArea(QWidget):
             event.acceptProposedAction()
         else:
             event.ignore()
+    
+    def _apply_dialog_styling(self, dialog):
+        """Apply consistent rounded corner styling to dialogs"""
+        is_dark = self.theme_manager and self.theme_manager.current_theme == 'dark'
+        Theme.set_dark_mode(is_dark)
+        
+        base_styles = self.theme_manager.get_dialog_styles() if self.theme_manager else ""
+        
+        rounded_style = f"""
+            QDialog {{
+                background-color: {Theme.surface_element()};
+                border-radius: {Theme.RADIUS_LG}px;
+            }}
+        """
+        
+        dialog.setStyleSheet(base_styles + rounded_style)
         
     def handle_dropped_folders(self, folders):
         """Handle dropped folder(s) with user options"""
@@ -294,9 +310,8 @@ class DragDropArea(QWidget):
         dialog.setWindowTitle("Folder Drop Options")
         dialog.setFixedSize(400, 250)
         
-        # Apply theme styling
-        if hasattr(self, 'theme_manager'):
-            dialog.setStyleSheet(self.theme_manager.get_dialog_styles())
+        # Apply consistent rounded corner styling
+        self._apply_dialog_styling(dialog)
         
         layout = QVBoxLayout(dialog)
         
@@ -529,9 +544,8 @@ class DragDropArea(QWidget):
             dialog.setWindowTitle("Folder Processing Options")
             dialog.setFixedSize(400, 200)
             
-            # Apply theme styling
-            if hasattr(self, 'theme_manager'):
-                dialog.setStyleSheet(self.theme_manager.get_dialog_styles())
+            # Apply consistent rounded corner styling
+            self._apply_dialog_styling(dialog)
             
             layout = QVBoxLayout(dialog)
             
@@ -861,9 +875,8 @@ class DragDropArea(QWidget):
         dialog.setFixedSize(400, 150)
         dialog.setWindowFlags(dialog.windowFlags() & ~Qt.WindowType.WindowCloseButtonHint)  # Remove close button
         
-        # Apply theme styling
-        if self.theme_manager:
-            dialog.setStyleSheet(self.theme_manager.get_dialog_styles())
+        # Apply consistent rounded corner styling
+        self._apply_dialog_styling(dialog)
         
         layout = QVBoxLayout(dialog)
         layout.setContentsMargins(20, 20, 20, 20)

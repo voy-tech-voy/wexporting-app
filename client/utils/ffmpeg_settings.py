@@ -149,7 +149,7 @@ class FFmpegSettings:
     
     def get_bundled_ffmpeg_path(self):
         """Get the bundled FFmpeg path"""
-        from client.core.conversion_engine import bundled_tools_dir, _USER_BIN_CACHE
+        from client.core.tool_manager import bundled_tools_dir, _USER_BIN_CACHE
         
         # For frozen builds
         if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):

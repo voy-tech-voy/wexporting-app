@@ -315,7 +315,9 @@ class ManualModeConversionEngine(QThread):
                     
                     # Set params for this variant
                     self.params['quality'] = quality
-                    self.params['current_resize'] = resize
+                    # Only override current_resize if we're iterating through resize variants
+                    if has_resize_variants and resize:
+                        self.params['current_resize'] = resize
                     
                     # Build variant list for SuffixManager
                     variants = []

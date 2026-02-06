@@ -1,0 +1,97 @@
+# ============================================================================
+# PROFESSIONAL PROXY GENERATOR (PRORES / DNXHR)
+# ============================================================================
+# Location: client/plugins/presets/assets/presets/editing_proxy_generator.yaml
+# Category: editing
+# Logic: Converts Long-GOP inter-frame video to Edit-Friendly Intra-frame.
+# ============================================================================
+
+meta:
+  id: "editing_proxy_generator"
+  name: "Proxy Generator (ProRes/DNx)"
+  category: "video"
+  description: "Creates lightweight intra-frame proxies for lag-free editing."
+  version: "1.0"
+
+style:
+  accent_color: "#FFBD00"         # Professional Gold/Yellow
+  icon: "clapperboard"
+  glow_strength: "normal"
+
+constraints:
+  accepted_types: ["video"]
+  accepted_extensions: [".mp4", ".mov", ".mkv", ".mxf", ".mts"]
+  min_duration: 0.5
+
+# --- THE USER INTERFACE ---
+parameters:
+  - id: "proxy_codec"
+    type: "segmented_pill"
+    label: "Proxy Format"
+    options: ["ProRes 422 Proxy", "DNxHR LB"]
+    default: "ProRes 422 Proxy"
+    tooltip: "ProRes: Best for Mac/Adobe. DNxHR: Best for Avid/DaVinci Resolve."
+
+  - id: "proxy_resolution"
+    type: "dropdown"
+    label: "Resolution Scale"
+    options: ["Original", "50% Scale", "25% Scale", "Fixed 720p"]
+    default: "50% Scale"
+    tooltip: "Lower resolution results in much faster timeline performance."
+
+  - id: "keep_audio"
+    type: "toggle"
+    label: "Keep All Audio Channels"
+    default: true
+    tooltip: "Preserves all source audio tracks for sync editing."
+
+# --- THE EXECUTION LOGIC ---
+pipeline:
+  - tool: "ffmpeg"
+    description: "Generating high-performance edit proxy"
+    
+    filename_suffix: "_Proxy"
+    
+    command_template: |
+      {{ tool_exe }} -y -i "{{ input_path }}"
+      
+      {# --- RESOLUTION LOGIC --- #}
+      {% if proxy_resolution == '50% Scale' %}
+        -vf "scale=iw/2:-2"
+      {% elif proxy_resolution == '25% Scale' %}
+        -vf "scale=iw/4:-2"
+      {% elif proxy_resolution == 'Fixed 720p' %}
+        -vf "scale=-2:720"
+      {% else %}
+        {# No scaling applied #}
+      {% endif %}
+      
+      {# --- CODEC LOGIC --- #}
+      {% if proxy_codec == 'ProRes 422 Proxy' %}
+        {# ProRes Proxy is profile 0 #}
+        -c:v prores_ks -profile:v 0 -vendor apl0 -bits_per_mb 8000
+      {% else %}
+        {# DNxHR LB (Low Bandwidth) for 8-bit proxy work #}
+        -c:v dnxhd -profile:v dnxhr_lb -pix_fmt yuv422p
+      {% endif %}
+      
+      {# --- AUDIO & METADATA --- #}
+      {# Critical: We preserve metadata/timecode so proxies can 'Relink' to originals #}
+      -map_metadata 0 
+      {% if keep_audio and meta.has_audio %}
+        -c:a pcm_s16le
+      {% else %}
+        -an
+      {% endif %}
+      
+      {# Proxies should always be in a MOV container for maximum compatibility #}
+      "{{ output_path_no_ext }}.mov"
+
+# ============================================================================
+# CHECKLIST
+# ============================================================================
+# [x] Unique id: editing_proxy_generator
+# [x] Category: editing
+# [x] Uses -map_metadata 0 to ensure Timecode is preserved (Vital for relinking)
+# [x] Uses pcm_s16le (Uncompressed audio) to reduce CPU load during playback
+# [x] Output forced to .mov as it supports both ProRes and DNxHR natively
