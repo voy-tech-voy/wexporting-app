@@ -2,8 +2,8 @@
 # Smart conversion to 16:9 with Blur fill, Center-Crop, and FPS normalization
 
 meta:
-  id: "instagram_landscape_16x9"
-  name: "Instagram Landscape 16:9"
+  id: "instagram_landscape"
+  name: "Instagram"
   category: "social"
   ratio: "16x9"
   description: "High-quality 16:9 (1920x1080) landscape conversion. Best for cinematic clips and widescreen feed posts."

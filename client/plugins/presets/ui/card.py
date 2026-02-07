@@ -38,7 +38,7 @@ class PresetCard(QFrame):
     # Card dimensions (3:4 ratio)
     CARD_WIDTH = 120
     CARD_HEIGHT = 160
-    ICON_SIZE = 48  # Icon size within the chamber
+    ICON_SIZE = 65  # Increased by ~35% from 48
     
     def __init__(self, preset: PresetDefinition, parent=None):
         super().__init__(parent)
@@ -76,13 +76,7 @@ class PresetCard(QFrame):
         self.title_label.setObjectName("CardTitle")
         self.title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         
-        subtitle_text = self._preset.subtitle or self._preset.description[:20]
-        self.subtitle_label = QLabel(subtitle_text)
-        self.subtitle_label.setObjectName("CardSubtitle")
-        self.subtitle_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        
         layout.addWidget(self.title_label, 0)
-        layout.addWidget(self.subtitle_label, 0)
     
     def _load_icon(self, color: QColor = None):
         """Load the preset icon with optional color override.
@@ -101,7 +95,7 @@ class PresetCard(QFrame):
         try:
             if icon_path:
                 from PyQt6.QtSvg import QSvgRenderer
-                from PyQt6.QtCore import QByteArray
+                from PyQt6.QtCore import QByteArray, QRectF
                 
                 # Read SVG file
                 with open(icon_path, 'r', encoding='utf-8') as f:
@@ -140,7 +134,28 @@ class PresetCard(QFrame):
                 painter = QPainter(pixmap)
                 painter.setRenderHint(QPainter.RenderHint.Antialiasing)
                 painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
-                renderer.render(painter)
+                
+                # Calculate aspect-ratio preserved rect
+                default_size = renderer.defaultSize()
+                if not default_size.isEmpty():
+                    aspect = default_size.width() / default_size.height()
+                    
+                    if aspect > 1:
+                        # Wider than tall
+                        w = self.ICON_SIZE
+                        h = self.ICON_SIZE / aspect
+                    else:
+                        # Taller than wide
+                        h = self.ICON_SIZE
+                        w = self.ICON_SIZE * aspect
+                        
+                    x = (self.ICON_SIZE - w) / 2
+                    y = (self.ICON_SIZE - h) / 2
+                    target_rect = QRectF(x, y, w, h)
+                    renderer.render(painter, target_rect)
+                else:
+                    renderer.render(painter)
+                    
                 painter.end()
                 
                 self.icon_label.setPixmap(pixmap)
@@ -185,11 +200,6 @@ class PresetCard(QFrame):
                 font-weight: bold;
                 background: transparent;
                 margin-bottom: 2px;
-            }}
-            QLabel#CardSubtitle {{
-                color: {Theme.text_muted()};
-                font-size: {Theme.FONT_SIZE_XS}px;
-                background: transparent;
             }}
         """)
     
@@ -274,9 +284,6 @@ class PresetCard(QFrame):
                 QFrame#PresetCard {{
                     background-color: rgba(0, 224, 255, 0.1);
                     border: 2px solid {Theme.accent_turbo()};
-                }}
-                QLabel#CardSubtitle {{
-                    color: {Theme.accent_turbo()};
                 }}
             """)
         else:

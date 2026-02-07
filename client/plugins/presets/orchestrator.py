@@ -14,6 +14,7 @@ from client.utils.gpu_detector import get_gpu_detector
 
 if TYPE_CHECKING:
     from client.core.tool_registry.protocol import ToolRegistryProtocol
+    from client.plugins.presets.engine import PresetConversionEngine
 
 
 class PresetOrchestrator(QObject):
@@ -25,7 +26,7 @@ class PresetOrchestrator(QObject):
     - Displaying gallery via PresetGallery
     - Building commands via CommandBuilder when preset is selected
     - Analyzing media via MediaAnalyzer for smart presets
-    - Executing conversions via run_conversion()
+    - Executing conversions via async PresetConversionEngine
     
     Signals:
         preset_selected: Emitted when user selects a preset (PresetDefinition)
@@ -70,6 +71,9 @@ class PresetOrchestrator(QObject):
         self._parameter_form: Optional[ParameterForm] = None
         self._selected_preset: Optional[PresetDefinition] = None
         
+        # Async conversion engine
+        self._conversion_engine: Optional['PresetConversionEngine'] = None
+        
         # Load presets
         self._presets: List[PresetDefinition] = []
         self.reload_presets()
@@ -80,165 +84,121 @@ class PresetOrchestrator(QObject):
         self._gallery.set_presets(self._presets)
         print(f"[PresetOrchestrator] Loaded {len(self._presets)} presets")
     
-    def run_conversion(self, files: List[str], output_mode: str = "source", 
-                       organized_name: str = "output", custom_path: str = None) -> tuple:
+    
+    def start_conversion(self, files: List[str], output_mode: str = "source", 
+                       organized_name: str = "output", custom_path: str = None):
         """
-        Execute conversion using the selected preset.
+        Start async conversion using the selected preset.
         
-        This method encapsulates all subprocess and file path logic,
-        keeping MainWindow clean of business logic.
+        This method creates a PresetConversionEngine and starts it in a background thread,
+        preventing UI freezes during long operations.
         
         Args:
             files: List of input file paths
             output_mode: "source", "organized", or "custom"
             organized_name: Folder name for organized mode
             custom_path: Path for custom mode
-            
-        Returns:
-            Tuple of (success_count, total_count)
         """
-        import subprocess
-        import os
-        from pathlib import Path
-        
         if not files:
-            return (0, 0)
+            print("[PresetOrchestrator] No files to convert")
+            return
         
         preset = self._selected_preset
         if not preset:
             print("[PresetOrchestrator] No preset selected")
-            return (0, 0)
+            return
         
-        print(f"[PresetOrchestrator] Starting conversion with preset: {preset.name}")
+        # Stop any existing conversion
+        if self._conversion_engine and self._conversion_engine.isRunning():
+            print("[PresetOrchestrator] Stopping existing conversion")
+            self._conversion_engine.stop_conversion()
+            self._conversion_engine.wait()
+        
+        print(f"[PresetOrchestrator] Starting async conversion with preset: {preset.name}")
         print(f"[PresetOrchestrator] Processing {len(files)} file(s)")
         
+        # Create engine with params
+        from client.plugins.presets.engine import PresetConversionEngine
+        
+        params = {
+            'output_mode': output_mode,
+            'organized_name': organized_name,
+            'custom_path': custom_path,
+        }
+        
+        self._conversion_engine = PresetConversionEngine(files, params, self)
+        
+        # Connect engine signals to orchestrator signals
+        self._conversion_engine.progress_updated.connect(self._on_engine_progress)
+        self._conversion_engine.status_updated.connect(self._on_engine_status)
+        self._conversion_engine.file_completed.connect(self._on_engine_file_completed)
+        self._conversion_engine.conversion_completed.connect(self._on_engine_completed)
+        
+        # Emit started signal
         self.conversion_started.emit()
         
-        total_files = len(files)
-        success_count = 0
-        failed_count = 0
-        skipped_count = 0
+        # Start engine thread
+        self._conversion_engine.start()
+    
+    def stop_conversion(self):
+        """
+        Stop the current conversion immediately.
         
-        for i, input_path in enumerate(files):
-            try:
-                input_p = Path(input_path)
-                
-                # Determine output directory
-                if output_mode == "source":
-                    output_dir = input_p.parent
-                elif output_mode == "organized":
-                    output_dir = input_p.parent / organized_name
-                    output_dir.mkdir(exist_ok=True)
-                elif output_mode == "custom" and custom_path:
-                    output_dir = Path(custom_path)
-                    output_dir.mkdir(exist_ok=True)
-                else:
-                    output_dir = input_p.parent
-                
-                # Analyze media for smart presets
-                meta = self.analyze_file(str(input_path))
-                print(f"[PresetOrchestrator] Meta: fps={meta.get('fps')}, landscape={meta.get('is_landscape')}, width={meta.get('width')}, height={meta.get('height')}")
-                
-                # Get parameter values
-                param_values = self.get_parameter_values()
-                print(f"[PresetOrchestrator] Params: {param_values}")
-                
-                # Render filename suffix from YAML template (e.g., "_upscaled_2x")
-                filename_suffix = ""
-                if preset.pipeline and preset.pipeline[0].filename_suffix:
-                    # Build minimal context for suffix rendering
-                    suffix_context = {
-                        'meta': meta,
-                        **param_values,
-                    }
-                    filename_suffix = self._builder.render_filename_suffix(preset.pipeline[0], suffix_context)
-                    print(f"[PresetOrchestrator] Rendered suffix: '{filename_suffix}'")
-                else:
-                    filename_suffix = "_preset"
-                
-                # Construct output path with dynamic suffix
-                output_path = output_dir / f"{input_p.stem}{filename_suffix}{input_p.suffix}"
-                
-                # Build context for template
-                # Detect best available GPU encoder
-                gpu_detector = get_gpu_detector(self._registry.get_tool_path('ffmpeg'))
-                h264_encoder, encoder_type = gpu_detector.get_best_encoder("MP4 (H.264)", prefer_gpu=True)
-                
-                context = {
-                    'input_path': str(input_path),
-                    'output_path': str(output_path),
-                    'output_path_no_ext': str(output_dir / f"{input_p.stem}{filename_suffix}"),
-                    'meta': meta,
-                    'gpu_encoder': h264_encoder,  # Best h264 encoder (h264_nvenc, h264_amf, or libx264)
-                    'gpu_type': encoder_type.value,  # 'nvidia', 'amd', or 'cpu'
-                    **param_values,
-                }
-                
-                
-                # Build and execute all pipeline steps sequentially
-                if preset.pipeline:
-                    pipeline_success = True
-                    
-                    for step_idx, step in enumerate(preset.pipeline):
-                        cmd = self._builder.build_command(step, context)
-                        step_num = step_idx + 1
-                        total_steps = len(preset.pipeline)
-                        
-                        print(f"[PresetOrchestrator] ===== STEP {step_num}/{total_steps}: {step.description} =====")
-                        print(f"[PresetOrchestrator] {cmd}")
-                        print(f"[PresetOrchestrator] ====================================")
-                        
-                        result = subprocess.run(
-                            cmd,
-                            shell=True,
-                            capture_output=True,
-                            text=True,
-                            encoding='utf-8',
-                            errors='replace',  # Replace invalid chars instead of crashing
-                            creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
-                        )
-                        
-                        # Check if step succeeded
-                        if result.returncode != 0:
-                            pipeline_success = False
-                            print(f"[PresetOrchestrator] [X] Step {step_num} failed: {step.description}")
-                            print(f"[PresetOrchestrator] stderr: {result.stderr[:500]}")
-                            break  # Stop pipeline on first failure
-                        else:
-                            print(f"[PresetOrchestrator] [OK] Step {step_num} completed: {step.description}")
-                    
-                    # Check final output file exists (only after all steps complete)
-                    if pipeline_success:
-                        output_exists = output_path.exists()
-                        
-                        if output_exists:
-                            success_count += 1
-                            print(f"[PresetOrchestrator] [OK] Success: {input_p.name}")
-                        else:
-                            failed_count += 1
-                            print(f"[PresetOrchestrator] [X] Failed: {input_p.name}")
-                            print(f"[PresetOrchestrator] ERROR: Pipeline succeeded but output file not created!")
-                            print(f"[PresetOrchestrator] Expected output: {output_path}")
-                    else:
-                        failed_count += 1
-                        print(f"[PresetOrchestrator] [X] Failed: {input_p.name} (pipeline step failed)")
-
-                
-                # Emit progress
-                self.conversion_progress.emit(i + 1, total_files, f"Processed: {input_p.name}")
-                
-            except Exception as e:
-                failed_count += 1
-                print(f"[PresetOrchestrator] Error processing {input_path}: {e}")
+        This method can be called from the UI to cancel an ongoing conversion.
+        The engine will kill any running subprocess and stop processing files.
+        """
+        if self._conversion_engine and self._conversion_engine.isRunning():
+            print("[PresetOrchestrator] Stopping conversion...")
+            self._conversion_engine.stop_conversion()
+    
+    def _on_engine_progress(self, progress_pct: int):
+        """Forward engine progress to orchestrator signals."""
+        # Calculate current file index from progress
+        # This is approximate since engine tracks overall progress
+        total_files = len(self._conversion_engine.files) if self._conversion_engine else 1
+        current_file = int((progress_pct / 100.0) * total_files)
         
-        # Emit finished signals (both NEW unified and LEGACY)
-        # NEW: Emit conversion_completed with detailed counts
-        self.conversion_completed.emit(success_count, failed_count, 0, 0)  # skipped=0, stopped=0 for presets
-        # LEGACY: Also emit conversion_finished for backward compatibility
-        message = f"Preset conversion complete: {success_count}/{total_files} files"
-        self.conversion_finished.emit(success_count == total_files, message)
+        # Emit legacy progress signal
+        self.conversion_progress.emit(current_file, total_files, f"Processing file {current_file}/{total_files}")
+    
+    def _on_engine_status(self, message: str):
+        """Forward engine status updates."""
+        # Status updates are handled by MainWindow, no need to forward
+        pass
+    
+    def _on_engine_file_completed(self, source_path: str, output_path: str):
+        """Handle file completion from engine."""
+        # File completion is handled by MainWindow, no need to forward
+        pass
+    
+    def _on_engine_completed(self, successful: int, failed: int, skipped: int, stopped: int):
+        """Handle conversion completion from engine."""
+        total = successful + failed + skipped + stopped
         
-        return (success_count, total_files)
+        # Emit NEW unified signal
+        self.conversion_completed.emit(successful, failed, skipped, stopped)
+        
+        # Emit LEGACY signal for backward compatibility
+        message = f"Preset conversion complete: {successful}/{total} files"
+        self.conversion_finished.emit(successful == total, message)
+        
+        print(f"[PresetOrchestrator] Conversion completed: {successful} success, {failed} failed, {stopped} stopped")
+    
+    # LEGACY: Keep run_conversion for backward compatibility (redirects to start_conversion)
+    def run_conversion(self, files: List[str], output_mode: str = "source", 
+                       organized_name: str = "output", custom_path: str = None) -> tuple:
+        """
+        DEPRECATED: Use start_conversion() instead.
+        
+        This method is kept for backward compatibility but now delegates to
+        the async start_conversion() method.
+        
+        Returns:
+            Tuple of (0, 0) - actual results come via signals
+        """
+        print("[PresetOrchestrator] WARNING: run_conversion() is deprecated, use start_conversion()")
+        self.start_conversion(files, output_mode, organized_name, custom_path)
+        return (0, 0)  # Results come via signals
     
     def show_gallery(self):
         """Show the preset gallery overlay."""
@@ -366,3 +326,4 @@ class PresetOrchestrator(QObject):
     def update_theme(self, is_dark: bool):
         """Update theme for gallery and all preset components."""
         self._gallery.update_theme(is_dark)
+

@@ -57,12 +57,12 @@ class SocialNavigator:
         # 2. Create Virtual Preset for each ratio
         # Map ratio codes to nice names/icons
         RATIO_META = {
-            "9x16": {"name": "Vertical 9:16", "icon": "916", "desc": "Reels / Shorts / TikTok"},
-            "1x1": {"name": "Square 1:1", "icon": "11", "desc": "Feeds / Carousel Posts"},
-            "3x4": {"name": "Portrait 3:4", "icon": "34", "desc": "Instagram / FB Feed"},
-            "16x9": {"name": "Landscape 16:9", "icon": "169", "desc": "YouTube / LinkedIn"},
-            "4x5": {"name": "Portrait 4:5", "icon": "mobile", "desc": "Optimized Feed Portrait"},
-            "other": {"name": "Other Social", "icon": "settings", "desc": "Miscellaneous social presets"}
+            "9x16": {"name": "REEL", "icon": "916", "desc": ""},
+            "1x1": {"name": "SQUARE", "icon": "11", "desc": ""},
+            "3x4": {"name": "PORTRAIT", "icon": "34", "desc": ""},
+            "16x9": {"name": "LANDSCAPE", "icon": "169", "desc": ""},
+            "4x5": {"name": "PORTRAIT 4:5", "icon": "mobile", "desc": ""},
+            "other": {"name": "OTHER", "icon": "settings", "desc": ""}
         }
         
         # Custom sort order: 9x16, 3x4, 4x5, 1x1, 16x9, other

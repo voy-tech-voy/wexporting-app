@@ -3,8 +3,9 @@
 
 meta:
   id: "youtube_16x9_4k"
-  name: "YouTube 16:9 Pro"
+  name: "YouTube"
   category: "social"
+  ratio: "16x9"
   description: "High-bitrate 4K upscale (3840x2160). Forces YouTube to use premium codecs for maximum clarity."
   version: "2.0"
 

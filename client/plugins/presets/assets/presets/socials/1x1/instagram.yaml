@@ -2,8 +2,8 @@
 # Smart conversion to 1:1 with Blur fill, Center-Crop, and FPS normalization
 
 meta:
-  id: "instagram_square_pro"
-  name: "Instagram Square Pro"
+  id: "instagram_square"
+  name: "Instagram"
   category: "social"
   ratio: "1x1"
   description: "Optimized 1:1 conversion with Blur fill, Center-crop, and high-bitrate encoding for the feed."

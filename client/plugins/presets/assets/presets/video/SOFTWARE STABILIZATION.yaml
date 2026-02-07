@@ -63,7 +63,7 @@ pipeline:
     description: "Step 1/2: Analyzing camera motion..."
     command_template: |
       {{ tool_exe }} -y -i "{{ input_path }}" 
-      -vf "vidstabdetect=result='{{ output_path_no_ext }}.trf':shakiness={{ shake_sensitivity }}:accuracy=15" 
+      -vf "vidstabdetect=result={{ output_path_no_ext_escaped }}.trf:shakiness={{ shake_sensitivity }}:accuracy=15" 
       -f null -
 
   # STEP 2: STABILIZATION TRANSFORM
@@ -73,7 +73,7 @@ pipeline:
     filename_suffix: "_Stabilized"
     command_template: |
       {{ tool_exe }} -y -i "{{ input_path }}" 
-      -vf "vidstabtransform=input='{{ output_path_no_ext }}.trf':smoothing={{ smoothing_amount }}:zoom={{ max_zoom }}:relative=1:unshakiness={{ shake_sensitivity }}:tripod={{ 1 if tripod_mode else 0 }}:optzoom=2" 
+      -vf "vidstabtransform=input={{ output_path_no_ext_escaped }}.trf:smoothing={{ smoothing_amount }}:zoom={{ max_zoom }}:relative=1:tripod={{ 1 if tripod_mode else 0 }}:optzoom=2" 
       -c:v libx264 -preset slow -crf 18 -pix_fmt yuv420p 
       {% if meta.has_audio %} -c:a aac -b:a 192k {% else %} -an {% endif %}
       -movflags +faststart 

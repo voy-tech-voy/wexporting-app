@@ -1,0 +1,95 @@
+# ============================================================================
+# SILENCE STRIPPER (AUTO-CUT) PRESET
+# ============================================================================
+# Location: client/plugins/presets/assets/presets/audio_silence_stripper.yaml
+# Category: audio
+# Logic: Uses silenceremove to strip dead air from start, middle, and end.
+# ============================================================================
+
+meta:
+  id: "audio_silence_stripper"
+  name: "Silence Stripper (Auto-Cut)"
+  category: "audio"
+  description: "Removes dead air and long pauses from recordings. Best for voiceovers and podcasts."
+  version: "1.0"
+
+style:
+  accent_color: "#00FF7F"         # Spring Green for Audio
+  icon: "scissors-audio"
+  glow_strength: "normal"
+
+constraints:
+  accepted_types: ["audio", "video"]
+  accepted_extensions: [".mp3", ".wav", ".m4a", ".aac", ".mp4", ".mov", ".mkv"]
+  min_duration: 1.0
+
+# --- THE USER INTERFACE ---
+parameters:
+  - id: "silence_threshold"
+    type: "slider"
+    label: "Silence Threshold (dB)"
+    default: -45
+    min_value: -60
+    max_value: -20
+    tooltip: "Decibel level below which audio is considered 'silent'. -45 is standard for quiet rooms."
+
+  - id: "min_silence_duration"
+    type: "slider"
+    label: "Min Pause Duration (s)"
+    default: 0.8
+    min_value: 0.1
+    max_value: 3.0
+    tooltip: "How long a pause must be (in seconds) before it is cut out."
+
+  - id: "audio_format"
+    type: "segmented_pill"
+    label: "Output Format"
+    options: ["mp3", "wav", "m4a"]
+    default: "mp3"
+    tooltip: "MP3: Small file | WAV: Lossless/Production | M4A: Best for Apple"
+
+  - id: "bitrate"
+    type: "dropdown"
+    label: "Audio Bitrate"
+    options: ["128k", "192k", "256k", "320k"]
+    default: "256k"
+    visibility_rule: "audio_format != 'wav'"
+
+# --- THE EXECUTION LOGIC ---
+pipeline:
+  - tool: "ffmpeg"
+    description: "Stripping silence and normalizing audio"
+    
+    filename_suffix: "_tight_edit"
+    
+    command_template: |
+      {{ tool_exe }} -y -i "{{ input_path }}"
+      
+      {# --- THE SILENCE REMOVAL FILTER --- #}
+      {# start_periods=1: remove silence from the very beginning #}
+      {# stop_periods=-1: remove all silences found in the middle/end #}
+      {# stop_duration: the length of the pause to trigger a cut #}
+      {# stop_threshold: the volume level to trigger a cut #}
+      -af "silenceremove=start_periods=1:start_silence=0.1:start_threshold={{ silence_threshold }}dB:stop_periods=-1:stop_duration={{ min_silence_duration }}:stop_threshold={{ silence_threshold }}dB,loudnorm=I=-16:TP=-1.5:LRA=11"
+      
+      {# --- FORMAT-SPECIFIC ENCODING --- #}
+      -vn 
+      {% if audio_format == 'mp3' %}
+        -c:a libmp3lame -b:a {{ bitrate }}
+        "{{ output_path_no_ext }}.mp3"
+      {% elif audio_format == 'wav' %}
+        -c:a pcm_s16le
+        "{{ output_path_no_ext }}.wav"
+      {% else %}
+        -c:a aac -b:a {{ bitrate }}
+        "{{ output_path_no_ext }}.m4a"
+      {% endif %}
+
+# ============================================================================
+# CHECKLIST
+# ============================================================================
+# [x] Unique id: audio_silence_stripper
+# [x] Category: audio
+# [x] Uses -vn to ensure output is a clean audio file (stripping video)
+# [x] Includes loudnorm to ensure the remaining speech is at professional levels
+# [x] Handles both start and middle silences dynamically

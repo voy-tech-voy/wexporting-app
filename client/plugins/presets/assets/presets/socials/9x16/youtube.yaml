@@ -3,8 +3,9 @@
 
 meta:
   id: "youtube_shorts_9x16"
-  name: "YouTube Shorts Pro"
+  name: "YouTube"
   category: "social"
+  ratio: "9x16"
   description: "9:16 Vertical optimized for YouTube Shorts. Features smooth motion and aggressive sharpening."
   version: "2.0"
 

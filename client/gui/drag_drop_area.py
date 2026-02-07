@@ -188,6 +188,9 @@ class DragDropArea(QWidget):
         else:
             self._hide_preset_overlay()
         
+        # Refresh placeholder visibility based on new mode
+        self.update_placeholder_text()
+        
         self.view_mode_changed.emit(mode.value)
     
     @property
@@ -672,9 +675,9 @@ class DragDropArea(QWidget):
                 else:
                     unsupported_count += 1
         
-        # Show single consolidated dialog if there were unsupported files
+        # Show single consolidated toast if there were unsupported files
         if unsupported_count > 0:
-            self.show_unsupported_files_dialog(unsupported_count)
+            self.show_unsupported_files_toast(unsupported_count)
                     
         if added_files:
             self.files_added.emit(added_files)
@@ -705,9 +708,19 @@ class DragDropArea(QWidget):
         self.file_list_widget.clear()
         self.update_placeholder_text()
         
+        # Invalidate preset gallery blur cache so it shows empty background
+        if hasattr(self, '_preset_orchestrator') and self._preset_orchestrator:
+            if hasattr(self._preset_orchestrator, '_gallery') and self._preset_orchestrator._gallery:
+                self._preset_orchestrator._gallery.clear_blur_cache()
+        
     def update_placeholder_text(self):
         """Update placeholder - show centered red container when empty"""
         if len(self.file_list) == 0:
+            # Don't show placeholder when in PRESETS view mode (gallery is open)
+            if self._current_view_mode == ViewMode.PRESETS:
+                self.file_list_widget.clear()
+                return
+            
             # Clear all items first to avoid duplicates
             self.file_list_widget.clear()
             
@@ -845,6 +858,9 @@ class DragDropArea(QWidget):
 
 
                     
+
+
+                    
     def remove_file_by_index(self, index):
         """Remove a file by its index in the list"""
         if 0 <= index < len(self.file_list):
@@ -864,45 +880,88 @@ class DragDropArea(QWidget):
             if 0 <= row < len(self.file_list):
                 self.remove_file_by_index(row)
     
-    def show_unsupported_files_dialog(self, count):
-        """Show a single consolidated dialog for unsupported files"""
-        from PyQt6.QtWidgets import QDialog
-        from PyQt6.QtGui import QFont
+    def show_unsupported_files_toast(self, count):
+        """Show a toast notification for unsupported files"""
+        from client.gui.components.toast_notification import ToastNotification
         
-        dialog = QDialog(self)
-        dialog.setWindowTitle("")  # No title bar text
-        dialog.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
-        dialog.setFixedSize(400, 150)
-        dialog.setWindowFlags(dialog.windowFlags() & ~Qt.WindowType.WindowCloseButtonHint)  # Remove close button
+        # Dismiss any existing toast
+        if hasattr(self, '_active_toast') and self._active_toast:
+            try:
+                self._active_toast.deleteLater()
+            except RuntimeError:
+                pass
         
-        # Apply consistent rounded corner styling
-        self._apply_dialog_styling(dialog)
+        # Create and show new toast
+        message = f"{count} unsupported file(s) skipped"
+        self._active_toast = ToastNotification(
+            message=message,
+            icon_type="warning",
+            duration=4000,
+            parent=self
+        )
         
-        layout = QVBoxLayout(dialog)
-        layout.setContentsMargins(20, 20, 20, 20)
-        layout.setSpacing(15)
+        # Clean up reference when dismissed
+        self._active_toast.dismissed.connect(lambda: setattr(self, '_active_toast', None))
         
-        # Message label
-        message_label = QLabel(f"There were {count} unsupported file(s).\nSkipped {count} file(s).")
-        message_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        font = message_label.font()
-        font.setPointSize(11)
-        message_label.setFont(font)
-        layout.addWidget(message_label)
+        self._active_toast.show_toast()
+
+    def show_conversion_toast(self, successful: int, failed: int, skipped: int, stopped: int):
+        """
+        Show conversion results in a toast notification with color-coded details.
+        Replaces the old modal dialog.
+        """
+        from client.gui.components.toast_notification import ToastNotification
         
-        # OK button
-        ok_button = QPushButton("OK")
-        ok_button.setFixedWidth(80)
-        ok_button.clicked.connect(dialog.accept)
+        # Colors matching the app theme/dialog manager
+        app_green = "#4CAF50"   # Success green
+        app_yellow = "#FFC107"  # Warning yellow
+        app_red = "#F44336"     # Error red
         
-        # Center the button
-        button_layout = QHBoxLayout()
-        button_layout.addStretch()
-        button_layout.addWidget(ok_button)
-        button_layout.addStretch()
-        layout.addLayout(button_layout)
+        parts = []
+        # Concise status messages
+        if successful > 0:
+            parts.append(f"<span style='color: {app_green};'><b>{successful}</b> exported</span>")
         
-        dialog.exec()
+        if skipped > 0:
+            parts.append(f"<span style='color: {app_yellow};'><b>{skipped}</b> skipped</span>")
+            
+        if failed > 0:
+            parts.append(f"<span style='color: {app_red};'><b>{failed}</b> failed</span>")
+            
+        if stopped > 0:
+            parts.append(f"<span style='color: {app_yellow};'><b>{stopped}</b> stopped</span>")
+            
+        if not parts:
+            parts.append("No files processed")
+            
+        # Join with line breaks
+        message = "<br>".join(parts)
+        
+        # Determine icon type
+        if failed > 0:
+            icon = "error"
+        elif stopped > 0 or skipped > 0:
+            icon = "warning"
+        else:
+            icon = "info"
+            
+        # Dismiss any existing toast
+        if hasattr(self, '_active_toast') and self._active_toast:
+            try:
+                self._active_toast.deleteLater()
+            except RuntimeError:
+                pass
+                
+        # Show toast with slightly longer duration for results
+        self._active_toast = ToastNotification(
+            message=message,
+            icon_type=icon,
+            duration=5000, 
+            parent=self,
+            position="bottom-right"
+        )
+        self._active_toast.dismissed.connect(lambda: setattr(self, '_active_toast', None))
+        self._active_toast.show_toast()
             
     def handle_list_key_press(self, event):
         """Handle keyboard events for the file list"""

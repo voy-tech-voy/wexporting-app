@@ -96,8 +96,33 @@ def get_ffprobe_path() -> str:
     return str(ffmpeg_dir / probe_name)
 
 
+def get_imagemagick_path() -> str:
+    """
+    Get ImageMagick binary path - SINGLE SOURCE OF TRUTH
+    
+    Resolution order (handled by ToolRegistry):
+    1. User-selected path from Advanced Settings
+    2. Bundled ImageMagick (if exists)
+    3. System ImageMagick (from PATH)
+    
+    Returns:
+        Absolute path to ImageMagick binary
+    """
+    registry = get_registry()
+    
+    # Ensure registry is initialized
+    if not registry._initialized:
+        registry.resolve_all()
+    
+    path = registry.get_tool_path('magick')
+    if not path:
+        raise RuntimeError("ImageMagick not found. Please configure in Advanced Settings.")
+    
+    return path
+
+
 def _register_default_tools(registry: ToolRegistry) -> None:
-    """Register default tools (FFmpeg only for now)."""
+    """Register default tools (FFmpeg and ImageMagick)."""
     
     # FFmpeg
     registry.register(ToolDescriptor(
@@ -115,7 +140,22 @@ def _register_default_tools(registry: ToolRegistry) -> None:
         file_filter="FFmpeg Executable (ffmpeg.exe);;All Files (*.*)" if os.name == 'nt' else "All Files (*)"
     ))
     
-    # NOTE: ImageMagick not registered - not needed at this stage
+    # ImageMagick
+    from .validators import validate_imagemagick
+    registry.register(ToolDescriptor(
+        id="magick",
+        display_name="ImageMagick",
+        env_var_name="IMAGEMAGICK_BINARY",
+        binary_name="magick.exe" if os.name == 'nt' else "magick",
+        version_args=["-version"],
+        version_pattern=r"Version: ImageMagick ([\d\.\-]+)",
+        validate_capabilities=validate_imagemagick,
+        required_capabilities=[],  # Basic validation only checks if it's ImageMagick
+        companions=[],
+        is_bundled=True,
+        bundle_subpath="tools",
+        file_filter="ImageMagick Executable (magick.exe);;All Files (*.*)" if os.name == 'nt' else "All Files (*)"
+    ))
 
 
 # Exports
@@ -126,5 +166,6 @@ __all__ = [
     'get_registry',
     'get_ffmpeg_path',
     'get_ffprobe_path',
+    'get_imagemagick_path',
     'validate_ffmpeg_codecs',
 ]

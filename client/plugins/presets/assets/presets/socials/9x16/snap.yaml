@@ -2,9 +2,10 @@
 # Low-latency vertical for instant Snap sending
 
 meta:
-  id: "snapchat_pro_9x16"
-  name: "Snapchat Pro"
+  id: "snapchat"
+  name: "Snapchat"
   category: "social"
+  ratio: "9x16"
   description: "9:16 Vertical. Optimized for fast uploads and low-latency playback on Snapchat."
   version: "1.0"
 

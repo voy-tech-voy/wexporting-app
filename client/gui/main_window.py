@@ -515,10 +515,9 @@ class MainWindow(QMainWindow):
         
     def set_progress(self, value):
         """Set progress bar value (0-100) - updates green overall progress bar"""
-        self.progress_bar.setValue(value)
-        # Also update the green total_progress_bar (0.0-1.0 scale)
-        if hasattr(self, 'total_progress_bar'):
-            self.total_progress_bar.set_progress(value / 100.0)
+        # Update the green total_progress_bar in output footer (0.0-1.0 scale)
+        if hasattr(self, 'output_footer'):
+            self.output_footer.set_total_progress(value / 100.0)
     
     @pyqtSlot(int, float)
     def on_file_progress(self, file_index, progress):
@@ -526,9 +525,9 @@ class MainWindow(QMainWindow):
         # Update file list item progress
         self.drag_drop_area.set_file_progress(file_index, progress)
         
-        # Update blue bar (current file) only
-        if hasattr(self, 'file_progress_bar'):
-            self.file_progress_bar.set_progress(progress)
+        # Update blue bar (current file) in output footer
+        if hasattr(self, 'output_footer'):
+            self.output_footer.set_file_progress(progress)
         
         # NOTE: Green bar (overall progress) is updated via set_progress() signal,
         # not here - to avoid conflicting updates
@@ -574,6 +573,18 @@ class MainWindow(QMainWindow):
         # When LAB mode is active, user is working with the command panel, don't interrupt
         if self._current_mode != Mode.LAB:
             self.drag_drop_area.show_preset_view()
+        
+        # Invalidate preset gallery blur cache to reflect updated file list
+        if hasattr(self.drag_drop_area, '_preset_orchestrator') and self.drag_drop_area._preset_orchestrator:
+            if hasattr(self.drag_drop_area._preset_orchestrator, '_gallery') and self.drag_drop_area._preset_orchestrator._gallery:
+                gallery = self.drag_drop_area._preset_orchestrator._gallery
+                # If gallery is currently visible, force immediate recapture with delay for rendering
+                if gallery.isVisible():
+                    from PyQt6.QtCore import QTimer
+                    QTimer.singleShot(50, lambda: gallery.capture_blur_background(force=True))
+                else:
+                    # If not visible, just clear cache so next open captures fresh
+                    gallery.clear_blur_cache()
     
     def _on_footer_start(self):
         """Handle start button click from output footer"""
@@ -636,61 +647,63 @@ class MainWindow(QMainWindow):
         preset_name = self._active_preset.name if self._active_preset else "Unknown"
         self.update_status(f"Converting with preset: {preset_name}")
         
-        # Wire up progress signals from orchestrator
+        # Wire up progress signals from orchestrator's engine
         def on_progress(current, total, message):
             progress = int(current / total * 100) if total > 0 else 0
             self.set_progress(progress)
             self.update_status(message)
         
+        def on_status(message):
+            """Forward status updates from engine."""
+            self.update_status(message)
+        
+        def on_file_progress(file_index, progress):
+            """Forward file progress from engine."""
+            self.on_file_progress(file_index, progress)
+        
+        def on_file_completed(source_path, output_path):
+            """Forward file completion from engine."""
+            self.on_file_completed(source_path, output_path)
+        
         def on_completed(successful, failed, skipped, stopped):
-            """NEW: Handle unified completion signal"""
+            """Handle unified completion signal from engine."""
             self.progress_manager.reset()
             self._reset_conversion_ui()
-            self.dialogs.show_conversion_summary(successful, failed, skipped, stopped)
-        
-        def on_finished_legacy(success, message):
-            """LEGACY: Fallback for old conversion_finished signal - extract counts from message"""
-            # Try to extract counts from message like "Preset conversion complete: 5/10 files"
-            import re
-            match = re.search(r'(\d+)/(\d+)', message)
-            if match:
-                successful = int(match.group(1))
-                total = int(match.group(2))
-                failed = total - successful
-            else:
-                # Fallback: assume all successful
-                successful = len(files) if 'files' in locals() else 0
-                failed = 0
+            self.drag_drop_area.show_conversion_toast(successful, failed, skipped, stopped)
             
-            self.progress_manager.reset()
-            self._reset_conversion_ui()
-            self.dialogs.show_conversion_summary(successful, failed, 0, 0)
+            # Disconnect signals after completion
+            try:
+                if orchestrator._conversion_engine:
+                    orchestrator._conversion_engine.status_updated.disconnect(on_status)
+                    orchestrator._conversion_engine.file_progress_updated.disconnect(on_file_progress)
+                    orchestrator._conversion_engine.file_completed.disconnect(on_file_completed)
+                orchestrator.conversion_progress.disconnect(on_progress)
+                orchestrator.conversion_completed.disconnect(on_completed)
+            except TypeError:
+                pass  # Already disconnected
         
-        # Connect signals - prefer new conversion_completed if available
+        # Connect signals to engine (via orchestrator)
         orchestrator.conversion_progress.connect(on_progress)
-        if hasattr(orchestrator, 'conversion_completed'):
-            orchestrator.conversion_completed.connect(on_completed)
-        else:
-            # Fallback to legacy signal
-            orchestrator.conversion_finished.connect(on_finished_legacy)
+        orchestrator.conversion_completed.connect(on_completed)
         
-        # Delegate execution to orchestrator (Strategy Pattern)
-        orchestrator.run_conversion(
+        # Connect directly to engine signals for real-time updates
+        # Note: We connect after start_conversion creates the engine
+        def connect_engine_signals():
+            if orchestrator._conversion_engine:
+                orchestrator._conversion_engine.status_updated.connect(on_status)
+                orchestrator._conversion_engine.file_progress_updated.connect(on_file_progress)
+                orchestrator._conversion_engine.file_completed.connect(on_file_completed)
+        
+        # Delegate execution to orchestrator (async, non-blocking)
+        orchestrator.start_conversion(
             files=files,
             output_mode=output_mode,
             organized_name=organized_name,
             custom_path=custom_path
         )
         
-        # Disconnect signals after execution
-        try:
-            orchestrator.conversion_progress.disconnect(on_progress)
-            if hasattr(orchestrator, 'conversion_completed'):
-                orchestrator.conversion_completed.disconnect(on_completed)
-            else:
-                orchestrator.conversion_finished.disconnect(on_finished_legacy)
-        except TypeError:
-            pass  # Already disconnected
+        # Connect engine signals after engine is created
+        connect_engine_signals()
 
     def _calculate_conversion_totals(self, files, params):
         """
@@ -784,10 +797,17 @@ class MainWindow(QMainWindow):
     
     def stop_conversion(self):
         """Stop the current conversion process"""
+        # Stop regular conversion engine
         if self.conversion_engine and self.conversion_engine.isRunning():
             self.update_status("Stopping conversion...")
             self.conversion_engine.stop_conversion()
             # The button state will be reset in on_conversion_finished
+        
+        # Also stop preset engine if running
+        if hasattr(self.drag_drop_area, '_preset_orchestrator'):
+            orchestrator = self.drag_drop_area._preset_orchestrator
+            if hasattr(orchestrator, 'stop_conversion'):
+                orchestrator.stop_conversion()
     
     def on_file_completed(self, source_file, output_file):
         """Handle completed file conversion"""
@@ -843,7 +863,8 @@ class MainWindow(QMainWindow):
         match = re.search(r'(\d+)\s+files?\s+processed', message)
         if match:
             successful = int(match.group(1))
-            self.dialogs.show_conversion_summary(successful, 0, 0, 0)
+            # Use localized toast instead of dialog
+            self.drag_drop_area.show_conversion_toast(successful, 0, 0, 0)
         # If no counts found, do nothing (engine should use conversion_completed signal)
     
     def _on_conversion_completed(self, successful, failed, skipped, stopped):
@@ -854,8 +875,8 @@ class MainWindow(QMainWindow):
         # Reset UI state
         self._reset_conversion_ui()
         
-        # Show unified conversion summary dialog
-        self.dialogs.show_conversion_summary(successful, failed, skipped, stopped)
+        # Show unified conversion summary toast (replacing dialog)
+        self.drag_drop_area.show_conversion_toast(successful, failed, skipped, stopped)
     
     def _reset_conversion_ui(self):
         """Reset UI elements after conversion"""
@@ -879,8 +900,8 @@ class MainWindow(QMainWindow):
         # Reset progress manager before completion
         self.progress_manager.reset()
         
-        # Use unified conversion summary dialog
-        self.dialogs.show_conversion_summary(successful, failed, skipped, stopped)
+        # Use unified conversion summary toast (replacing dialog)
+        self.drag_drop_area.show_conversion_toast(successful, failed, skipped, stopped)
         
         # Reset UI
         self._reset_conversion_ui()

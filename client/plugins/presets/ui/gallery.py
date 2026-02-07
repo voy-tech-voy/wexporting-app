@@ -408,13 +408,15 @@ class PresetGallery(BlurBackgroundMixin, QWidget):
             rect = self.parent().rect()
             rect.adjust(-2, -2, 2, 2)  # Expand by 2px on all sides
             self.setGeometry(rect)
-            self.capture_blur_background()
         
         # Position filter bar overlay
         self._position_filter_bar()
         
+        # Delay blur capture to allow file list to render (important when files are just dropped)
+        QTimer.singleShot(50, lambda: self.capture_blur_background(force=True))
+        
         # Capture blur for filter bar after a short delay (let cards render)
-        QTimer.singleShot(50, self._update_filter_bar_blur)
+        QTimer.singleShot(100, self._update_filter_bar_blur)
         
         # Setup opacity animation
         if not hasattr(self, '_opacity_effect'):

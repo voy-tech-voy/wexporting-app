@@ -3,8 +3,9 @@
 
 meta:
   id: "facebook_pro_4x5"
-  name: "Facebook Feed 4:5"
+  name: "Facebook"
   category: "social"
+  ratio: "3x4"
   description: "1080x1350 Portrait. Optimized for high engagement in the Meta News Feed."
   version: "1.0"
 

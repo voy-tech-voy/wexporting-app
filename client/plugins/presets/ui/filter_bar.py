@@ -6,17 +6,17 @@ Single selection mode with "ALL" button to show all presets.
 """
 from typing import List, Optional
 from PyQt6.QtWidgets import (
-    QWidget, QHBoxLayout, QPushButton, QButtonGroup,
-    QGraphicsScene, QGraphicsPixmapItem, QGraphicsBlurEffect
+    QHBoxLayout, QPushButton, QButtonGroup
 )
-from PyQt6.QtCore import pyqtSignal, Qt, QTimer
-from PyQt6.QtGui import QPainter, QColor, QPainterPath, QLinearGradient, QPixmap
+from PyQt6.QtCore import pyqtSignal, Qt
+from PyQt6.QtGui import QPainter, QColor, QLinearGradient, QPixmap, QImage, QPainterPath
 
 from client.plugins.presets.logic.models import PresetDefinition
 from client.gui.theme import Theme
+from client.gui.widgets.gradient_blur_bar import GradientBlurBar
 
 
-class CategoryFilterBar(QWidget):
+class CategoryFilterBar(GradientBlurBar):
     """
     Horizontal bar with category toggle buttons.
     
@@ -42,20 +42,20 @@ class CategoryFilterBar(QWidget):
     BUTTON_HEIGHT = 32
     
     def __init__(self, parent=None):
-        super().__init__(parent)
+        # Initialize base class with top orientation and gallery_filter theme prefix
+        super().__init__(parent, orientation='top', theme_prefix='gallery_filter')
+        
         self._buttons: dict[str, QPushButton] = {}
         self._selected_category: Optional[str] = None  # None or category name
         self._button_group = QButtonGroup(self)
         self._button_group.setExclusive(True)
-        self._blurred_bg = None
+        
+        # Custom blur capture state (overrides base class behavior)
         self._is_capturing = False
+        self._blurred_bg = None
         
         # DEBUG MODE - Set to False for production
         self._debug_mode = False
-        
-        # Prevent Qt from painting any background - we handle it in paintEvent
-        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
-        self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground, True)
         
         self._layout = QHBoxLayout(self)
         self._layout.setContentsMargins(0, 12, 0, 16)
@@ -201,14 +201,32 @@ class CategoryFilterBar(QWidget):
         ov_r, ov_g, ov_b = overlay_color.red(), overlay_color.green(), overlay_color.blue()
         
         # 1. Draw solid background with gradient alpha - this fades/multiplies the cards underneath
+        # Use multi-stop gradient for smoother transitions (eliminates banding)
+        # Extra stops concentrated in bottom 40% where fade is steepest
         solid_gradient = QLinearGradient(0, 0, 0, self.height())
+        
+        # 9 color stops for ultra-smooth gradient (concentrated at bottom)
         solid_gradient.setColorAt(0.0, QColor(bg_r, bg_g, bg_b, mask_top))
+        solid_gradient.setColorAt(0.2, QColor(bg_r, bg_g, bg_b, mask_top))
+        solid_gradient.setColorAt(0.4, QColor(bg_r, bg_g, bg_b, int(mask_top * 0.9 + mask_bottom * 0.1)))
+        solid_gradient.setColorAt(0.55, QColor(bg_r, bg_g, bg_b, int(mask_top * 0.7 + mask_bottom * 0.3)))
+        solid_gradient.setColorAt(0.65, QColor(bg_r, bg_g, bg_b, int(mask_top * 0.5 + mask_bottom * 0.5)))
+        solid_gradient.setColorAt(0.75, QColor(bg_r, bg_g, bg_b, int(mask_top * 0.3 + mask_bottom * 0.7)))
+        solid_gradient.setColorAt(0.85, QColor(bg_r, bg_g, bg_b, int(mask_top * 0.15 + mask_bottom * 0.85)))
+        solid_gradient.setColorAt(0.95, QColor(bg_r, bg_g, bg_b, int(mask_top * 0.05 + mask_bottom * 0.95)))
         solid_gradient.setColorAt(1.0, QColor(bg_r, bg_g, bg_b, mask_bottom))
         painter.fillRect(self.rect(), solid_gradient)
         
         # 1.5. Draw overlay tint on top of background
         overlay_gradient = QLinearGradient(0, 0, 0, self.height())
         overlay_gradient.setColorAt(0.0, QColor(ov_r, ov_g, ov_b, min(filter_overlay_alpha, mask_top)))
+        overlay_gradient.setColorAt(0.2, QColor(ov_r, ov_g, ov_b, min(filter_overlay_alpha, mask_top)))
+        overlay_gradient.setColorAt(0.4, QColor(ov_r, ov_g, ov_b, min(filter_overlay_alpha, int(mask_top * 0.9 + mask_bottom * 0.1))))
+        overlay_gradient.setColorAt(0.55, QColor(ov_r, ov_g, ov_b, min(filter_overlay_alpha, int(mask_top * 0.7 + mask_bottom * 0.3))))
+        overlay_gradient.setColorAt(0.65, QColor(ov_r, ov_g, ov_b, min(filter_overlay_alpha, int(mask_top * 0.5 + mask_bottom * 0.5))))
+        overlay_gradient.setColorAt(0.75, QColor(ov_r, ov_g, ov_b, min(filter_overlay_alpha, int(mask_top * 0.3 + mask_bottom * 0.7))))
+        overlay_gradient.setColorAt(0.85, QColor(ov_r, ov_g, ov_b, min(filter_overlay_alpha, int(mask_top * 0.15 + mask_bottom * 0.85))))
+        overlay_gradient.setColorAt(0.95, QColor(ov_r, ov_g, ov_b, min(filter_overlay_alpha, int(mask_top * 0.05 + mask_bottom * 0.95))))
         overlay_gradient.setColorAt(1.0, QColor(ov_r, ov_g, ov_b, min(filter_overlay_alpha, mask_bottom)))
         painter.fillRect(self.rect(), overlay_gradient)
         
@@ -227,10 +245,11 @@ class CategoryFilterBar(QWidget):
             mask_painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_DestinationIn)
             
             alpha_gradient = QLinearGradient(0, 0, 0, self.height())
-            # Keep top area more opaque for button legibility
+            # Multi-stop gradient for ultra-smooth alpha transition
             alpha_gradient.setColorAt(0.0, QColor(0, 0, 0, mask_top))
-            alpha_gradient.setColorAt(0.6, QColor(0, 0, 0, mask_top))  # Hold opacity longer
-            # Fade more aggressively in the bottom 40%
+            alpha_gradient.setColorAt(0.3, QColor(0, 0, 0, mask_top))  # Hold opacity longer
+            alpha_gradient.setColorAt(0.6, QColor(0, 0, 0, int(mask_top * 0.7 + mask_bottom * 0.3)))
+            alpha_gradient.setColorAt(0.8, QColor(0, 0, 0, int(mask_top * 0.3 + mask_bottom * 0.7)))
             alpha_gradient.setColorAt(1.0, QColor(0, 0, 0, mask_bottom))
             
             mask_painter.fillRect(blurred_masked.rect(), alpha_gradient)
@@ -264,7 +283,118 @@ class CategoryFilterBar(QWidget):
             painter.setPen(QColor(255, 255, 255))
             painter.drawText(10, 20, f"GRADIENT: Top={mask_top} → Bottom={mask_bottom}")
         
+        # 3. Apply Noise Dithering (gradient-aware - only where needed)
+        try:
+            noise_opacity = int(get_color("gallery_filter_noise_opacity", is_dark))
+        except (ValueError, TypeError):
+            noise_opacity = 15  # Default subtle noise
+            
+        if noise_opacity > 0 and self._noise_pixmap:
+            # Create a gradient mask for the noise itself
+            # Apply noise ONLY in the gradient transition zone (middle area)
+            # Keep top and bottom clean
+            
+            noise_pixmap = QPixmap(self.size())
+            noise_pixmap.fill(Qt.GlobalColor.transparent)
+            
+            noise_painter = QPainter(noise_pixmap)
+            noise_painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+            
+            # Draw tiled noise
+            noise_painter.drawTiledPixmap(self.rect(), self._noise_pixmap)
+            
+            # Apply gradient mask to noise - only show in transition zone
+            noise_painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_DestinationIn)
+            
+            noise_mask = QLinearGradient(0, 0, 0, self.height())
+            # Top 20% - no noise (clean)
+            noise_mask.setColorAt(0.0, QColor(0, 0, 0, 0))
+            noise_mask.setColorAt(0.2, QColor(0, 0, 0, 0))
+            # Ramp up noise through middle
+            noise_mask.setColorAt(0.35, QColor(0, 0, 0, noise_opacity // 2))
+            noise_mask.setColorAt(0.5, QColor(0, 0, 0, noise_opacity))
+            # Keep full noise through bottom fade zone (where banding is worst)
+            noise_mask.setColorAt(0.85, QColor(0, 0, 0, noise_opacity))
+            # Final fade at very bottom
+            noise_mask.setColorAt(0.95, QColor(0, 0, 0, noise_opacity // 2))
+            noise_mask.setColorAt(1.0, QColor(0, 0, 0, 0))
+            
+            noise_painter.fillRect(noise_pixmap.rect(), noise_mask)
+            noise_painter.end()
+            
+            # Draw the masked noise
+            painter.drawPixmap(0, 0, noise_pixmap)
+            
         painter.end()
+
+
+    def _generate_noise_texture(self) -> QPixmap:
+        """Generate blue noise texture using void-and-cluster algorithm.
+        
+        Blue noise has optimal perceptual properties - it distributes energy
+        into high frequencies where the human eye is least sensitive.
+        This creates the most natural-looking dither with minimal visual artifacts.
+        """
+        import random
+        from PyQt6.QtGui import QImage
+        
+        size = 64  # Smaller is more efficient, still tiles seamlessly
+        
+        # Simplified blue noise generation using void-and-cluster
+        # This creates a distribution that avoids low-frequency clumping
+        
+        random.seed(42)  # Consistent pattern
+        
+        # Start with random values
+        pattern = [[random.random() for _ in range(size)] for _ in range(size)]
+        
+        # Apply multiple passes of local averaging to push energy to high frequencies
+        # This is a simplified approximation of blue noise
+        for iteration in range(3):
+            new_pattern = [[0.0 for _ in range(size)] for _ in range(size)]
+            
+            for y in range(size):
+                for x in range(size):
+                    # Sample neighborhood
+                    total = 0.0
+                    count = 0
+                    
+                    for dy in [-1, 0, 1]:
+                        for dx in [-1, 0, 1]:
+                            if dx == 0 and dy == 0:
+                                continue
+                            nx = (x + dx) % size
+                            ny = (y + dy) % size
+                            total += pattern[ny][nx]
+                            count += 1
+                    
+                    avg = total / count
+                    
+                    # Push away from local average (creates high-frequency distribution)
+                    if pattern[y][x] > avg:
+                        new_pattern[y][x] = min(1.0, pattern[y][x] + 0.1)
+                    else:
+                        new_pattern[y][x] = max(0.0, pattern[y][x] - 0.1)
+            
+            pattern = new_pattern
+        
+        # Normalize to 0-255 range with good contrast
+        min_val = min(min(row) for row in pattern)
+        max_val = max(max(row) for row in pattern)
+        range_val = max_val - min_val
+        
+        image = QImage(size, size, QImage.Format.Format_Grayscale8)
+        
+        for y in range(size):
+            for x in range(size):
+                # Normalize and convert to byte
+                normalized = (pattern[y][x] - min_val) / range_val
+                # Center around 128 with moderate range for subtle effect
+                value = int(128 + (normalized - 0.5) * 60)
+                value = max(0, min(255, value))
+                image.setPixel(x, y, value)
+        
+        return QPixmap.fromImage(image)
 
 
     

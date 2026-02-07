@@ -3,8 +3,9 @@
 
 meta:
   id: "x_pro_9x16"
-  name: "X Vertical Pro"
+  name: "X"
   category: "social"
+  ratio: "9x16"
   description: "9:16 vertical optimized for X. Features scroll-stop sharpening and high-speed loading."
   version: "1.0"
 

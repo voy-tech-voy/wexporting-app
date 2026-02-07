@@ -2,9 +2,10 @@
 # The most compatible hybrid format for both Desktop and Mobile viewing
 
 meta:
-  id: "linkedin_square_1x1"
-  name: "LinkedIn Square 1:1"
+  id: "linkedin_square"
+  name: "LinkedIn"
   category: "social"
+  ratio: "1x1"
   description: "Standard 1080x1080 square format. High compatibility across all devices and feed types."
   version: "1.0"
 

@@ -150,12 +150,8 @@ class ManualModeConversionEngine(QThread):
         if converter and file_ext in converter.get_supported_extensions():
             return converter
         
-        # If preferred converter doesn't support this extension, try others
-        # (e.g., GIF when using video tab - GIF should use image converter)
-        for conv_type, conv in self.converters.items():
-            if file_ext in conv.get_supported_extensions():
-                return conv
-        
+        # File type doesn't match selected conversion type - skip it
+        # (e.g., video file when converting to image format)
         return None
     
     def _convert_with_variants(self, converter, file_path: str, file_index: int, completed_outputs: int, total_outputs: int) -> Dict[str, int]:

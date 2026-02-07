@@ -25,25 +25,68 @@ class BlurBackgroundMixin:
         self._blurred_background = None
         self._is_capturing_blur = False
     
-    def capture_blur_background(self):
+    def capture_blur_background(self, force: bool = False):
         """
         Capture parent window content and apply optimized blur effect.
+        
+        Args:
+            force: If True, force re-capture even if background exists.
         """
         if not self.parent() or getattr(self, '_is_capturing_blur', False):
             return
             
+        # Optimization: Return if we already have a background and not forced
+        if not force and self._blurred_background is not None:
+            return
+            
         self._is_capturing_blur = True
         try:
+            # Check if we should use clean background (when drop area is empty)
+            # Gallery's parent is file_list_widget, so we need to check grandparent (DragDropArea)
+            parent = self.parent()
+            drag_drop_area = None
+            
+            # Traverse up to find DragDropArea
+            current = parent
+            while current is not None:
+                if hasattr(current, 'file_list'):
+                    drag_drop_area = current
+                    break
+                current = current.parent()
+            
+            if drag_drop_area and hasattr(drag_drop_area, 'file_list') and len(drag_drop_area.file_list) == 0:
+                print("[BlurBackgroundMixin] File list is empty - using clean transparent background")
+                # Create a clean transparent background instead of capturing drop icon
+                parent_rect = parent.rect()
+                
+                # Create clean transparent pixmap
+                clean_pixmap = QPixmap(parent_rect.size())
+                clean_pixmap.fill(Qt.GlobalColor.transparent)
+                
+                # Downscale for consistency with normal blur path
+                target_width = max(1, parent_rect.width() // 4)
+                small_pixmap = clean_pixmap.scaledToWidth(
+                    target_width,
+                    Qt.TransformationMode.SmoothTransformation
+                )
+                
+                self._blurred_background = small_pixmap
+                self._is_capturing_blur = False
+                return
+            
+            file_count = len(drag_drop_area.file_list) if drag_drop_area and hasattr(drag_drop_area, 'file_list') else 'N/A'
+            print(f"[BlurBackgroundMixin] File list has {file_count} files - capturing blur normally")
+            # Normal path: capture and blur parent content
             # Hide self temporarily to capture what's behind
             was_visible = self.isVisible()
             if was_visible:
                 self.setVisible(False)
                 
             # Grab parent pixmap
-            parent_rect = self.parent().rect()
+            parent_rect = parent.rect()
             
             try:
-                parent_pixmap = self.parent().grab(parent_rect)
+                parent_pixmap = parent.grab(parent_rect)
             except Exception:
                 # Fallback if grab fails
                 parent_pixmap = None
@@ -118,4 +161,8 @@ class BlurBackgroundMixin:
         overlay_color = QColor(overlay_color_hex)
         overlay_color.setAlpha(overlay_alpha)
         painter.fillRect(rect, overlay_color)
+
+    def clear_blur_cache(self):
+        """Clear the cached blurred background, forcing re-capture on next show."""
+        self._blurred_background = None
 

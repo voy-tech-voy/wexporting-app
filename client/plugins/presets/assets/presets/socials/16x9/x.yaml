@@ -3,8 +3,9 @@
 
 meta:
   id: "x_pro_16x9"
-  name: "X Landscape Pro"
+  name: "X"
   category: "social"
+  ratio: "16x9"
   description: "16:9 native widescreen. Optimized for desktop and widescreen timeline viewing."
   version: "1.0"
 

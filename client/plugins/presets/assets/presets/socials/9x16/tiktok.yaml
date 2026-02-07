@@ -2,8 +2,8 @@
 # Optimized for FYP with Safe-Zone padding and High-Bitrate encoding
 
 meta:
-  id: "tiktok_pro_v2"
-  name: "TikTok Pro 9:16"
+  id: "tiktok"
+  name: "TikTok"
   category: "social"
   ratio: "9x16"
   description: "Immersive vertical output with UI Safe-Zone protection and 60fps support."

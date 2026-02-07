@@ -3,8 +3,9 @@
 
 meta:
   id: "linkedin_landscape_16x9"
-  name: "LinkedIn Landscape 16:9"
+  name: "LinkedIn Landscape"
   category: "social"
+  ratio: "16x9"
   description: "Native 1920x1080 landscape. Ideal for webinars, case studies, and corporate presentations."
   version: "1.0"
 

@@ -315,6 +315,7 @@ class DevGalleryColorPanel(QWidget):
             # Mask Controls
             ("gallery_filter_mask_top_alpha", "Gradient Mask TOP Alpha (0-255)", "alpha"),
             ("gallery_filter_mask_bottom_alpha", "Gradient Mask BOTTOM Alpha (0-255)", "alpha"),
+            ("gallery_filter_noise_opacity", "Gradient Noise/Dither Opacity (0-255)", "alpha", 0, 100),
             ("gallery_filter_debug_mask", "🔍 Show Gradient Rectangle", "checkbox"),
         ]
         
@@ -457,7 +458,7 @@ class DevGalleryColorPanel(QWidget):
         filter_bar_params = (
             "gallery_filter_blur_radius", "gallery_filter_blur_scale", "gallery_filter_debug_mask",
             "gallery_filter_bg", "gallery_filter_overlay", "gallery_filter_overlay_alpha",
-            "gallery_filter_mask_top_alpha", "gallery_filter_mask_bottom_alpha"
+            "gallery_filter_mask_top_alpha", "gallery_filter_mask_bottom_alpha", "gallery_filter_noise_opacity"
         )
         if var_name in filter_bar_params:
             self._trigger_filter_bar_blur_refresh()

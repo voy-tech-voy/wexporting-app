@@ -2,9 +2,10 @@
 # The most compatible format for the X timeline
 
 meta:
-  id: "x_pro_1x1"
-  name: "X Square Pro"
+  id: "x_square"
+  name: "X Square"
   category: "social"
+  ratio: "1x1"
   description: "1:1 format. The gold standard for X timeline compatibility and reach."
   version: "1.0"
 

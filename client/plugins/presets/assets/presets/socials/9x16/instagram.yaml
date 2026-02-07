@@ -2,8 +2,8 @@
 # Smart conversion with Auto-Rotation, Blur fill, and FPS normalization
 
 meta:
-  id: "instagram_reel_pro"
-  name: "Instagram Reel Pro"
+  id: "instagram_reel"
+  name: "Instagram"
   category: "social"
   ratio: "9x16"
   description: "Smart conversion with Auto-Rotation, Blur fill, and FPS normalization."

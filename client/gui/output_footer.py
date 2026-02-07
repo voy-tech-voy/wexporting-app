@@ -54,7 +54,19 @@ class OutputFooter(QWidget):
         self._apply_styles()
         
     def _setup_ui(self):
-        layout = QHBoxLayout(self)
+        # Main vertical layout to stack progress bars on top
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
+        
+        # Add progress bars at the top
+        from client.gui.components.status_panel import StatusPanel
+        self.status_panel = StatusPanel()
+        main_layout.addWidget(self.status_panel)
+        
+        # Horizontal layout for controls (below progress bars)
+        controls_widget = QWidget()
+        layout = QHBoxLayout(controls_widget)
         layout.setContentsMargins(16, 8, 16, 8)  # 4px grid: 16 = 4*4
         layout.setSpacing(16)
         
@@ -78,6 +90,9 @@ class OutputFooter(QWidget):
         self.start_btn.clicked.connect(self._on_start_clicked)
         self.start_btn.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         layout.addWidget(self.start_btn)
+        
+        # Add controls widget to main layout
+        main_layout.addWidget(controls_widget)
         
         # Set default selection AFTER UI is fully built to avoid AttributeError
         self.segment_control.set_selected("organized")
@@ -144,6 +159,21 @@ class OutputFooter(QWidget):
     def get_organized_name(self):
         """Get organized folder name"""
         return self.segment_control.get_organized_name()
+    
+    def set_file_progress(self, value: float):
+        """Update file progress bar (0.0 to 1.0)"""
+        if hasattr(self, 'status_panel'):
+            self.status_panel.set_file_progress(value)
+    
+    def set_total_progress(self, value: float):
+        """Update total progress bar (0.0 to 1.0)"""
+        if hasattr(self, 'status_panel'):
+            self.status_panel.set_total_progress(value)
+    
+    def reset_progress(self):
+        """Reset both progress bars"""
+        if hasattr(self, 'status_panel'):
+            self.status_panel.reset()
         
     def update_theme(self, is_dark):
         self._is_dark = is_dark
