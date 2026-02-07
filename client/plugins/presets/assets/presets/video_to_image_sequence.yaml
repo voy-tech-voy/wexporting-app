@@ -8,8 +8,8 @@
 
 meta:
   id: "video_to_image_sequence"
-  name: "Image Sequence Export"
-  category: "audio"
+  name: "Image Sequence"
+  category: "utility"
   description: "Extracts X equally spaced high-res stills across the video duration."
   version: "1.0"
 

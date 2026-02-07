@@ -4,8 +4,6 @@ Visually docks above the main window, enables blur only on this small area.
 """
 
 import os
-import ctypes
-from ctypes import POINTER, Structure, c_int, byref, windll, sizeof
 
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QHBoxLayout, QLabel, QPushButton, QFrame, QMenu, QApplication
@@ -17,6 +15,7 @@ from client.utils.font_manager import AppFonts, FONT_FAMILY_APP_NAME, FONT_FAMIL
 from client.utils.resource_path import get_app_icon_path, get_resource_path
 from client.version import APP_NAME
 from client.gui.theme import Theme
+from client.gui.effects.blur_effects import NativeWindowsBlurEffect
 
 
 class ClickableLabel(QLabel):
@@ -56,6 +55,9 @@ class TitleBarWindow(QMainWindow):
         self._main_window = None
         self._drag_position = None
         self._is_dark_theme = True
+        
+        # Initialize native Windows blur effect (Mica on Win11, fallback on Win10)
+        self._blur_effect = NativeWindowsBlurEffect(use_mica=True, enable_rounded_corners=True)
         
         # Window flags: Frameless, Tool (no taskbar), Translucent for blur
         # Setting parent ensures z-order follows main window
@@ -207,8 +209,9 @@ class TitleBarWindow(QMainWindow):
         """Sync position to be directly above the main window"""
         if self._main_window:
             main_pos = self._main_window.pos()
-            # Position title bar above main window (main window will have no top gap)
-            self.move(main_pos.x(), main_pos.y() - self.TITLE_BAR_HEIGHT)
+            # Position title bar above main window with 1px overlap to prevent gaps
+            # The overlap ensures no visible gap due to rounding or DPI scaling
+            self.move(main_pos.x(), main_pos.y() - self.TITLE_BAR_HEIGHT + 1)
     
     def _sync_width(self):
         """Sync width to match main window"""
@@ -216,43 +219,9 @@ class TitleBarWindow(QMainWindow):
             self.setFixedWidth(self._main_window.width())
     
     def enable_blur(self):
-        """Enable Windows Blur/Acrylic effect on this window"""
-        if os.name != 'nt':
-            return
-        
-        try:
-            class ACCENT_POLICY(Structure):
-                _fields_ = [
-                    ("AccentState", c_int),
-                    ("AccentFlags", c_int),
-                    ("GradientColor", c_int),
-                    ("AnimationId", c_int)
-                ]
-            
-            class WINDOWCOMPOSITIONATTRIBDATA(Structure):
-                _fields_ = [
-                    ("Attribute", c_int),
-                    ("Data", ctypes.c_void_p),
-                    ("SizeOfData", c_int)
-                ]
-            
-            ACCENT_ENABLE_BLURBEHIND = 3
-            
-            hwnd = int(self.winId())
-            
-            accent = ACCENT_POLICY()
-            accent.AccentState = ACCENT_ENABLE_BLURBEHIND
-            accent.GradientColor = 0
-            
-            data = WINDOWCOMPOSITIONATTRIBDATA()
-            data.Attribute = 19
-            data.Data = ctypes.cast(byref(accent), ctypes.c_void_p)
-            data.SizeOfData = sizeof(accent)
-            
-            windll.user32.SetWindowCompositionAttribute(hwnd, byref(data))
-            print("[TitleBar] Blur enabled")
-        except Exception as e:
-            print(f"[TitleBar] Failed to enable blur: {e}")
+        """Enable Windows Blur effect on this window using the blur effect system"""
+        hwnd = int(self.winId())
+        self._blur_effect.apply(hwnd)
     
     def showEvent(self, event):
         """Enable blur when shown"""

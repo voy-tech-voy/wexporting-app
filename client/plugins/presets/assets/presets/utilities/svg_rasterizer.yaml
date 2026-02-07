@@ -3,7 +3,7 @@
 # ============================================================================
 meta:
   id: "utility_svg_rasterizer"
-  name: "SVG to Pro PNG"
+  name: "SVG to PNG"
   category: "utility"
   description: "High-DPI rasterization of vector graphics with transparency."
   version: "1.0"
