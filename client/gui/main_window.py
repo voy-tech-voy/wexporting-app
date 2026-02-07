@@ -8,8 +8,7 @@ import os
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QPushButton, QFrame, QDialog, QApplication,
-    QGraphicsDropShadowEffect, QSplitter, QTextEdit, QProgressBar,
-    QStatusBar
+    QGraphicsDropShadowEffect, QSplitter, QStatusBar
 )
 from PyQt6.QtGui import QIcon, QFont, QAction, QColor
 from PyQt6.QtCore import Qt, pyqtSignal, QPoint, QSize, pyqtSlot, QTimer
@@ -31,7 +30,6 @@ from client.version import APP_NAME, AUTHOR
 # Mediator-Shell Architecture Components
 from client.gui.animators.side_panel_animator import SidePanelAnimator
 from client.gui.components.control_bar import ControlBar
-from client.gui.components.status_panel import StatusPanel
 from client.gui.utils.window_behavior import FramelessWindowBehavior
 from client.gui.utils.dev_tools import EventDebugFilter, DEBUG_INTERACTIVITY
 from client.gui.utils.dialog_manager import DialogManager
@@ -183,10 +181,7 @@ class MainWindow(QMainWindow):
         # Create the middle section with splitter
         self.create_middle_section(content_layout)
         
-        # Bottom section (status and progress)
-        self.create_bottom_section(content_layout)
-        
-        # Create output footer
+        # Create output footer with progress bars
         self.output_footer = OutputFooter()
         self.output_footer.start_conversion.connect(self._on_footer_start)
         self.output_footer.stop_conversion.connect(self.stop_conversion)
@@ -443,33 +438,7 @@ class MainWindow(QMainWindow):
     # provides: open(), close(), toggle() methods.
     # =========================================================================
         
-    def create_bottom_section(self, parent_layout):
-        """Create the bottom section with status and progress"""
-        bottom_frame = QFrame()
-        bottom_frame.setFrameStyle(QFrame.Shape.StyledPanel)
-        bottom_frame.setMaximumHeight(100)
-        bottom_frame.setVisible(False)  # Hide by default
-        
-        bottom_layout = QVBoxLayout(bottom_frame)
-        
-        # Status text area
-        self.status_text = QTextEdit()
-        self.status_text.setMaximumHeight(60)
-        self.status_text.setReadOnly(True)
-        self.status_text.setPlainText("Ready to convert graphics files...")
-        
-        # Progress bar
-        self.progress_bar = QProgressBar()
-        self.progress_bar.setVisible(False)
-        
-        bottom_layout.addWidget(QLabel("Status:"))
-        bottom_layout.addWidget(self.status_text)
-        bottom_layout.addWidget(self.progress_bar)
-        
-        parent_layout.addWidget(bottom_frame)
-        
-        # Store reference to bottom frame for toggling
-        self.bottom_frame = bottom_frame
+
         
     def setup_menu_bar(self):
         """Hide the menu bar completely"""
@@ -477,21 +446,8 @@ class MainWindow(QMainWindow):
         menubar.hide()
         
     def setup_status_bar(self):
-        """Setup the bottom status bar using StatusPanel component."""
-        # Create the StatusPanel component (Mediator-Shell Pattern)
-        self.status_panel = StatusPanel()
-        
-        # Expose child references for backward compatibility
-        self.progress_container = self.status_panel
-        self.file_progress_bar = self.status_panel.file_progress_bar
-        self.total_progress_bar = self.status_panel.total_progress_bar
+        """Setup the status bar."""
         self._completed_files_count = 0
-        
-        # Add progress bar to the central widget's layout
-        if self.centralWidget():
-            central_layout = self.centralWidget().layout()
-            if central_layout:
-                central_layout.addWidget(self.status_panel)
         
         # Status bar - hidden (no resize grip shown)
         self.status_bar = QStatusBar()
@@ -500,18 +456,8 @@ class MainWindow(QMainWindow):
         self.status_bar.hide()
         
     def update_status(self, message):
-        """Update status in both status bar and status text area"""
+        """Update status in status bar"""
         self.status_bar.showMessage(message)
-        self.status_text.append(f"[INFO] {message}")
-        
-        # Auto-scroll to bottom
-        cursor = self.status_text.textCursor()
-        cursor.movePosition(cursor.MoveOperation.End)
-        self.status_text.setTextCursor(cursor)
-        
-    def show_progress(self, visible=True):
-        """Show or hide the progress bar"""
-        self.progress_bar.setVisible(visible)
         
     def set_progress(self, value):
         """Set progress bar value (0-100) - updates green overall progress bar"""
@@ -642,7 +588,7 @@ class MainWindow(QMainWindow):
         # Update UI state (show converting)
         if hasattr(self, 'output_footer'):
             self.output_footer.set_converting(True)
-        self.show_progress(True)
+            self.output_footer.reset_progress()
         
         preset_name = self._active_preset.name if self._active_preset else "Unknown"
         self.update_status(f"Converting with preset: {preset_name}")
@@ -783,14 +729,11 @@ class MainWindow(QMainWindow):
         elif hasattr(self.conversion_engine, 'conversion_finished'):
             self.conversion_engine.conversion_finished.connect(self.on_conversion_finished)
         
-        # Reset progress bars
-        if hasattr(self, 'file_progress_bar'):
-            self.file_progress_bar.set_progress(0)
-        if hasattr(self, 'total_progress_bar'):
-            self.total_progress_bar.set_progress(0)
+        # Reset progress bars in output footer
+        if hasattr(self, 'output_footer'):
+            self.output_footer.reset_progress()
             
         # Start conversion
-        self.show_progress(True)
         self.set_progress(0)
         self.update_status("Starting conversion...")
         self.conversion_engine.start()
@@ -817,15 +760,15 @@ class MainWindow(QMainWindow):
         self.update_status(f"[OK] Converted: {source_name} → {output_name}")
         
         # Ensure blue bar reaches 100% for this file
-        if hasattr(self, 'file_progress_bar'):
-            self.file_progress_bar.set_progress(1.0, animate=True, min_duration_ms=500)
+        if hasattr(self, 'output_footer'):
+            self.output_footer.set_file_progress(1.0)
         
         # Increment progress manager (each output variant completes)
         progress_percentage = self.progress_manager.increment_progress(count=1)
         
         # Update green total progress bar with accurate percentage
-        if hasattr(self, 'total_progress_bar'):
-            self.total_progress_bar.set_progress(progress_percentage / 100.0)
+        if hasattr(self, 'output_footer'):
+            self.output_footer.set_total_progress(progress_percentage / 100.0)
         
         # Mark the file as completed in the list
         # Find the file index
@@ -845,14 +788,9 @@ class MainWindow(QMainWindow):
         if hasattr(self, 'output_footer'):
             self.output_footer.set_converting(False)
         
-        self.show_progress(False)
-        self.set_progress(0)
-        
-        # Reset separated progress bars
-        if hasattr(self, 'file_progress_bar'):
-            self.file_progress_bar.set_progress(0)
-        if hasattr(self, 'total_progress_bar'):
-            self.total_progress_bar.set_progress(0)
+        # Reset progress bars in output footer
+        if hasattr(self, 'output_footer'):
+            self.output_footer.reset_progress()
         
         self._completed_files_count = 0
         
@@ -883,15 +821,7 @@ class MainWindow(QMainWindow):
         # Reset footer state
         if hasattr(self, 'output_footer'):
             self.output_footer.set_converting(False)
-        
-        self.show_progress(False)
-        self.set_progress(0)
-        
-        # Reset separated progress bars
-        if hasattr(self, 'file_progress_bar'):
-            self.file_progress_bar.set_progress(0)
-        if hasattr(self, 'total_progress_bar'):
-            self.total_progress_bar.set_progress(0)
+            self.output_footer.reset_progress()
         
         self._completed_files_count = 0
     
@@ -974,9 +904,8 @@ class MainWindow(QMainWindow):
         
     def toggle_status_bar(self):
         """Toggle the visibility of the status bar section"""
-        if hasattr(self, 'bottom_frame'):
-            is_visible = self.bottom_frame.isVisible()
-            self.bottom_frame.setVisible(not is_visible)
+        # Status bar toggle is no longer needed - progress is in output footer
+        pass
 
     def show_about(self):
         """Show the About dialog"""

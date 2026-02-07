@@ -106,7 +106,9 @@ class StyleFactory:
             }}
             QFrame#ContentFrame {{
                 background-color: {Theme.bg()};
-                border-radius: 0px 0px 5px 5px;
+                border-radius: 0px;
+                border-bottom-left-radius: {Theme.RADIUS_LG}px;
+                border-bottom-right-radius: {Theme.RADIUS_LG}px;
             }}
             QMenuBar {{
                 background-color: {Theme.surface_element()};

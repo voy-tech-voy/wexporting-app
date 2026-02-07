@@ -188,6 +188,8 @@ class OutputFooter(QWidget):
             OutputFooter {{
                 background-color: {Theme.bg()};
                 border-top: 1px solid {Theme.border()};
+                border-bottom-left-radius: {Theme.RADIUS_LG}px;
+                border-bottom-right-radius: {Theme.RADIUS_LG}px;
             }}
         """)
         
