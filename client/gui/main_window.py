@@ -35,13 +35,9 @@ from client.gui.utils.dev_tools import EventDebugFilter, DEBUG_INTERACTIVITY
 from client.gui.utils.dialog_manager import DialogManager
 from client.gui.drag_drop_area import ViewMode
 from client.utils.session_manager import SessionManager
-from enum import Enum
 
-
-class Mode(Enum):
-    """Application mode for MainWindow conductor."""
-    PRESET = "preset"  # Preset mode - simple drag & drop with presets
-    LAB = "lab"        # Lab mode - full command panel visible
+# Conductors (Mediator-Shell Pattern)
+from client.core.conductors import ModeConductor, Mode, ConversionConductor
 
 
 class MainWindow(QMainWindow):
@@ -95,9 +91,6 @@ class MainWindow(QMainWindow):
         except Exception as e:
             print(f"Could not set window icon: {e}")
         
-        # Conversion engine
-        self.conversion_engine = None
-        
         # Progress manager for tracking conversion outputs
         self.progress_manager = ConversionProgressManager()
         
@@ -110,18 +103,19 @@ class MainWindow(QMainWindow):
         # Track mouse position for window dragging
         self.drag_position = None
         
-        # Mediator-Shell: Mode tracking
-        self._current_mode = Mode.PRESET  # Default to preset mode
-        self._active_lab_tab = 0          # Track active lab tab (0=Image, 1=Video, 2=Loop)
-        
         # Mediator-Shell: Window behavior (resize, blur)
         self.window_behavior = FramelessWindowBehavior(self, border_width=8)
         
         # Dev panel reference (lazy initialization)
         self._dev_theme_panel = None
         
+        # Conductors (initialized after UI setup)
+        self.mode_conductor = None
+        self.conversion_conductor = None
+        
         self.setup_ui()
         self.setup_status_bar()
+        self.setup_conductors()
         self.connect_signals()
         
         # Connect to theme changes and apply initial theme
@@ -223,154 +217,57 @@ class MainWindow(QMainWindow):
         
         parent_layout.addWidget(self.control_bar)
     
+    def setup_conductors(self):
+        """Initialize the Mode and Conversion conductors (Mediator-Shell Pattern)."""
+        # Initialize ModeConductor
+        self.mode_conductor = ModeConductor(
+            control_bar=self.control_bar,
+            command_panel=self.command_panel,
+            drag_drop_area=self.drag_drop_area,
+            panel_animator=self.panel_animator,
+            output_footer=self.output_footer,
+            lab_btn=self.lab_btn,
+            preset_status_btn=self.preset_status_btn,
+            right_frame=self.right_frame
+        )
+        
+        # Initialize ConversionConductor
+        self.conversion_conductor = ConversionConductor(
+            drag_drop_area=self.drag_drop_area,
+            command_panel=self.command_panel,
+            output_footer=self.output_footer,
+            progress_manager=self.progress_manager,
+            dialogs=self.dialogs,
+            update_status_callback=self.update_status
+        )
+    
     # =========================================================================
-    # MEDIATOR-SHELL: MODE CONDUCTOR
+    # MODE CONDUCTOR DELEGATION
     # =========================================================================
-    # Centralized mode switching logic. All mode changes go through switch_mode()
-    # to ensure consistent state across all components.
+    # Mode switching logic has been extracted to ModeConductor.
+    # MainWindow now delegates to the conductor for all mode-related operations.
     # =========================================================================
     
     @property
     def current_mode(self) -> Mode:
-        """Get the current application mode."""
-        return self._current_mode
-    
-    def switch_mode(self, mode: Mode, lab_tab: int = None):
-        """
-        Centralized mode switching - the heart of the Mediator pattern.
-        
-        All mode changes should go through this method to ensure:
-        1. Consistent state across all components
-        2. Proper animation sequencing
-        3. UI state synchronization
-        
-        Args:
-            mode: Target mode (Mode.PRESET or Mode.LAB)
-            lab_tab: For LAB mode, which tab to activate (0=Image, 1=Video, 2=Loop)
-        """
-        if mode == Mode.PRESET:
-            self._enter_preset_mode()
-        elif mode == Mode.LAB:
-            self._enter_lab_mode(lab_tab if lab_tab is not None else self._active_lab_tab)
-        
-        self._current_mode = mode
-        self._update_footer_mode_active()
-
-    def _update_footer_mode_active(self):
-        """Update output footer mode active state based on current app state"""
-        if hasattr(self, 'output_footer'):
-            is_lab = (self._current_mode == Mode.LAB)
-            has_preset = (hasattr(self, '_active_preset') and self._active_preset is not None)
-            self.output_footer.set_mode_active(is_lab or has_preset)
-    
-    def _enter_preset_mode(self):
-        """Internal: Configure UI for Preset mode."""
-        # 1. Hide Command Panel
-        self.panel_animator.close()
-        
-        # 2. Deactivate Lab Button (Ghost style)
-        if hasattr(self, 'lab_btn'):
-            self.lab_btn.set_style_solid(False)
-            self.lab_btn.set_main_icon("client/assets/icons/lab_icon.svg")
-        
-        # 3. Notify CommandPanel state
-        if hasattr(self, 'command_panel'):
-            self.command_panel.set_lab_mode_active(False)
-            self.command_panel.set_top_bar_preset_mode(True)
-        
-        # 4. Show Preset Overlay AFTER panel animation completes
-        # Delay to allow drop area to expand to full width first
-        from PyQt6.QtCore import QTimer
-        QTimer.singleShot(350, self._show_preset_gallery_delayed)
-    
-    def _show_preset_gallery_delayed(self):
-        """Show preset gallery after panel animation delay."""
-        if hasattr(self, 'drag_drop_area'):
-            self.drag_drop_area.set_view_mode(ViewMode.PRESETS)
-    
-    def _toggle_preset_gallery(self):
-        """
-        Toggle the preset gallery overlay visibility without changing modes.
-        
-        This is called when the user clicks the preset button while already
-        in Preset mode. Closing the gallery doesn't exit Preset mode - only
-        selecting a Lab option does that.
-        """
-        if not hasattr(self, 'drag_drop_area'):
-            return
-        
-        current_view = self.drag_drop_area.current_view_mode
-        
-        if current_view == ViewMode.PRESETS:
-            # Gallery is open - close it (but stay in Preset mode)
-            self.drag_drop_area.set_view_mode(ViewMode.FILES)
-        else:
-            # Gallery is closed - open it
-            self.drag_drop_area.set_view_mode(ViewMode.PRESETS)
-    
-    def _enter_lab_mode(self, lab_tab: int):
-        """Internal: Configure UI for Lab mode."""
-        # Icon paths matching tab order
-        icons = [
-            "client/assets/icons/pic_icon2.svg",
-            "client/assets/icons/vid_icon.svg",
-            "client/assets/icons/loop_icon3.svg"
-        ]
-        
-        # 1. Update lab button appearance
-        if 0 <= lab_tab < len(icons):
-            self.lab_btn.set_main_icon(icons[lab_tab])
-            self.lab_btn.set_style_solid(True)
-        
-        # 2. Reset Preset button to default state
-        if hasattr(self, 'preset_status_btn'):
-            self.preset_status_btn.set_active(False)
-        
-        # 3. Notify CommandPanel
-        if hasattr(self, 'command_panel'):
-            self.command_panel.set_lab_mode_active(True)
-            self.command_panel.set_top_bar_preset_mode(False)
-            self.command_panel._on_tab_btn_clicked(lab_tab)
-        
-        # 4. Hide Preset Overlay
-        if hasattr(self, 'drag_drop_area'):
-            self.drag_drop_area.set_view_mode(ViewMode.FILES)
-        
-        # 5. Animate panel
-        panel_already_visible = self.right_frame.isVisible()
-        if not panel_already_visible:
-            self.panel_animator.trigger_side_buttons_animation(hide=True)
-        self.panel_animator.open()
-        
-        # 6. Track active tab
-        self._active_lab_tab = lab_tab
-    
-    # =========================================================================
-    # BUTTON HANDLERS (Now delegate to switch_mode)
-    # =========================================================================
+        """Get the current application mode (delegates to ModeConductor)."""
+        return self.mode_conductor.current_mode if self.mode_conductor else Mode.PRESET
     
     def _on_preset_btn_clicked(self):
-        """
-        Handle preset button click.
-        
-        Behavior:
-        - If currently in LAB mode: Switch to PRESET mode (opens gallery)
-        - If currently in PRESET mode: Toggle gallery visibility only
-          (keeps Preset Mode ON until Lab option is selected)
-        """
-        if self._current_mode == Mode.LAB:
-            # Switch from Lab to Preset mode
-            self.switch_mode(Mode.PRESET)
-        else:
-            # Already in Preset mode - just toggle the gallery visibility
-            self._toggle_preset_gallery()
+        """Handle preset button click (delegates to ModeConductor)."""
+        if self.mode_conductor:
+            self.mode_conductor.on_preset_btn_clicked()
     
     def _on_lab_item_clicked(self, item_id):
-        """Handle lab button menu item click - delegate to switch_mode()."""
-        type_map = {0: "IMAGE", 1: "VIDEO", 2: "LOOP"}
-        print(f"[DEBUG_MAIN] Lab item clicked. ID={item_id} ({type_map.get(item_id, 'UNKNOWN')})")
-        self.switch_mode(Mode.LAB, lab_tab=item_id)
-        
+        """Handle lab button menu item click (delegates to ModeConductor)."""
+        if self.mode_conductor:
+            self.mode_conductor.on_lab_item_clicked(item_id)
+    
+    def _on_lab_state_changed(self, icon_path, is_solid):
+        """Handle lab button state change (delegates to ModeConductor)."""
+        if self.mode_conductor:
+            self.mode_conductor.on_lab_state_changed(icon_path, is_solid)
+    
     def create_middle_section(self, parent_layout):
         """Create the split middle section with drag-drop and command areas"""
         # Create horizontal splitter for left and right panels
@@ -447,8 +344,6 @@ class MainWindow(QMainWindow):
         
     def setup_status_bar(self):
         """Setup the status bar."""
-        self._completed_files_count = 0
-        
         # Status bar - hidden (no resize grip shown)
         self.status_bar = QStatusBar()
         self.status_bar.setSizeGripEnabled(False)
@@ -459,25 +354,7 @@ class MainWindow(QMainWindow):
         """Update status in status bar"""
         self.status_bar.showMessage(message)
         
-    def set_progress(self, value):
-        """Set progress bar value (0-100) - updates green overall progress bar"""
-        # Update the green total_progress_bar in output footer (0.0-1.0 scale)
-        if hasattr(self, 'output_footer'):
-            self.output_footer.set_total_progress(value / 100.0)
-    
-    @pyqtSlot(int, float)
-    def on_file_progress(self, file_index, progress):
-        """Handle individual file progress update - updates blue file progress bar"""
-        # Update file list item progress
-        self.drag_drop_area.set_file_progress(file_index, progress)
-        
-        # Update blue bar (current file) in output footer
-        if hasattr(self, 'output_footer'):
-            self.output_footer.set_file_progress(progress)
-        
-        # NOTE: Green bar (overall progress) is updated via set_progress() signal,
-        # not here - to avoid conflicting updates
-        
+
     def connect_signals(self):
         """Connect signals between components"""
         # Connect drag-drop area signals
@@ -517,7 +394,7 @@ class MainWindow(QMainWindow):
             
         # Show preset gallery only if NOT in LAB mode
         # When LAB mode is active, user is working with the command panel, don't interrupt
-        if self._current_mode != Mode.LAB:
+        if self.current_mode != Mode.LAB:
             self.drag_drop_area.show_preset_view()
         
         # Invalidate preset gallery blur cache to reflect updated file list
@@ -533,10 +410,10 @@ class MainWindow(QMainWindow):
                     gallery.clear_blur_cache()
     
     def _on_footer_start(self):
-        """Handle start button click from output footer"""
+        """Handle start button click from output footer (delegates to ConversionConductor)."""
         # Check if preset mode is active
-        if hasattr(self, '_active_preset') and self._active_preset is not None:
-            self._start_preset_conversion()
+        if self.conversion_conductor and self.conversion_conductor._active_preset is not None:
+            self.conversion_conductor.start_preset_conversion()
             return
         
         # Normal conversion path - get complete payload from command panel
@@ -546,295 +423,71 @@ class MainWindow(QMainWindow):
         output_mode = self.output_footer.get_output_mode()
         if output_mode == "source":
             params['output_same_folder'] = True
-            params['use_nested_output'] = False  # Fixed: was 'output_nested'
+            params['use_nested_output'] = False
             params['output_custom'] = False
         elif output_mode == "organized":
             params['output_same_folder'] = False
-            params['use_nested_output'] = True  # Fixed: was 'output_nested'
-            params['nested_output_name'] = self.output_footer.get_organized_name()  # Fixed: was 'nested_folder_name'
+            params['use_nested_output'] = True
+            params['nested_output_name'] = self.output_footer.get_organized_name()
             params['output_custom'] = False
         elif output_mode == "custom":
             params['output_same_folder'] = False
-            params['use_nested_output'] = False  # Fixed: was 'output_nested'
+            params['use_nested_output'] = False
             params['output_custom'] = True
             params['output_dir'] = self.output_footer.get_custom_path()
         
-        self.start_conversion(params)
+        # Delegate to ConversionConductor
+        if self.conversion_conductor:
+            self.conversion_conductor.start_conversion(params)
     
-    def _start_preset_conversion(self):
-        """
-        Execute conversion using the active preset - delegates to PresetOrchestrator.
-        
-        MainWindow acts as a Conductor here: it collects parameters from UI components
-        and routes the request to the orchestrator, which handles all business logic.
-        """
-        files = self.drag_drop_area.get_files()
-        if not files:
-            self.dialogs.show_warning("No Files", "Please add files for conversion first.")
-            return
-        
-        # Get orchestrator (owns the conversion logic)
-        if not hasattr(self.drag_drop_area, '_preset_orchestrator'):
-            self.dialogs.show_error("Error", "Preset orchestrator not available.")
-            return
-        
-        orchestrator = self.drag_drop_area._preset_orchestrator
-        
-        # Collect output settings from footer (UI -> Data)
-        output_mode = self.output_footer.get_output_mode()
-        organized_name = self.output_footer.get_organized_name() or "output"
-        custom_path = self.output_footer.get_custom_path()
-        
-        # Update UI state (show converting)
-        if hasattr(self, 'output_footer'):
-            self.output_footer.set_converting(True)
-            self.output_footer.reset_progress()
-        
-        preset_name = self._active_preset.name if self._active_preset else "Unknown"
-        self.update_status(f"Converting with preset: {preset_name}")
-        
-        # Wire up progress signals from orchestrator's engine
-        def on_progress(current, total, message):
-            progress = int(current / total * 100) if total > 0 else 0
-            self.set_progress(progress)
-            self.update_status(message)
-        
-        def on_status(message):
-            """Forward status updates from engine."""
-            self.update_status(message)
-        
-        def on_file_progress(file_index, progress):
-            """Forward file progress from engine."""
-            self.on_file_progress(file_index, progress)
-        
-        def on_file_completed(source_path, output_path):
-            """Forward file completion from engine."""
-            self.on_file_completed(source_path, output_path)
-        
-        def on_completed(successful, failed, skipped, stopped):
-            """Handle unified completion signal from engine."""
-            self.progress_manager.reset()
-            self._reset_conversion_ui()
-            self.drag_drop_area.show_conversion_toast(successful, failed, skipped, stopped)
-            
-            # Disconnect signals after completion
-            try:
-                if orchestrator._conversion_engine:
-                    orchestrator._conversion_engine.status_updated.disconnect(on_status)
-                    orchestrator._conversion_engine.file_progress_updated.disconnect(on_file_progress)
-                    orchestrator._conversion_engine.file_completed.disconnect(on_file_completed)
-                orchestrator.conversion_progress.disconnect(on_progress)
-                orchestrator.conversion_completed.disconnect(on_completed)
-            except TypeError:
-                pass  # Already disconnected
-        
-        # Connect signals to engine (via orchestrator)
-        orchestrator.conversion_progress.connect(on_progress)
-        orchestrator.conversion_completed.connect(on_completed)
-        
-        # Connect directly to engine signals for real-time updates
-        # Note: We connect after start_conversion creates the engine
-        def connect_engine_signals():
-            if orchestrator._conversion_engine:
-                orchestrator._conversion_engine.status_updated.connect(on_status)
-                orchestrator._conversion_engine.file_progress_updated.connect(on_file_progress)
-                orchestrator._conversion_engine.file_completed.connect(on_file_completed)
-        
-        # Delegate execution to orchestrator (async, non-blocking)
-        orchestrator.start_conversion(
-            files=files,
-            output_mode=output_mode,
-            organized_name=organized_name,
-            custom_path=custom_path
-        )
-        
-        # Connect engine signals after engine is created
-        connect_engine_signals()
-
-    def _calculate_conversion_totals(self, files, params):
-        """
-        Calculate total outputs using ConversionProgressManager.
-        Delegates all param extraction to manager for cleaner MainWindow.
-        """
-        try:
-            result = self.progress_manager.calculate_from_params(files, params)
-            print(f"[ProgressManager] Valid: {result.valid_count}, Skipped: {result.skipped_count}, Total Outputs: {result.total_outputs}")
-            print(f"[ProgressManager] Preview: {self.progress_manager.get_preview_text()}")
-        except Exception as e:
-            print(f"[ProgressManager] Calculation failed: {e}")
-            # Fallback: assume all files valid, no variants
-            self.progress_manager.total_outputs = len(files)
-
-
-        
-
+    # =========================================================================
+    # CONVERSION CONDUCTOR DELEGATION
+    # =========================================================================
+    # Conversion logic has been extracted to ConversionConductor.
+    # MainWindow now delegates to the conductor for all conversion operations.
+    # =========================================================================
+    
     def start_conversion(self, params):
-        """
-        Start the conversion process.
-        
-        MainWindow acts as a Conductor: it validates preconditions, then
-        delegates to ConversionEngine. Parameter gathering is done by CommandPanel.
-        """
-        files = self.drag_drop_area.get_files()
-        
-        if not files:
-            self.dialogs.show_warning("No Files", "Please add files for conversion first.")
-            return
-            
-        if self.conversion_engine and self.conversion_engine.isRunning():
-            self.dialogs.show_warning("Conversion Running", "A conversion is already in progress.")
-            return
-        
-        # Update UI state
-        if hasattr(self, 'output_footer'):
-            self.output_footer.set_converting(True)
-        
-        # Check if we should use TargetSizeConversionEngine (max_size mode with any estimator version)
-        use_target_size_engine = False
-        size_mode = params.get('video_size_mode') or params.get('image_size_mode') or params.get('gif_size_mode')
-        
-        if size_mode == 'max_size':
-            # Get version from params (UI selection), fall back to global version
-            ui_version = params.get('estimator_version')
-            from client.core.target_size.size_estimator_registry import get_estimator_version
-            current_version = ui_version or get_estimator_version()
-            use_target_size_engine = True
-            print(f"[MainWindow] Using TargetSizeConversionEngine (estimator version: {current_version})")
-        
-        # Calculate totals with progress manager for accurate progress tracking
-        self._calculate_conversion_totals(files, params)
-        
-        # Create appropriate engine
-        if use_target_size_engine:
-            from client.core.target_size import TargetSizeConversionEngine
-            self.conversion_engine = TargetSizeConversionEngine(files, params, self.progress_manager)
-            print(f"[MainWindow] Using TargetSizeConversionEngine")
-        else:
-            # NEW: Use modular manual mode engine
-            from client.core.manual_mode import ManualModeConversionEngine
-            self.conversion_engine = ManualModeConversionEngine(files, params, self.progress_manager)
-            print(f"[MainWindow] Using ManualModeConversionEngine")
-        
-        # Connect engine signals
-        self.conversion_engine.progress_updated.connect(self.set_progress)
-        self.conversion_engine.file_progress_updated.connect(self.on_file_progress)
-        self.conversion_engine.status_updated.connect(self.update_status)
-        self.conversion_engine.file_completed.connect(self.on_file_completed)
-        
-        # Handle different signal names between engines
-        # NEW: Connect to unified conversion_completed signal if available
-        if hasattr(self.conversion_engine, 'conversion_completed'):
-            self.conversion_engine.conversion_completed.connect(self._on_conversion_completed)
-        # LEGACY: Only connect to old conversion_finished if new signal doesn't exist
-        elif hasattr(self.conversion_engine, 'conversion_finished'):
-            self.conversion_engine.conversion_finished.connect(self.on_conversion_finished)
-        
-        # Reset progress bars in output footer
-        if hasattr(self, 'output_footer'):
-            self.output_footer.reset_progress()
-            
-        # Start conversion
-        self.set_progress(0)
-        self.update_status("Starting conversion...")
-        self.conversion_engine.start()
+        """Start conversion (delegates to ConversionConductor)."""
+        if self.conversion_conductor:
+            self.conversion_conductor.start_conversion(params)
     
     def stop_conversion(self):
-        """Stop the current conversion process"""
-        # Stop regular conversion engine
-        if self.conversion_engine and self.conversion_engine.isRunning():
-            self.update_status("Stopping conversion...")
-            self.conversion_engine.stop_conversion()
-            # The button state will be reset in on_conversion_finished
-        
-        # Also stop preset engine if running
-        if hasattr(self.drag_drop_area, '_preset_orchestrator'):
-            orchestrator = self.drag_drop_area._preset_orchestrator
-            if hasattr(orchestrator, 'stop_conversion'):
-                orchestrator.stop_conversion()
+        """Stop conversion (delegates to ConversionConductor)."""
+        if self.conversion_conductor:
+            self.conversion_conductor.stop_conversion()
+    
+    @property
+    def conversion_engine(self):
+        """Get conversion engine from conductor (backward compatibility)."""
+        return self.conversion_conductor.conversion_engine if self.conversion_conductor else None
+    
+    @conversion_engine.setter
+    def conversion_engine(self, value):
+        """Set conversion engine on conductor (backward compatibility)."""
+        if self.conversion_conductor:
+            self.conversion_conductor.conversion_engine = value
+    
+    def set_progress(self, value):
+        """Set progress bar value (delegates to ConversionConductor)."""
+        if self.conversion_conductor:
+            self.conversion_conductor.set_progress(value)
+    
+    @pyqtSlot(int, float)
+    def on_file_progress(self, file_index, progress):
+        """Handle file progress (delegates to ConversionConductor)."""
+        if self.conversion_conductor:
+            self.conversion_conductor.on_file_progress(file_index, progress)
     
     def on_file_completed(self, source_file, output_file):
-        """Handle completed file conversion"""
-        import os
-        source_name = os.path.basename(source_file)
-        output_name = os.path.basename(output_file)
-        self.update_status(f"[OK] Converted: {source_name} → {output_name}")
-        
-        # Ensure blue bar reaches 100% for this file
-        if hasattr(self, 'output_footer'):
-            self.output_footer.set_file_progress(1.0)
-        
-        # Increment progress manager (each output variant completes)
-        progress_percentage = self.progress_manager.increment_progress(count=1)
-        
-        # Update green total progress bar with accurate percentage
-        if hasattr(self, 'output_footer'):
-            self.output_footer.set_total_progress(progress_percentage / 100.0)
-        
-        # Mark the file as completed in the list
-        # Find the file index
-        for i, f in enumerate(self.drag_drop_area.file_list):
-            if f == source_file:
-                self.drag_drop_area.set_file_completed(i)
-                self._completed_files_count += 1
-                break
-        
+        """Handle file completion (delegates to ConversionConductor)."""
+        if self.conversion_conductor:
+            self.conversion_conductor.on_file_completed(source_file, output_file)
+    
     def on_conversion_finished(self, success, message):
-        """Handle conversion completion (LEGACY - for backward compatibility)"""
-        # Reset progress manager state
-        self.progress_manager.reset()
-        
-        # Reset button state (handled by footer)
-        # Reset footer state
-        if hasattr(self, 'output_footer'):
-            self.output_footer.set_converting(False)
-        
-        # Reset progress bars in output footer
-        if hasattr(self, 'output_footer'):
-            self.output_footer.reset_progress()
-        
-        self._completed_files_count = 0
-        
-        self.update_status(message)
-        
-        # LEGACY: Old engines may call this - try to extract counts or show basic message
-        import re
-        match = re.search(r'(\d+)\s+files?\s+processed', message)
-        if match:
-            successful = int(match.group(1))
-            # Use localized toast instead of dialog
-            self.drag_drop_area.show_conversion_toast(successful, 0, 0, 0)
-        # If no counts found, do nothing (engine should use conversion_completed signal)
-    
-    def _on_conversion_completed(self, successful, failed, skipped, stopped):
-        """Handle conversion completion with detailed counts (NEW unified handler)"""
-        # Reset progress manager state
-        self.progress_manager.reset()
-        
-        # Reset UI state
-        self._reset_conversion_ui()
-        
-        # Show unified conversion summary toast (replacing dialog)
-        self.drag_drop_area.show_conversion_toast(successful, failed, skipped, stopped)
-    
-    def _reset_conversion_ui(self):
-        """Reset UI elements after conversion"""
-        # Reset footer state
-        if hasattr(self, 'output_footer'):
-            self.output_footer.set_converting(False)
-            self.output_footer.reset_progress()
-        
-        self._completed_files_count = 0
-    
-    def _on_target_size_completed(self, successful, failed, skipped, stopped):
-        """Handle target size conversion completion with detailed breakdown."""
-        # Reset progress manager before completion
-        self.progress_manager.reset()
-        
-        # Use unified conversion summary toast (replacing dialog)
-        self.drag_drop_area.show_conversion_toast(successful, failed, skipped, stopped)
-        
-        # Reset UI
-        self._reset_conversion_ui()
+        """Handle conversion finished - LEGACY (delegates to ConversionConductor)."""
+        if self.conversion_conductor:
+            self.conversion_conductor.on_conversion_finished(success, message)
             
     def check_tools(self):
         """Check if required tools are available"""
@@ -1054,8 +707,11 @@ class MainWindow(QMainWindow):
         file_count = len(files) if files else 0
         print(f"[Smart Drop] Applying preset: {preset.name} to {file_count} files")
         
-        # Store active preset for conversion
-        self._active_preset = preset
+        # Store active preset in conductors
+        if self.mode_conductor:
+            self.mode_conductor.set_active_preset(preset)
+        if self.conversion_conductor:
+            self.conversion_conductor.set_active_preset(preset)
         
         # 1. Add files to the DragDropArea if any
         if files:
@@ -1075,10 +731,7 @@ class MainWindow(QMainWindow):
         if hasattr(self, 'command_panel'):
             self.command_panel.set_lab_mode_active(False)
             self.command_panel.set_top_bar_preset_mode(True)
-            
-            self.command_panel.set_top_bar_preset_mode(True)
-            
-        self._update_footer_mode_active()
+        
         self.update_status(f"Applied Preset: {preset.name}")
         
         # Hide Command Panel with animation (Preset mode is simple drag & drop)
@@ -1088,12 +741,13 @@ class MainWindow(QMainWindow):
         """Handle global mode change (e.g. switching to Manual)"""
         # If switching away from Presets (e.g. to Manual or Max Size), reset the preset
         if mode != "Presets":
-            self._active_preset = None  # Clear active preset
+            # Clear active preset in conductors
+            if self.mode_conductor:
+                self.mode_conductor.clear_active_preset()
+            if self.conversion_conductor:
+                self.conversion_conductor.clear_active_preset()
             if hasattr(self, 'preset_status_btn'):
                 self.preset_status_btn.set_active(False)
-        
-        # Update footer state since preset might be cleared
-        self._update_footer_mode_active()
             
         # Notify CommandPanel that top bar preset mode is inactive
         if mode != "Presets" and hasattr(self, 'command_panel'):
