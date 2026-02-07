@@ -145,6 +145,15 @@ class ManualModeConversionEngine(QThread):
         file_ext = Path(file_path).suffix.lower()
         conversion_type = self.params.get('type', 'image')
         
+        # Handle 'loop' type by mapping to appropriate converter
+        # Loop tab sets type='loop', but we need to route to gif or video converter
+        if conversion_type == 'loop':
+            loop_format = self.params.get('loop_format', 'GIF')
+            if 'webm' in loop_format.lower():
+                conversion_type = 'video'
+            else:
+                conversion_type = 'gif'
+        
         # Get converter for conversion type
         converter = self.converters.get(conversion_type)
         if converter and file_ext in converter.get_supported_extensions():

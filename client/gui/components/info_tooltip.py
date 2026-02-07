@@ -277,11 +277,19 @@ class TooltipHoverFilter(QObject):
         self.show_timer.timeout.connect(self._show_with_animation)
         
         # Fade-in animation
+        # Fade-in animation
         self.fade_animation = QPropertyAnimation(self.tooltip, b"opacity")
         self.fade_animation.setDuration(200)
         self.fade_animation.setStartValue(0.0)
         self.fade_animation.setEndValue(1.0)
         self.fade_animation.setEasingCurve(QEasingCurve.Type.OutCubic)
+    
+    def set_content(self, tooltip_data: dict, simple_mode=False):
+        """Update tooltip content dynamically."""
+        if simple_mode:
+            self.tooltip.set_simple_mode(**tooltip_data)
+        else:
+            self.tooltip.set_comparison_mode(tooltip_data)
     
     def _show_with_animation(self):
         """Show tooltip with fade-in animation."""

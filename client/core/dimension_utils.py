@@ -4,7 +4,6 @@ Dimension Utilities - Single Source of Truth for Dimension Calculations
 Consolidates all dimension calculation logic to ensure consistency between:
 - FFmpeg scale filters (ConversionEngine)
 - Filename suffix generation (SuffixManager)
-- GIF conversion (GifConverter)
 """
 
 from typing import Tuple, Optional

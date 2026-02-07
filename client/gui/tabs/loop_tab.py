@@ -89,7 +89,7 @@ class LoopTab(BaseTab):
         self.format_selector.formatChanged.connect(self._on_format_changed)
         self.settings_group.get_content_layout().insertRow(0, self.format_selector)
         
-        # Add efficiency tooltip with dynamic mode switching
+        # Add efficiency tooltip
         self.format_tooltip = TooltipHoverFilter(self.format_selector, CODEC_COMPARISONS["loop"])
         
         # Install event filters on codec row to switch tooltip mode
@@ -503,13 +503,13 @@ class LoopTab(BaseTab):
         if obj == self.format_selector.codec_row:
             if event.type() == QEvent.Type.Enter:
                 # Default to AV1 tooltip when entering codec area
-                self.format_tooltip.tooltip.set_mode("loop_av1")
+                self.format_tooltip.set_content(CODEC_COMPARISONS["loop_av1"])
             elif event.type() == QEvent.Type.Leave:
-                self.format_tooltip.tooltip.set_mode("loop")
+                self.format_tooltip.set_content(CODEC_COMPARISONS["loop"])
         elif obj == self.format_selector.av1_btn:
             if event.type() == QEvent.Type.Enter:
-                self.format_tooltip.tooltip.set_mode("loop_av1")
+                self.format_tooltip.set_content(CODEC_COMPARISONS["loop_av1"])
         elif obj == self.format_selector.vp9_btn:
             if event.type() == QEvent.Type.Enter:
-                self.format_tooltip.tooltip.set_mode("loop_vp9")
+                self.format_tooltip.set_content(CODEC_COMPARISONS["loop_vp9"])
         return super().eventFilter(obj, event)
