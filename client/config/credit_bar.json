@@ -1,0 +1,16 @@
+{
+    "amplitude": 69,
+    "frequency": 5.21,
+    "phase": 4.48,
+    "bar_count": 51,
+    "saturation": 0.0,
+    "active_saturation": 0.75,
+    "transparency": 0.17,
+    "active_transparency": 0.69,
+    "noise": 0.01,
+    "horizontal_offset": 1.0,
+    "hue_shift": 0.0,
+    "chromatic_aberration": 0.0,
+    "glow_intensity": 0.0,
+    "shimmer_speed": 0.0
+}

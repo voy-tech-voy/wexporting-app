@@ -37,13 +37,11 @@ class SessionManager:
     
     def logout(self):
         """
-        Execute the complete logout flow.
+        Restart the application.
         
-        1. Stops any running conversion
-        2. Closes the main window
-        3. Shows login window after close
-        4. Creates new main window on successful login
-        5. Quits app if login cancelled
+        Note: In the Store-Native architecture, we don't 'logout' in the traditional sense 
+        (users manage accounts via OS settings). This method now acts as a 'Restart' 
+        to refresh store credentials or clear local state.
         """
         # Stop any running conversions
         engine = self._get_engine()
@@ -60,42 +58,14 @@ class SessionManager:
         # Close main window
         self.main_window.close()
         
-        # Use QTimer to show login window after event loop processes the close
-        QTimer.singleShot(100, lambda: self._show_login_window(app))
+        # Restart application
+        import sys
+        import subprocess
+        
+        print("[SESSION] Restarting application...")
+        subprocess.Popen([sys.executable] + sys.argv)
+        app.quit()
     
     def _show_login_window(self, app):
-        """Show login window after main window closes."""
-        try:
-            from client.gui.login_window_new import ModernLoginWindow
-            login_window = ModernLoginWindow()
-            
-            # Store reference to prevent garbage collection
-            app._login_window = login_window
-            
-            # Show login window modally
-            result = login_window.exec()
-            
-            if result == QDialog.DialogCode.Accepted:
-                # Login successful - create new main window
-                is_trial = getattr(login_window, 'is_trial', False)
-                
-                # Use centralized initialization to ensure splash screen and tool checks run
-                from client.main import initialize_main_window
-                new_main_window = initialize_main_window(is_trial=is_trial)
-                new_main_window.show()
-                
-                # Store reference to prevent garbage collection
-                app._main_window = new_main_window
-                
-                # Re-enable quit on last window closed
-                app.setQuitOnLastWindowClosed(True)
-            else:
-                # Login cancelled - exit application
-                app.quit()
-                
-        except Exception as e:
-            print(f"Error showing login window: {e}")
-            import traceback
-            traceback.print_exc()
-            # If login window fails, exit application
-            app.quit()
+        """Deprecated - Login window removed in Phase 4"""
+        pass

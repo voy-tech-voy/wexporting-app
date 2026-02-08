@@ -24,7 +24,6 @@ class Platform(str, Enum):
     The license system is platform-agnostic - all platforms produce
     the same license structure.
     """
-    GUMROAD = "gumroad"
     MSSTORE = "msstore"       # Microsoft Store
     STRIPE = "stripe"         # Future: Direct Stripe integration
     DIRECT = "direct"         # Manual/admin-created licenses
@@ -46,7 +45,6 @@ def get_platform_sale_id_field(platform: str) -> str:
     Get the field name used for unique transaction ID per platform.
     
     Each platform uses different field names for their unique transaction ID:
-    - Gumroad: sale_id
     - Microsoft Store: order_id or transaction_id  
     - Stripe: payment_intent_id
     
@@ -54,13 +52,12 @@ def get_platform_sale_id_field(platform: str) -> str:
         str: The field name for this platform's unique transaction ID
     """
     platform_id_fields = {
-        Platform.GUMROAD.value: 'sale_id',
         Platform.MSSTORE.value: 'order_id',
         Platform.STRIPE.value: 'payment_intent_id',
         Platform.DIRECT.value: 'admin_ref',
         Platform.TRIAL.value: 'trial_id',
     }
-    return platform_id_fields.get(platform, 'sale_id')
+    return platform_id_fields.get(platform, 'order_id')
 
 
 class LicenseManager:

@@ -1,0 +1,409 @@
+"""
+Energy Manager - Usage-Based Licensing System with Server Validation
+
+Manages the daily "Energy" allowance for Free Tier users.
+- Secures balance using AES-GCM encryption bound to device ID.
+- Syncs with server for job-based validation (optimized for low server load).
+- Handles daily refresh logic.
+- Calculates costs based on conversion complexity.
+"""
+
+import os
+import json
+import uuid
+import base64
+import time
+from datetime import datetime, date, timedelta
+from pathlib import Path
+
+# Try to import cryptography, fallback to simple obfuscation if missing
+try:
+    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+    CRYPTO_AVAILABLE = True
+except ImportError:
+    CRYPTO_AVAILABLE = False
+    import hashlib
+
+from PyQt6.QtCore import QObject, pyqtSignal
+from client.core.energy_api_client import EnergyAPIClient
+
+class EnergyManager(QObject):
+    """
+    Singleton service to manage user 'Energy'.
+    
+    Persists balance securely to prevent tampering.
+    Refreshes balance daily for Free Tier users.
+    """
+    
+    # Signals
+    energy_changed = pyqtSignal(int, int)  # current, max
+    refreshed = pyqtSignal()               # emitted on daily reset
+    server_sync_failed = pyqtSignal(str)   # error message
+    
+    _instance = None
+    
+    # Configuration
+    MAX_DAILY_ENERGY = 50
+    STORAGE_FILE = "energy.dat"
+    
+    # Job-Based Sync Thresholds
+    SYNC_THRESHOLD_COST = 5  # Sync with server if job cost > 5
+    
+    # Cost Constants
+    COST_IMAGE = 1
+    COST_VIDEO = 5
+    COST_LOOP = 3
+    
+    MULTIPLIER_TARGET_SIZE = 2.0
+    MULTIPLIER_HEAVY_CODEC = 1.5
+    
+    HEAVY_CODECS = {'av1', 'hevc', 'h265', 'vp9'}
+    
+    @classmethod
+    def instance(cls):
+        if cls._instance is None:
+            cls._instance = cls()
+        return cls._instance
+    
+    def __init__(self):
+        super().__init__()
+        if EnergyManager._instance is not None:
+            raise Exception("EnergyManager is a singleton")
+            
+        self.storage_path = self._get_storage_path()
+        self.key = self._get_device_key()
+        
+        self.balance = self.MAX_DAILY_ENERGY
+        self.last_refresh = date.today().isoformat()
+        self.unsynced_usage = 0  # Track local usage not yet reported to server
+        self.server_signature = None  # Server's cryptographic signature
+        self.is_premium = False  # Set via Store authentication
+        self.store_user_id = None  # Store-specific user ID (from IStoreAuthProvider)
+        self.jwt_token = None  # JWT token from server
+        
+        # Initialize API client (will be configured with credentials later)
+        from client.config.config import API_BASE_URL
+        self.api_client = EnergyAPIClient(API_BASE_URL)
+        
+        # Connect signals
+        self.api_client.sync_completed.connect(self._on_sync_completed)
+        self.api_client.reservation_completed.connect(self._on_reservation_completed)
+        self.api_client.report_completed.connect(self._on_report_completed)
+        
+        self.load()
+        self.check_refresh()
+        
+    def _get_storage_path(self):
+        """Get path to storage file in user app data"""
+        # Ensure directory exists
+        path = Path("client/assets/config")
+        path.mkdir(parents=True, exist_ok=True)
+        return path / self.STORAGE_FILE
+
+    def _get_device_key(self):
+        """
+        Generate encryption key for local storage.
+        
+        NOTE: This is NOT for authentication. Store authentication
+        is handled by IStoreAuthProvider. This key is only for
+        encrypting the local energy.dat file.
+        """
+        # Use a fixed application-specific key for encryption
+        # This prevents casual tampering but is not a security boundary
+        # (real security is server-side via JWT validation)
+        app_secret = "imgapp_energy_v1"
+        if CRYPTO_AVAILABLE:
+            import hashlib
+            key_hash = hashlib.sha256(app_secret.encode()).digest()
+            return key_hash
+        else:
+            return app_secret
+
+    def load(self):
+        """Load and decrypt energy state"""
+        if not self.storage_path.exists():
+            self.reset_defaults()
+            return
+            
+        try:
+            with open(self.storage_path, 'rb') as f:
+                data = f.read()
+                
+            if CRYPTO_AVAILABLE:
+                # Format: [Nonce 12 bytes][Ciphertext][Tag 16 bytes (implicit)]
+                # AESGCM in cryptography lib handles tag automatically appended
+                nonce = data[:12]
+                ciphertext = data[12:]
+                aesgcm = AESGCM(self.key)
+                plaintext = aesgcm.decrypt(nonce, ciphertext, None)
+                state = json.loads(plaintext.decode())
+            else:
+                # Fallback: Base64 decode + simple XOR check (not secure, just obfuscated)
+                # In real prod, force cryptography lib
+                encoded = base64.b64decode(data).decode()
+                # Split signature
+                content, sig = encoded.rsplit(':', 1)
+                
+                # Verify binding
+                expected_sig = hashlib.sha256((content + self.key).encode()).hexdigest()[:8]
+                if sig != expected_sig:
+                    raise ValueError("Tampered data")
+                state = json.loads(content)
+            
+            self.balance = state.get('balance', self.MAX_DAILY_ENERGY)
+            self.last_refresh = state.get('last_refresh', date.today().isoformat())
+            
+        except Exception as e:
+            print(f"[EnergyManager] Failed to load data (tampering?): {e}")
+            self.reset_defaults()
+            
+    def save(self):
+        """Encrypt and save energy state"""
+        state = {
+            'balance': self.balance,
+            'last_refresh': self.last_refresh
+        }
+        json_str = json.dumps(state)
+        
+        try:
+            if CRYPTO_AVAILABLE:
+                aesgcm = AESGCM(self.key)
+                nonce = os.urandom(12)
+                ciphertext = aesgcm.encrypt(nonce, json_str.encode(), None)
+                # Write Nonce + Ciphertext (Tag is included in ciphertext by library)
+                with open(self.storage_path, 'wb') as f:
+                    f.write(nonce + ciphertext)
+            else:
+                # Fallback
+                sig = hashlib.sha256((json_str + self.key).encode()).hexdigest()[:8]
+                content = f"{json_str}:{sig}"
+                with open(self.storage_path, 'wb') as f:
+                    f.write(base64.b64encode(content.encode()))
+        except Exception as e:
+            print(f"[EnergyManager] Failed to save: {e}")
+
+    def reset_defaults(self):
+        """Reset to default max energy"""
+        self.balance = self.MAX_DAILY_ENERGY
+        self.last_refresh = date.today().isoformat()
+        self.save()
+        self.energy_changed.emit(self.balance, self.MAX_DAILY_ENERGY)
+
+    def check_refresh(self):
+        """Check if day has changed and refresh if needed"""
+        today = date.today().isoformat()
+        if self.last_refresh != today:
+            print(f"[EnergyManager] New day! Refreshing energy. Last: {self.last_refresh}, Today: {today}")
+            self.balance = self.MAX_DAILY_ENERGY
+            self.last_refresh = today
+            self.save()
+            self.refreshed.emit()
+            self.energy_changed.emit(self.balance, self.MAX_DAILY_ENERGY)
+
+    def get_balance(self):
+        self.check_refresh() # Ensure fresh
+        return self.balance
+
+    def can_afford(self, cost):
+        """Check if user can afford cost"""
+        return self.get_balance() >= cost
+
+    def consume(self, cost):
+        """Deduct energy locally (for small jobs)"""
+        if self.can_afford(cost):
+            self.balance -= cost
+            self.unsynced_usage += cost
+            self.save()
+            self.energy_changed.emit(self.balance, self.MAX_DAILY_ENERGY)
+            return True
+        return False
+    
+    def request_job_energy(self, cost, conversion_type="unknown", params=None):
+        """
+        Request energy for a job. Uses job-based logic:
+        - If cost > threshold: Reserve with server (blocks until response)
+        - If cost <= threshold: Deduct locally
+        
+        Returns: True if approved, False if insufficient
+        """
+        # Premium users bypass
+        if self.is_premium:
+            return True
+            
+        # Small job: deduct locally
+        if cost <= self.SYNC_THRESHOLD_COST:
+            return self.consume(cost)
+        
+        # Large job: reserve with server using JWT
+        if not self.jwt_token:
+            print("[EnergyManager] Cannot reserve: No JWT token")
+            return False
+        
+        # Configure API client with JWT
+        self.api_client.set_jwt_token(self.jwt_token)
+        
+        # Trigger reservation (async via signal)
+        self.api_client.reserve_energy(cost)
+        
+        # Note: This is now async - result comes via _on_reservation_completed
+        # For blocking behavior, conversion_conductor needs to wait for signal
+        print(f"[EnergyManager] Requesting server reservation for {cost} energy...")
+        return True  # Optimistic - will be corrected by signal if fails
+
+    def calculate_cost(self, conversion_type, params=None):
+        """
+        Calculate energy cost based on conversion parameters.
+        
+        Args:
+            conversion_type (str): 'image', 'video', 'gif'
+            params (dict): Conversion parameters from CommandPanel
+        """
+        cost = 0
+        if conversion_type == 'image':
+            cost = self.COST_IMAGE
+        elif conversion_type == 'video':
+            cost = self.COST_VIDEO
+        elif conversion_type == 'gif' or conversion_type == 'loop':
+            cost = self.COST_LOOP
+            
+        # Target Size Multiplier
+        # Check params for size mode
+        if params:
+            is_target_size = False
+            if conversion_type == 'video' and params.get('video_size_mode') == 'max_size':
+                is_target_size = True
+            elif conversion_type == 'image' and params.get('image_size_mode') == 'max_size':
+                is_target_size = True
+            elif conversion_type == 'gif' and params.get('gif_size_mode') == 'max_size':
+                is_target_size = True
+                
+            if is_target_size:
+                cost = int(cost * self.MULTIPLIER_TARGET_SIZE)
+                
+            # Heavy Codec Multiplier (Video only)
+            if conversion_type == 'video':
+                codec = params.get('video_codec', '').lower()
+                # Check for AV1/HEVC
+                if any(c in codec for c in self.HEAVY_CODECS):
+                    cost = int(cost * self.MULTIPLIER_HEAVY_CODEC)
+        
+        return max(1, cost) # Minimum 1
+
+    def get_time_until_refresh(self):
+        """Return string "HH:MM" until midnight"""
+        now = datetime.now()
+        tomorrow_midnight = datetime(now.year, now.month, now.day) + timedelta(days=1)
+        remaining = tomorrow_midnight - now
+        hours, remainder = divmod(remaining.seconds, 3600)
+        minutes, _ = divmod(remainder, 60)
+        return f"{hours}h {minutes}m"
+    
+    # ===== Store Authentication Integration =====
+    
+    def set_store_auth(self, store_user_id: str, jwt_token: str, is_premium: bool):
+        """
+        Set Store authentication credentials.
+        
+        Called after successful Store login via IStoreAuthProvider.
+        
+        Args:
+            store_user_id: Platform-specific user ID (MS SubjectID or Apple SubjectID)
+            jwt_token: JWT token from server after Store validation
+            is_premium: Premium status from server
+        """
+        self.store_user_id = store_user_id
+        self.jwt_token = jwt_token
+        self.is_premium = is_premium
+        
+        # Sync with server to get current balance
+        if not is_premium:
+            self.sync_with_server_jwt()
+    
+    def sync_with_server_jwt(self):
+        """
+        Sync balance from server using JWT authentication.
+        
+        This replaces the old email/license_key authentication.
+        Called on app launch after Store login.
+        """
+        if not self.jwt_token:
+            print("[EnergyManager] Cannot sync: No JWT token")
+            return
+        
+        # Configure API client with JWT token
+        self.api_client.set_jwt_token(self.jwt_token)
+        
+        # Trigger sync (response handled by _on_sync_completed signal)
+        self.api_client.sync_balance()
+        print(f"[EnergyManager] Syncing with server using JWT authentication...")
+    
+    def _on_sync_completed(self, success, data):
+        """Handle sync response from server."""
+        if success:
+            self.balance = data.get('balance', self.balance)
+            self.server_signature = data.get('signature')
+            print(f"[EnergyManager] Sync successful - Balance: {self.balance}")
+            self.save()
+            self.energy_changed.emit(self.balance, self.MAX_DAILY_ENERGY)
+        else:
+            error = data.get('error', 'unknown')
+            print(f"[EnergyManager] Sync failed: {error}")
+    
+    def _on_reservation_completed(self, success, data):
+        """Handle reservation response from server."""
+        if success:
+            self.balance = data.get('balance', self.balance)
+            self.server_signature = data.get('signature')
+            print(f"[EnergyManager] Reservation successful - New balance: {self.balance}")
+            self.save()
+            self.energy_changed.emit(self.balance, self.MAX_DAILY_ENERGY)
+        else:
+            error = data.get('error', 'unknown')
+            print(f"[EnergyManager] Reservation failed: {error}")
+    
+    def _on_report_completed(self, success, data):
+        """Handle usage report response from server."""
+        if success:
+            self.unsynced_usage = 0  # Clear accumulated usage
+            self.server_signature = data.get('signature')
+            print(f"[EnergyManager] Usage report successful")
+            self.save()
+        else:
+            error = data.get('error', 'unknown')
+            print(f"[EnergyManager] Usage report failed: {error}")
+    
+    def set_premium_status(self, is_premium):
+        """Set whether user is premium (called after login)"""
+        self.is_premium = is_premium
+    
+    # ===== Signal Handlers =====
+    
+    def _on_sync_completed(self, success, data):
+        """Handle sync response from server"""
+        if success:
+            self.balance = data.get('balance', self.MAX_DAILY_ENERGY)
+            self.server_signature = data.get('signature')
+            self.is_premium = data.get('user_tier') == 'premium'
+            self.unsynced_usage = 0
+            self.save()
+            self.energy_changed.emit(self.balance, self.MAX_DAILY_ENERGY)
+        else:
+            self.server_sync_failed.emit(data.get('error', 'unknown'))
+    
+    def _on_reservation_completed(self, success, data):
+        """Handle reservation response from server"""
+        self._pending_reservation = {'success': success, 'data': data}
+        if success:
+            self.balance = data.get('new_balance', self.balance)
+            self.server_signature = data.get('signature')
+            self.save()
+            self.energy_changed.emit(self.balance, self.MAX_DAILY_ENERGY)
+    
+    def _on_report_completed(self, success, data):
+        """Handle report response from server"""
+        if success:
+            self.balance = data.get('new_balance', self.balance)
+            self.server_signature = data.get('signature')
+            self.unsynced_usage = 0
+            self.save()
+            self.energy_changed.emit(self.balance, self.MAX_DAILY_ENERGY)

@@ -87,6 +87,10 @@ class ConversionConductor(QObject):
             self.dialogs.show_warning("Conversion Running", "A conversion is already in progress.")
             return
         
+        # NEW: Energy check for free tier users
+        if not self._check_energy_for_job(files, params):
+            return  # Insufficient energy, dialog shown by _check_energy_for_job
+        
         # Update UI state
         self.output_footer.set_converting(True)
         
@@ -149,6 +153,11 @@ class ConversionConductor(QObject):
         if not files:
             self.dialogs.show_warning("No Files", "Please add files for conversion first.")
             return
+        
+        # NEW: Energy check for free tier users (preset mode)
+        # For presets, we estimate cost based on preset type
+        if not self._check_energy_for_preset(files):
+            return  # Insufficient energy
         
         # Get orchestrator (owns the conversion logic)
         if not hasattr(self.drag_drop_area, '_preset_orchestrator'):
@@ -333,3 +342,84 @@ class ConversionConductor(QObject):
         self.output_footer.reset_progress()
         
         self._completed_files_count = 0
+    
+    # ===== Energy System Integration =====
+    
+    def _check_energy_for_job(self, files, params):
+        """
+        Check if user has sufficient energy for this conversion job.
+        Uses job-based logic: syncs with server for large jobs, local for small.
+        
+        Returns: True if approved, False if insufficient
+        """
+        from client.core.energy_manager import EnergyManager
+        
+        energy_mgr = EnergyManager.instance()
+        
+        # Premium users bypass
+        if energy_mgr.is_premium:
+            return True
+        
+        # Calculate total cost
+        conversion_type = self._detect_conversion_type(params)
+        total_cost = 0
+        
+        for file in files:
+            cost = energy_mgr.calculate_cost(conversion_type, params)
+            total_cost += cost
+        
+        # Request energy (job-based: server for large, local for small)
+        # Note: JWT token is set via EnergyManager.set_store_auth()
+        
+        if not energy_mgr.request_job_energy(total_cost, conversion_type, params):
+            # Insufficient energy
+            self._show_insufficient_energy_dialog(total_cost, energy_mgr.get_balance())
+            return False
+        
+        return True
+    
+    def _check_energy_for_preset(self, files):
+        """
+        Check energy for preset conversion.
+        Presets are typically video/complex, so we estimate higher cost.
+        """
+        from client.core.energy_manager import EnergyManager
+        
+        energy_mgr = EnergyManager.instance()
+        
+        if energy_mgr.is_premium:
+            return True
+        
+        # Estimate cost (presets are usually video-level complexity)
+        total_cost = len(files) * energy_mgr.COST_VIDEO
+        
+        if not energy_mgr.request_job_energy(total_cost, "preset", {}):
+            self._show_insufficient_energy_dialog(total_cost, energy_mgr.get_balance())
+            return False
+        
+        return True
+    
+    def _detect_conversion_type(self, params):
+        """Detect conversion type from parameters."""
+        if params.get('video_codec'):
+            return 'video'
+        elif params.get('gif_fps') or params.get('webm_fps'):
+            return 'loop'
+        else:
+            return 'image'
+    
+    
+    def _show_insufficient_energy_dialog(self, required, available):
+        """Show dialog when user has insufficient energy."""
+        from client.core.energy_manager import EnergyManager
+        energy_mgr = EnergyManager.instance()
+        
+        refresh_time = energy_mgr.get_time_until_refresh()
+        
+        message = f"""This conversion requires {required} energy, but you only have {available} available.
+
+Your energy will refresh to {energy_mgr.MAX_DAILY_ENERGY} in {refresh_time}.
+
+Upgrade to Premium for unlimited conversions!"""
+        
+        self.dialogs.show_warning("Insufficient Energy", message)

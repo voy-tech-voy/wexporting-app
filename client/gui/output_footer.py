@@ -81,6 +81,27 @@ class OutputFooter(QWidget):
         # Spacer
         layout.addStretch()
         
+        # Center: Credit Bar
+        from client.gui.components.credit_bar import CreditBar
+        from client.core.energy_manager import EnergyManager
+        
+        self.credit_bar = CreditBar()
+        self.credit_bar.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        self.credit_bar.setFixedHeight(40) # Match Start Button
+        layout.addWidget(self.credit_bar)
+        
+        # Connect to EnergyManager
+        self.energy_manager = EnergyManager.instance()
+        self.energy_manager.energy_changed.connect(self._on_energy_changed)
+        
+        # Initialize with current values
+        current = self.energy_manager.get_balance()
+        max_energy = EnergyManager.MAX_DAILY_ENERGY
+        self.credit_bar.set_credits(current, max_energy)
+        
+        # Spacer
+        layout.addSpacing(16)
+        
         # Right side: Start button
         self.start_btn = QPushButton("START")
         self.start_btn.setObjectName("BtnStart")
@@ -178,6 +199,8 @@ class OutputFooter(QWidget):
     def update_theme(self, is_dark):
         self._is_dark = is_dark
         self.segment_control.update_theme(is_dark)
+        if hasattr(self, 'credit_bar'):
+            self.credit_bar.update_theme(is_dark)
         self._apply_styles()
         
     def _apply_styles(self):
@@ -190,6 +213,10 @@ class OutputFooter(QWidget):
                 border-top: 1px solid {Theme.border()};
                 border-bottom-left-radius: {Theme.RADIUS_LG}px;
                 border-bottom-right-radius: {Theme.RADIUS_LG}px;
+            }}
+            CreditBar {{
+                background: transparent;
+                border: none;
             }}
         """)
         
@@ -291,3 +318,9 @@ class OutputFooter(QWidget):
         """)
         # Remove glow during stop state
         self.start_btn.setGraphicsEffect(None)
+    
+    def _on_energy_changed(self, current, max_energy):
+        """Handle energy balance updates from EnergyManager"""
+        if hasattr(self, 'credit_bar'):
+            self.credit_bar.set_credits(current, max_energy)
+

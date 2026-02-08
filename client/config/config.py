@@ -25,6 +25,16 @@ class Config:
     TRIAL_CREATE_ENDPOINT = f"{API_PREFIX}/trial/create"
     TRIAL_STATUS_ENDPOINT = f"{API_PREFIX}/trial/status"
     
+    # Energy System Configuration (NEW)
+    ENERGY_SYNC_ENDPOINT = f"{API_PREFIX}/energy/sync"
+    ENERGY_RESERVE_ENDPOINT = f"{API_PREFIX}/energy/reserve"
+    ENERGY_REPORT_ENDPOINT = f"{API_PREFIX}/energy/report"
+    CONFIG_COSTS_ENDPOINT = f"{API_PREFIX}/config/costs"
+    
+    # Store Authentication Configuration (NEW)
+    STORE_AUTH_LOGIN_ENDPOINT = f"{API_PREFIX}/auth/login"
+    STORE_VALIDATE_RECEIPT_ENDPOINT = f"{API_PREFIX}/store/validate-receipt"
+    
     # Application Configuration
     APP_NAME = "ImageWave Converter"
     APP_VERSION = "1.1.0"
@@ -73,3 +83,13 @@ FORGOT_LICENSE_URL = f"{API_BASE_URL}{current_config.LICENSE_FORGOT_ENDPOINT}"
 TRIAL_CHECK_ELIGIBILITY_URL = f"{API_BASE_URL}{current_config.TRIAL_CHECK_ELIGIBILITY_ENDPOINT}"
 TRIAL_CREATE_URL = f"{API_BASE_URL}{current_config.TRIAL_CREATE_ENDPOINT}"
 TRIAL_STATUS_URL = f"{API_BASE_URL}{current_config.TRIAL_STATUS_ENDPOINT}"
+
+# Energy System URLs (NEW)
+ENERGY_SYNC_URL = f"{API_BASE_URL}{current_config.ENERGY_SYNC_ENDPOINT}"
+ENERGY_RESERVE_URL = f"{API_BASE_URL}{current_config.ENERGY_RESERVE_ENDPOINT}"
+ENERGY_REPORT_URL = f"{API_BASE_URL}{current_config.ENERGY_REPORT_ENDPOINT}"
+CONFIG_COSTS_URL = f"{API_BASE_URL}{current_config.CONFIG_COSTS_ENDPOINT}"
+
+# Store Authentication URLs (NEW)
+STORE_AUTH_LOGIN_URL = f"{API_BASE_URL}{current_config.STORE_AUTH_LOGIN_ENDPOINT}"
+STORE_VALIDATE_RECEIPT_URL = f"{API_BASE_URL}{current_config.STORE_VALIDATE_RECEIPT_ENDPOINT}"

@@ -11,7 +11,6 @@ import shutil
 from PyQt6.QtWidgets import QApplication, QWidget, QVBoxLayout, QLabel, QMessageBox, QDialog
 from PyQt6.QtGui import QPixmap, QColor, QPainter, QFont
 from PyQt6.QtCore import Qt, QRect, QTimer
-from client.gui.login_window_new import ModernLoginWindow, VideoPlaybackThread
 from client.gui.main_window import MainWindow
 from client.utils.font_manager import AppFonts
 from client.version import get_version, APP_NAME
@@ -405,40 +404,62 @@ def main():
         
         # Show login window first (unless in dev mode)
         if CRASH_REPORTING_AVAILABLE:
-            if dev_mode:
-                log_info("Dev mode enabled - skipping login window", "startup")
-            else:
-                log_info("Initializing login window", "startup")
+            log_info("Initializing Store Authentication", "startup")
+            
+        # --------------------------------------------------------------------
+        # Store Authentication (Replaces Login Window)
+        # --------------------------------------------------------------------
+        from client.core.auth import get_store_auth_provider, IStoreAuthProvider
+        from client.core.energy_manager import EnergyManager
         
-        # Skip login in dev mode
-        if not dev_mode:
-            login = ModernLoginWindow()
-            if profile_startup:
-                t_login = time.perf_counter()
-                print(f"[startup] Login window instantiated in {(t_login - t0)*1000:.1f} ms (since start)")
-            set_dark_title_bar(login)  # Apply dark title bar to login window
-            # Show login window
-            if login.exec() != QDialog.DialogCode.Accepted:
-                # Login cancelled or authentication failed - exit application
+        # Initialize Store Provider (MS Store on Windows, Apple on macOS)
+        try:
+            auth_provider = get_store_auth_provider()
+            print(f"[AUTH] Using provider: {auth_provider.__class__.__name__}")
+            
+            # Attempt silent login
+            # Note: On Windows this uses the OS account. On failure, it might prompt.
+            if auth_provider.login():
+                print("[AUTH] Store login successful")
+                
+                # Get credentials
+                user_id = auth_provider.get_store_user_id()
+                token = auth_provider.get_credentials().get('token')
+                
+                # Check for premium status (receipt validation)
+                # For now, we assume free tier unless receipt found
+                # TODO: Implement full receipt validation
+                is_premium = False 
+                
+                # Configure Energy Manager
+                energy_mgr = EnergyManager.instance()
+                energy_mgr.set_store_auth(user_id, token, is_premium)
+                
+                # Trigger initial sync (async)
+                energy_mgr.sync_with_server_jwt()
+                
                 if CRASH_REPORTING_AVAILABLE:
-                    log_info("Login cancelled or failed, exiting application", "startup")
-                sys.exit(0)
-            # Login successful
-            is_trial = login.is_trial
-        else:
-            # Dev mode - skip login
-            is_trial = False
+                    log_info(f"Store auth successful. User: {user_id}", "startup")
+            else:
+                print("[AUTH] Store login failed or cancelled")
+                if CRASH_REPORTING_AVAILABLE:
+                    log_info("Store login failed", "startup")
+                    
+        except Exception as e:
+            print(f"[AUTH] Error during store authentication: {e}")
+            if CRASH_REPORTING_AVAILABLE:
+                log_error(e, "store_auth")
 
-        # Login successful (or dev mode) - show main application
+        # --------------------------------------------------------------------
+
+        # Launch main application
         if CRASH_REPORTING_AVAILABLE:
             log_info("Launching main application", "startup")
 
         # Use extracted initialization function
-        window = initialize_main_window(is_trial, skip_splash=dev_mode)
+        # is_trial is now managed by EnergyManager state, so we pass False here
+        window = initialize_main_window(is_trial=False, skip_splash=dev_mode)
         window.show()
-        
-        if CRASH_REPORTING_AVAILABLE:
-            log_info("Main application window displayed", "startup")
         
         if CRASH_REPORTING_AVAILABLE:
             log_info("Main application window displayed", "startup")
