@@ -3,7 +3,7 @@
 # ============================================================================
 meta:
   id: "web_lqip_generator"
-  name: "LQIP Placeholder"
+  name: "LQIP"
   category: "web"
   description: "Creates a tiny 20px blurred placeholder for lazy-loading web logic."
   version: "1.0"

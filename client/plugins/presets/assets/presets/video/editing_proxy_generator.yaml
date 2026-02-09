@@ -8,7 +8,7 @@
 
 meta:
   id: "editing_proxy_generator"
-  name: "Proxy Generator (ProRes/DNx)"
+  name: "Generator"
   category: "video"
   description: "Creates lightweight proxies for lag-free editing."
   version: "1.0"

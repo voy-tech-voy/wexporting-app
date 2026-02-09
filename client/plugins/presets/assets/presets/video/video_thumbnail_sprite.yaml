@@ -8,7 +8,7 @@
 
 meta:
   id: "video_thumbnail_sprite"
-  name: "Thumbnail Sprite Sheet"
+  name: "Sprite Sheet"
   category: "video"
   description: "Creates a tiled 'storyboard' image for seek-bar previews on websites."
   version: "1.0"

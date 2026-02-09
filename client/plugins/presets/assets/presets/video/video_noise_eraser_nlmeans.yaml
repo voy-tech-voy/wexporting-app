@@ -8,7 +8,7 @@
 
 meta:
   id: "video_noise_eraser_nlmeans"
-  name: "High-ISO Noise Eraser"
+  name: "Noise Eraser"
   category: "video"
   description: "Advanced neural-style denoising. Cleans low-light grain while keeping edges sharp."
   version: "1.0"

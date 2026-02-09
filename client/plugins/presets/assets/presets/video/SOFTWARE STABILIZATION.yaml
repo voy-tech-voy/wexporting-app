@@ -8,7 +8,7 @@
 
 meta:
   id: "editing_steady_cam"
-  name: "Steady-Cam Stabilization"
+  name: "Stabilizer"
   category: "video"
   description: "Advanced two-pass stabilization. Turns shaky handheld footage into smooth cinematic shots."
   version: "1.0"
