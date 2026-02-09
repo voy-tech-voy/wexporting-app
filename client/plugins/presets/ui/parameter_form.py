@@ -218,11 +218,37 @@ class ParameterForm(QWidget):
                 widget.setToolTip(param.tooltip)
             widget.toggled.connect(lambda: self._on_value_changed())
             
+            # Make label clickable to toggle checkbox
+            label.setCursor(Qt.CursorShape.PointingHandCursor)
+            label.mousePressEvent = lambda event: widget.toggle()
+            
             # Add toggle first, then label, then stretch to push left
             layout.insertWidget(0, widget)
             layout.addWidget(label)
             layout.addStretch()
             # Don't add widget again at the end
+            
+        elif param.type == ParameterType.MULTI_TOGGLE:
+            # Multiple checkboxes for multi-select (e.g., icon sizes: 16, 32, 48, 256)
+            multi_container = QWidget()
+            multi_layout = QHBoxLayout(multi_container)
+            multi_layout.setContentsMargins(0, 0, 0, 0)
+            multi_layout.setSpacing(12)
+            
+            # Store checkboxes for value retrieval
+            checkboxes = {}
+            default_values = param.default if isinstance(param.default, list) else []
+            
+            for option in param.options:
+                cb = ThemedCheckBox(option)
+                cb.setChecked(option in default_values)
+                cb.toggled.connect(lambda: self._on_value_changed())
+                checkboxes[option] = cb
+                multi_layout.addWidget(cb)
+            
+            multi_layout.addStretch()
+            widget = multi_container
+            widget._checkboxes = checkboxes  # Store for value retrieval
             
         elif param.type == ParameterType.SLIDER:
             # Create horizontal slider with value label
@@ -348,6 +374,13 @@ class ParameterForm(QWidget):
             
             if param.type == ParameterType.TOGGLE:
                 values[param.id] = widget.isChecked()
+            elif param.type == ParameterType.MULTI_TOGGLE:
+                # Return comma-separated list of selected options
+                if hasattr(widget, '_checkboxes'):
+                    selected = [opt for opt, cb in widget._checkboxes.items() if cb.isChecked()]
+                    values[param.id] = ','.join(selected)
+                else:
+                    values[param.id] = param.default
             elif param.type == ParameterType.SLIDER:
                 values[param.id] = widget._slider.value() if hasattr(widget, '_slider') else param.default
             elif param.type == ParameterType.SEGMENTED_PILL:

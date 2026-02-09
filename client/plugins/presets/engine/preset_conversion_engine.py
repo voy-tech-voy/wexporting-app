@@ -183,7 +183,8 @@ class PresetConversionEngine(QThread):
             filename_suffix = "_preset"
         
         # Construct output path
-        output_path = output_dir / f"{input_p.stem}{filename_suffix}{input_p.suffix}"
+        output_ext = preset.output_extension if preset.output_extension else input_p.suffix
+        output_path = output_dir / f"{input_p.stem}{filename_suffix}{output_ext}"
         
         # Build context for command templates
         from client.utils.gpu_detector import get_gpu_detector

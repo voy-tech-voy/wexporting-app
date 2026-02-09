@@ -19,6 +19,7 @@ class PresetStatus(Enum):
 class ParameterType(Enum):
     """UI control types for preset parameters (Tier 2)"""
     TOGGLE = "toggle"
+    MULTI_TOGGLE = "multi_toggle"  # Multiple checkboxes for multi-select
     SEGMENTED_PILL = "segmented_pill"
     SLIDER = "slider"
     DROPDOWN = "dropdown"
@@ -108,6 +109,9 @@ class PresetDefinition:
     
     # Input constraints (Tier 2)
     constraints: PresetConstraints = field(default_factory=PresetConstraints)
+    
+    # Output configuration
+    output_extension: Optional[str] = None  # Force output extension (e.g. ".ico")
     
     # Social media grouping - ratio for 2-step selection (e.g., "9x16", "1x1")
     ratio: Optional[str] = None

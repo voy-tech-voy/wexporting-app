@@ -16,7 +16,7 @@ meta:
 
 style:
   accent_color: "#00BFFF"  # Deep Sky Blue
-  icon: "cpu"
+  icon: "ai_upscale"
   glow_strength: "strong"
 
 constraints:

@@ -49,6 +49,7 @@ class PresetGallery(BlurBackgroundMixin, QWidget):
         self._row_widgets: List[QWidget] = []  # Track row widgets for cleanup
         self._is_dark = True  # Default to dark mode
         self.content_padding = 16 # Tunable layout padding
+        self._selected_card: PresetCard = None  # Track currently selected card
         
         # Animation state
         self._param_panel_animation = None
@@ -374,15 +375,35 @@ class PresetGallery(BlurBackgroundMixin, QWidget):
         # Save scroll position before any changes
         scroll_pos = self._scroll.verticalScrollBar().value()
         
+        # Update card selection states
+        if self._selected_card:
+            self._selected_card.set_selected(False)
+        
+        # Find and select the clicked card
+        for card in self._cards:
+            if card.preset == preset:
+                card.set_selected(True)
+                self._selected_card = card
+                break
+        
+        # Show parameter panel with description
         if preset.parameters:
             self._parameter_form.set_parameters(preset.parameters, self._meta)
             self._param_panel.set_content(
                 title=f"{preset.name} Settings",
-                parameter_form=self._parameter_form
+                parameter_form=self._parameter_form,
+                description=preset.description
             )
             self._param_panel.show_animated()
         else:
-            self._param_panel.hide_animated()
+            # No parameters - clear form and show panel with description only
+            self._parameter_form.set_parameters([], self._meta)  # Clear any previous parameters
+            self._param_panel.set_content(
+                title=preset.name,
+                parameter_form=None,
+                description=preset.description
+            )
+            self._param_panel.show_animated()
         
         # Restore scroll position after layout changes
         QTimer.singleShot(0, lambda: self._scroll.verticalScrollBar().setValue(scroll_pos))

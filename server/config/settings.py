@@ -1,4 +1,8 @@
 import os
+from dotenv import load_dotenv
+
+# Load .env file if it exists (for local development)
+load_dotenv()
 
 class Config:
     SECRET_KEY = os.environ.get('SECRET_KEY') or 'dev-secret-key'
@@ -37,3 +41,16 @@ class Config:
     # ADMIN & SECURITY
     # ========================================================================
     ADMIN_API_KEY = os.environ.get('ADMIN_API_KEY')  # Set in PythonAnywhere
+    
+    # ========================================================================
+    # JWT AUTHENTICATION
+    # ========================================================================
+    JWT_SECRET_KEY = os.environ.get('JWT_SECRET_KEY')  # Separate from SECRET_KEY for security
+    JWT_EXPIRY_HOURS = int(os.environ.get('JWT_EXPIRY_HOURS', 24))  # Token expiry (default 24h)
+    
+    # ========================================================================
+    # ENERGY SYSTEM
+    # ========================================================================
+    DAILY_FREE_ENERGY = int(os.environ.get('DAILY_FREE_ENERGY', 50))  # Free tier daily energy
+    ENERGY_RESET_HOUR_UTC = int(os.environ.get('ENERGY_RESET_HOUR_UTC', 0))  # Midnight UTC
+

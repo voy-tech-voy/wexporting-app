@@ -21,13 +21,23 @@ class DevCreditBarPanel(QWidget):
         self.add_slider(layout, "Gain", 0, 200, credit_bar.gain * 100, 
                        lambda v: setattr(credit_bar, 'gain', v/100.0))
         
-        self.add_slider(layout, "Credits", 0, credit_bar.max_credits, credit_bar.current_credits, 
-                       lambda v: setattr(credit_bar, 'current_credits', int(v)))
+        # Credits slider - updates both UI and EnergyManager
+        def update_credits(value):
+            # Update UI
+            setattr(credit_bar, 'current_credits', int(value))
+            # Update EnergyManager balance
+            from client.core.energy_manager import EnergyManager
+            energy_mgr = EnergyManager.instance()
+            energy_mgr.balance = int(value)
+            energy_mgr.save()
+            energy_mgr.energy_changed.emit(int(value), energy_mgr.MAX_DAILY_ENERGY)
         
-        # Save info (dummy for now as we don't have persistence yet for these specific keys, 
-        # but user didn't ask for persistence deeply, just the panel)
-        lbl_info = QLabel("Modifications are temporary until persisted.")
-        lbl_info.setStyleSheet("color: #aaa; font-style: italic; margin-top: 10px;")
+        self.add_slider(layout, "Credits", 0, credit_bar.max_credits, credit_bar.current_credits, 
+                       update_credits)
+        
+        # Info label
+        lbl_info = QLabel("Credit changes are now persisted to EnergyManager.")
+        lbl_info.setStyleSheet("color: #4CAF50; font-style: italic; margin-top: 10px;")
         layout.addWidget(lbl_info)
         
     def create_button(self, text, callback):

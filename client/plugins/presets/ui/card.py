@@ -6,7 +6,7 @@ Based on .agent/preset_card_spec.md design specification.
 """
 from PyQt6.QtWidgets import QFrame, QVBoxLayout, QLabel, QGraphicsOpacityEffect
 from PyQt6.QtCore import Qt, pyqtSignal, QPropertyAnimation, QEasingCurve
-from PyQt6.QtGui import QPixmap, QIcon, QColor, QPainter
+from PyQt6.QtGui import QPixmap, QIcon, QColor, QPainter, QTransform
 
 from client.plugins.presets.logic.models import PresetDefinition
 from client.utils.resource_path import get_resource_path
@@ -44,10 +44,15 @@ class PresetCard(QFrame):
         super().__init__(parent)
         self._preset = preset
         self._is_available = preset.is_available
+        self._is_selected = False
         
         self.setFixedSize(self.CARD_WIDTH, self.CARD_HEIGHT)
         self.setObjectName("PresetCard")
         self.setCursor(Qt.CursorShape.PointingHandCursor)
+        
+        # Store original geometry for scaling
+        self._original_size = (self.CARD_WIDTH, self.CARD_HEIGHT)
+        self._is_scaled = False
         
         self._setup_ui()
         self._apply_styles()
@@ -88,6 +93,39 @@ class PresetCard(QFrame):
             color = QColor(Theme.text())
         
         icon_name = self._preset.style.icon
+        
+        # Check for text-based icon (text: prefix or emoji/unicode)
+        if icon_name.startswith("text:"):
+            # Extract text after "text:" prefix
+            text_content = icon_name[5:].strip()
+            self.icon_label.setText(text_content)
+            # Determine font size based on text length
+            if len(text_content) == 1:
+                font_size = 32  # Single character (emoji or letter)
+            elif len(text_content) == 2:
+                font_size = 28
+            elif len(text_content) == 3:
+                font_size = 22
+            else:
+                font_size = 18  # Longer text
+            
+            self.icon_label.setStyleSheet(f"""
+                font-size: {font_size}px;
+                font-weight: bold;
+                color: {color.name()};
+            """)
+            return
+        
+        # Check if icon_name is a single emoji/unicode character (not a filename)
+        # Must be 1-2 chars AND not alphanumeric (to exclude filenames like "11", "34")
+        if len(icon_name) <= 2 and not icon_name.isalnum() and not icon_name.endswith('.svg'):
+            self.icon_label.setText(icon_name)
+            self.icon_label.setStyleSheet(f"""
+                font-size: 32px;
+                font-weight: bold;
+                color: {color.name()};
+            """)
+            return
         
         # Try to load from assets
         icon_path = get_resource_path(f"client/assets/icons/{icon_name}.svg")
@@ -180,28 +218,54 @@ class PresetCard(QFrame):
         """Apply the card styling from design spec."""
         accent = self._preset.style.accent_color
         
-        self.setStyleSheet(f"""
-            QFrame#PresetCard {{
-                background-color: {Theme.surface_element()};
-                border: 1px solid {Theme.border()};
-                border-radius: {Theme.RADIUS_LG}px;
-            }}
-            QFrame#PresetCard:hover {{
-                background-color: {Theme.color('surface_hover')};
-                border: 1px solid {Theme.border_focus()};
-            }}
-            QLabel#CardIcon {{
-                background-color: transparent;
-                padding: 10px;
-            }}
-            QLabel#CardTitle {{
-                color: {Theme.text()};
-                font-size: {Theme.FONT_SIZE_SM}px;
-                font-weight: bold;
-                background: transparent;
-                margin-bottom: 2px;
-            }}
-        """)
+        if self._is_selected:
+            # Selected state: accent border + subtle background tint
+            self.setStyleSheet(f"""
+                QFrame#PresetCard {{
+                    background-color: {Theme.color('surface_hover')};
+                    border: 2px solid {accent};
+                    border-radius: {Theme.RADIUS_LG}px;
+                }}
+                QFrame#PresetCard:hover {{
+                    background-color: {Theme.color('surface_hover')};
+                    border: 2px solid {accent};
+                }}
+                QLabel#CardIcon {{
+                    background-color: transparent;
+                    padding: 10px;
+                }}
+                QLabel#CardTitle {{
+                    color: {Theme.text()};
+                    font-size: {Theme.FONT_SIZE_SM}px;
+                    font-weight: bold;
+                    background: transparent;
+                    margin-bottom: 2px;
+                }}
+            """)
+        else:
+            # Normal state
+            self.setStyleSheet(f"""
+                QFrame#PresetCard {{
+                    background-color: {Theme.surface_element()};
+                    border: 1px solid {Theme.border()};
+                    border-radius: {Theme.RADIUS_LG}px;
+                }}
+                QFrame#PresetCard:hover {{
+                    background-color: {Theme.color('surface_hover')};
+                    border: 1px solid {Theme.border_focus()};
+                }}
+                QLabel#CardIcon {{
+                    background-color: transparent;
+                    padding: 10px;
+                }}
+                QLabel#CardTitle {{
+                    color: {Theme.text()};
+                    font-size: {Theme.FONT_SIZE_SM}px;
+                    font-weight: bold;
+                    background: transparent;
+                    margin-bottom: 2px;
+                }}
+            """)
     
     def _apply_ghost_effect(self):
         """Apply ghost effect for unavailable presets."""
@@ -289,11 +353,25 @@ class PresetCard(QFrame):
         else:
             self._apply_styles()
     
+    def enterEvent(self, event):
+        """Handle mouse enter."""
+        super().enterEvent(event)
+    
+    def leaveEvent(self, event):
+        """Handle mouse leave."""
+        super().leaveEvent(event)
+    
     def mousePressEvent(self, event):
         """Handle click - emit preset."""
         if event.button() == Qt.MouseButton.LeftButton and self._is_available:
             self.clicked.emit(self._preset)
         super().mousePressEvent(event)
+    
+    def set_selected(self, selected: bool):
+        """Set selection state and update visual styling."""
+        if self._is_selected != selected:
+            self._is_selected = selected
+            self._apply_styles()
     
     @property
     def preset(self) -> PresetDefinition:

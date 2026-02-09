@@ -1,0 +1,95 @@
+# ============================================================================
+# PRESET: Web Hero Image (1920x1080 WebP)
+# ============================================================================
+# Optimized for: Website hero banners, OpenGraph sharing images
+# Codec: WebP (libwebp) - Up to 35% smaller than JPEG with transparency support
+# ============================================================================
+
+meta:
+  id: "web_hero_1080p_webp"
+  name: "Hero Image (WebP)"
+  category: "web"
+  description: "Perfect 1920x1080 hero banner. Optimized for fast page loads."
+  version: "1.0"
+
+style:
+  accent_color: "#00C2A8"         # WebP Teal/Green
+  icon: "text:hero \n image"                   
+  glow_strength: "normal"
+
+constraints:
+  accepted_types: ["image"]
+  accepted_extensions: [".jpg", ".jpeg", ".png", ".tiff", ".bmp", ".webp"]
+
+parameters:
+  # --- GEOMETRY CONTROL ---
+  - id: "fill_mode"
+    type: "segmented_pill"
+    label: "Fill Strategy"
+    options: ["Cover", "Contain", "Stretch"]
+    default: "Cover"
+    tooltip: "Cover: Crops to 1920x1080 (Best for Hero). Contain: Adds transparent/black bars."
+
+  # --- QUALITY CONTROL ---
+  - id: "webp_quality"
+    type: "slider"
+    label: "Image Quality"
+    default: 80
+    min_value: 50                 # Aggressive compression
+    max_value: 100                # Max quality
+    tooltip: "Web standard is 80. Above 90 produces rapidly larger files."
+
+  # --- ADVANCED OPTIONS ---
+  - id: "is_lossless"
+    type: "toggle"
+    label: "Lossless Export"
+    default: false
+    tooltip: "Preserves 100% quality (like PNG). Overrides the quality slider."
+
+  - id: "strip_metadata"
+    type: "toggle"
+    label: "Strip EXIF Data"
+    default: true
+    tooltip: "Removes camera data and GPS location for privacy and smaller file size."
+
+pipeline:
+  - tool: "ffmpeg"
+    description: "Scale and encode to WebP"
+    
+    # Filename: input_hero_80q.webp (or _hero_lossless.webp)
+    filename_suffix: "_hero_{{ 'lossless' if is_lossless else webp_quality ~ 'q' }}"
+
+    command_template: |
+      {{ tool_exe }} -y -i "{{ input_path }}"
+
+      {# --- 1. GEOMETRY LOGIC (1920x1080 Target) --- #}
+      {% if fill_mode == 'Cover' %}
+        {# Scale to fill, crop center #}
+        -vf "scale=1920:1080:force_original_aspect_ratio=increase,crop=1920:1080"
+      {% elif fill_mode == 'Contain' %}
+        {# Scale to fit, pad with transparency (alpha) #}
+        -vf "scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:color=black@0"
+      {% else %}
+        {# Stretch #}
+        -vf "scale=1920:1080"
+      {% endif %}
+
+      {# --- 2. ENCODING LOGIC (libwebp) --- #}
+      -c:v libwebp
+      
+      {% if is_lossless %}
+        -lossless 1
+        {# In lossless mode, preset 6 means maximum compression effort #}
+        -compression_level 6 
+      {% else %}
+        -lossless 0
+        -q:v {{ webp_quality }}
+        -preset picture
+      {% endif %}
+
+      {# --- 3. METADATA LOGIC --- #}
+      {% if strip_metadata %}
+        -map_metadata -1
+      {% endif %}
+
+      "{{ output_path }}"

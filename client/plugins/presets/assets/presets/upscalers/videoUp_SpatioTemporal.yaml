@@ -16,7 +16,7 @@ meta:
 
 style:
   accent_color: "#00D4FF"         # Bright Cyan
-  icon: "sparkles"
+  icon: "ai_upscale"
   glow_strength: "strong"
 
 constraints:

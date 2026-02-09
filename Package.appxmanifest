@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+         xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+         xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities">
+  
+  <Identity Name="YourPublisher.ImgApp"
+            Publisher="CN=YourPublisher"
+            Version="1.0.0.0" />
+  
+  <Properties>
+    <DisplayName>ImgApp</DisplayName>
+    <PublisherDisplayName>Your Company</PublisherDisplayName>
+    <Logo>client\assets\icons\app_icon.png</Logo>
+  </Properties>
+  
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.17763.0" MaxVersionTested="10.0.22000.0" />
+  </Dependencies>
+  
+  <Resources>
+    <Resource Language="en-us" />
+  </Resources>
+  
+  <Applications>
+    <Application Id="ImgApp" Executable="ImgApp.exe" EntryPoint="Windows.FullTrustApplication">
+      <uap:VisualElements DisplayName="ImgApp"
+                          Description="Professional image and video conversion tool with AI upscaling"
+                          BackgroundColor="transparent"
+                          Square150x150Logo="client\assets\icons\app_icon.png"
+                          Square44x44Logo="client\assets\icons\app_icon.png">
+        <uap:DefaultTile Wide310x150Logo="client\assets\icons\app_icon.png" />
+      </uap:VisualElements>
+    </Application>
+  </Applications>
+  
+  <Capabilities>
+    <Capability Name="internetClient" />
+    <rescap:Capability Name="runFullTrust" />
+  </Capabilities>
+</Package>

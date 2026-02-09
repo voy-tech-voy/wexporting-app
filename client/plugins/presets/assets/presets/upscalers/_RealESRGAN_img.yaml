@@ -17,7 +17,7 @@ meta:
 
 style:
   accent_color: "#FF3E00"  # Orange for Pro
-  icon: "sparkles"
+  icon: "ai_upscale"
   glow_strength: "strong"
 
 constraints:

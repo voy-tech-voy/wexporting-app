@@ -189,6 +189,7 @@ class PresetManager:
             style=style,
             constraints=constraints,
             parameters=parameters,
+            output_extension=meta.get('output_extension'),  # Optional forced extension
             ratio=meta.get('ratio'),  # For social media 2-step selection
             raw_yaml=data
         )

@@ -8,14 +8,14 @@
 
 meta:
   id: "utility_hdr_to_sdr"
-  name: "HDR to SDR Tone-Mapper"
-  category: "video"
+  name: "Tone-Mapper"
+  category: "utility"
   description: "Fixes 'blown out' iPhone HDR/HLG footage for standard screens."
   version: "1.0"
 
 style:
   accent_color: "#FF3B30"         # Apple Red
-  icon: "sun-bright"
+  icon: "text:HDR\nto\nSDR"
   glow_strength: "strong"
 
 constraints:

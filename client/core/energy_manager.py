@@ -90,6 +90,12 @@ class EnergyManager(QObject):
         self.api_client.reservation_completed.connect(self._on_reservation_completed)
         self.api_client.report_completed.connect(self._on_report_completed)
         
+        # Batch sync timer - report accumulated usage every 60 seconds
+        from PyQt6.QtCore import QTimer
+        self._batch_timer = QTimer()
+        self._batch_timer.timeout.connect(self._flush_unsynced_usage)
+        self._batch_timer.start(60000)  # 60 seconds
+        
         self.load()
         self.check_refresh()
         
@@ -407,3 +413,24 @@ class EnergyManager(QObject):
             self.unsynced_usage = 0
             self.save()
             self.energy_changed.emit(self.balance, self.MAX_DAILY_ENERGY)
+    
+    def _flush_unsynced_usage(self):
+        """
+        Flush accumulated local usage to server (batch sync).
+        
+        Called every 60 seconds by batch timer.
+        Only reports if there's unsynced usage and user is not premium.
+        """
+        # Skip if premium or no unsynced usage
+        if self.is_premium or self.unsynced_usage <= 0:
+            return
+        
+        # Skip if no JWT token
+        if not self.jwt_token:
+            return
+        
+        # Configure API client and report usage
+        self.api_client.set_jwt_token(self.jwt_token)
+        self.api_client.report_usage(self.unsynced_usage, self.server_signature)
+        
+        print(f"[EnergyManager] Batch sync: reporting {self.unsynced_usage} energy usage")

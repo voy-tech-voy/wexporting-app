@@ -39,6 +39,16 @@ class IStoreAuthProvider(ABC):
             AuthResult: Contains store_user_id, JWT token, and premium status
         """
         pass
+        
+    @abstractmethod
+    def get_credentials(self) -> dict:
+        """
+        Get current credentials (token and user info).
+        
+        Returns:
+            dict: Dictionary containing 'token', 'user_id', etc.
+        """
+        pass
     
     @abstractmethod
     def get_store_user_id(self) -> Optional[str]:

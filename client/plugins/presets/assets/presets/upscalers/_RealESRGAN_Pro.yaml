@@ -15,7 +15,7 @@ meta:
 
 style:
   accent_color: "#9B59B6"  # Purple for AI/Neural
-  icon: "sparkles"
+  icon: "ai_upscale"
   glow_strength: "strong"
 
 constraints:

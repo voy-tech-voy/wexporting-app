@@ -62,6 +62,13 @@ class DynamicParameterPanel(QFrame):
         self._update_title_style()
         self._layout.addWidget(self._title_label)
         
+        # Description label (always visible, below title)
+        self._description_label = QLabel()
+        self._description_label.setObjectName("ParamPanelDescription")
+        self._description_label.setWordWrap(True)
+        self._update_description_style()
+        self._layout.addWidget(self._description_label)
+        
         # Parameter form container (will be set via set_content)
         self._parameter_form = None
         
@@ -114,22 +121,47 @@ class DynamicParameterPanel(QFrame):
             }}
         """)
     
+    def _update_description_style(self):
+        """Update description label styling."""
+        from client.gui.theme_variables import get_color
+        from client.gui.theme_manager import ThemeManager
+        
+        is_dark = ThemeManager.instance().is_dark_mode()
+        text_muted = get_color("text_secondary", is_dark)
+        
+        self._description_label.setStyleSheet(f"""
+            QLabel#ParamPanelDescription {{
+                font-size: 13px;
+                color: {text_muted};
+                margin-top: 4px;
+                margin-bottom: 8px;
+            }}
+        """)
+    
     def update_theme(self, is_dark: bool):
         """Update theme when dark/light mode changes."""
         self._apply_styles()
         self._update_title_style()
+        self._update_description_style()
         if self._parameter_form and hasattr(self._parameter_form, 'update_theme'):
             self._parameter_form.update_theme(is_dark)
     
-    def set_content(self, title: str, parameter_form):
+    def set_content(self, title: str, parameter_form, description: str = ""):
         """
         Set the panel content.
         
         Args:
             title: Title text to display
-            parameter_form: ParameterForm widget to display
+            parameter_form: ParameterForm widget to display (can be None)
+            description: Description text to display below title
         """
         self._title_label.setText(title)
+        
+        # Always show description (or default message if empty)
+        if description:
+            self._description_label.setText(description)
+        else:
+            self._description_label.setText("No parameters required for this preset.")
         
         # Remove old parameter form if exists
         if self._parameter_form and self._parameter_form != parameter_form:
@@ -140,15 +172,19 @@ class DynamicParameterPanel(QFrame):
             except:
                 pass
         
-        # Add new parameter form if not already added
-        if self._parameter_form != parameter_form:
+        # Add new parameter form if provided and not already added
+        if parameter_form and self._parameter_form != parameter_form:
             self._parameter_form = parameter_form
             self._layout.addWidget(self._parameter_form)
             # Connect to values_changed to detect visibility changes
             self._parameter_form.values_changed.connect(self._on_content_changed)
+        elif not parameter_form:
+            # No parameters - just show title and description
+            self._parameter_form = None
         
         # Force layout update
-        self._parameter_form.updateGeometry()
+        if self._parameter_form:
+            self._parameter_form.updateGeometry()
         self.updateGeometry()
     
     def _on_content_changed(self, values: dict):
@@ -172,19 +208,17 @@ class DynamicParameterPanel(QFrame):
         Returns:
             Required height in pixels
         """
-        if not self._parameter_form:
-            return self.MIN_PANEL_HEIGHT
-        
         # Process pending events to ensure layout is fully updated
         QApplication.processEvents()
         
         # Force layout recalculation
         self._layout.activate()
-        self._parameter_form.layout().activate() if self._parameter_form.layout() else None
+        if self._parameter_form and self._parameter_form.layout():
+            self._parameter_form.layout().activate()
         
-        # Method 1: Use sizeHint which Qt calculates based on all visible children
-        form_hint = self._parameter_form.sizeHint()
+        # Get size hints
         title_hint = self._title_label.sizeHint()
+        desc_hint = self._description_label.sizeHint()
         
         # Calculate total height
         height = 0
@@ -196,17 +230,26 @@ class DynamicParameterPanel(QFrame):
         title_height = max(title_hint.height(), 24)
         height += title_height
         
-        # Spacing between title and form
+        # Spacing between title and description
         height += self.TITLE_SPACING
         
-        # Form height - use the larger of sizeHint or calculated from visible widgets
-        form_height = form_hint.height()
+        # Description height
+        desc_height = max(desc_hint.height(), 20)
+        height += desc_height
         
-        # Fallback: manually calculate if sizeHint seems wrong
-        if form_height <= 0:
-            form_height = self._calculate_form_height_manual()
-        
-        height += form_height
+        # Spacing between description and form (if form exists)
+        if self._parameter_form:
+            height += 8  # Additional spacing
+            
+            # Form height - use the larger of sizeHint or calculated from visible widgets
+            form_hint = self._parameter_form.sizeHint()
+            form_height = form_hint.height()
+            
+            # Fallback: manually calculate if sizeHint seems wrong
+            if form_height <= 0:
+                form_height = self._calculate_form_height_manual()
+            
+            height += form_height
         
         # Small buffer for any rounding issues
         height += self.HEIGHT_BUFFER

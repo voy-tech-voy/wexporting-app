@@ -25,9 +25,11 @@ class Platform(str, Enum):
     the same license structure.
     """
     MSSTORE = "msstore"       # Microsoft Store
+    APPSTORE = "appstore"     # Apple App Store
     STRIPE = "stripe"         # Future: Direct Stripe integration
     DIRECT = "direct"         # Manual/admin-created licenses
     TRIAL = "trial"           # Free trials
+
     
     @classmethod
     def is_valid(cls, platform: str) -> bool:
@@ -53,6 +55,7 @@ def get_platform_sale_id_field(platform: str) -> str:
     """
     platform_id_fields = {
         Platform.MSSTORE.value: 'order_id',
+        Platform.APPSTORE.value: 'transaction_id',
         Platform.STRIPE.value: 'payment_intent_id',
         Platform.DIRECT.value: 'admin_ref',
         Platform.TRIAL.value: 'trial_id',
@@ -1205,3 +1208,110 @@ class LicenseManager:
                 'error': 'lookup_failed',
                 'message': 'Failed to lookup license'
             }
+    
+    # ========================================================================
+    # USER PROFILE MANAGEMENT (Store-Native Energy System)
+    # ========================================================================
+    
+    def get_user_profiles_file(self):
+        """Get path to user profiles file"""
+        return os.path.join(os.path.dirname(self.license_file), 'user_profiles.json')
+    
+    def load_user_profiles(self):
+        """Load user profiles from file"""
+        profiles_file = self.get_user_profiles_file()
+        if not os.path.exists(profiles_file):
+            return {}
+        try:
+            with open(profiles_file, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except Exception as e:
+            logger.error(f"Failed to load user profiles: {e}")
+            return {}
+    
+    def save_user_profiles(self, profiles):
+        """Save user profiles to file"""
+        profiles_file = self.get_user_profiles_file()
+        os.makedirs(os.path.dirname(profiles_file), exist_ok=True)
+        try:
+            with open(profiles_file, 'w', encoding='utf-8') as f:
+                json.dump(profiles, f, indent=2)
+        except Exception as e:
+            logger.error(f"Failed to save user profiles: {e}")
+    
+    def get_or_create_user_profile(self, store_user_id: str, platform: str) -> Dict[str, Any]:
+        """
+        Get or create a user profile for store-native authentication.
+        
+        Args:
+            store_user_id: Platform-specific user ID (MS SubjectID or Apple SubjectID)
+            platform: "msstore" or "appstore"
+            
+        Returns:
+            dict: User profile with energy_balance, is_premium, etc.
+        """
+        profiles = self.load_user_profiles()
+        
+        if store_user_id in profiles:
+            return profiles[store_user_id]
+        
+        # Create new profile
+        from datetime import datetime
+        profile = {
+            'store_user_id': store_user_id,
+            'platform': platform,
+            'energy_balance': Config.DAILY_FREE_ENERGY,
+            'is_premium': False,
+            'last_energy_refresh': datetime.utcnow().isoformat(),
+            'created_at': datetime.utcnow().isoformat()
+        }
+        
+        profiles[store_user_id] = profile
+        self.save_user_profiles(profiles)
+        
+        logger.info(f"Created user profile for {store_user_id[:8]}... (platform: {platform})")
+        return profile
+    
+    def get_user_profile(self, store_user_id: str) -> Optional[Dict[str, Any]]:
+        """Get user profile by store user ID"""
+        profiles = self.load_user_profiles()
+        return profiles.get(store_user_id)
+    
+    def save_user_profile(self, store_user_id: str, profile: Dict[str, Any]):
+        """Save a single user profile"""
+        profiles = self.load_user_profiles()
+        profiles[store_user_id] = profile
+        self.save_user_profiles(profiles)
+    
+    def check_daily_energy_reset(self, store_user_id: str, profile: Dict[str, Any]):
+        """
+        Check if daily energy reset is needed and perform it.
+        
+        Resets energy to DAILY_FREE_ENERGY at midnight UTC for free tier users.
+        
+        Args:
+            store_user_id: User ID
+            profile: User profile dict
+        """
+        from datetime import datetime, date
+        
+        # Premium users don't need energy reset
+        if profile.get('is_premium', False):
+            return
+        
+        last_refresh_str = profile.get('last_energy_refresh')
+        if not last_refresh_str:
+            return
+        
+        try:
+            last_refresh = datetime.fromisoformat(last_refresh_str).date()
+            today = date.today()
+            
+            if last_refresh < today:
+                # Reset energy
+                profile['energy_balance'] = Config.DAILY_FREE_ENERGY
+                profile['last_energy_refresh'] = datetime.utcnow().isoformat()
+                self.save_user_profile(store_user_id, profile)
+                logger.info(f"Daily energy reset for user {store_user_id[:8]}...")
+        except Exception as e:
+            logger.error(f"Failed to check daily reset: {e}")

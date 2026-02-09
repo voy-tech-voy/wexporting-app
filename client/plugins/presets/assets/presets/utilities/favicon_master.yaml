@@ -3,25 +3,35 @@
 # ============================================================================
 meta:
   id: "utility_favicon_master"
-  name: "Favicon Master (.ico)"
+  name: "Favicon (.ico)"
   category: "utility"
   description: "Creates a multi-resolution 16/32/48/256 icon pack in one file."
   version: "1.0"
+  output_extension: ".ico"
 
 style:
   accent_color: "#61DAFB"         # Favicon Blue
-  icon: "favicon"
+  icon: "text:.ico"
   glow_strength: "normal"
 
 constraints:
   accepted_types: ["image"]
   accepted_extensions: [".png", ".jpg", ".jpeg", ".svg", ".webp"]
 
+parameters:
+  - id: "icon_sizes"
+    label: "Icon Sizes"
+    type: "multi_toggle"
+    options: ["16", "32", "48", "256"]
+    default: ["16", "32", "48", "256"]
+    tooltip: "Select which icon resolutions to include in the .ico file"
+
 pipeline:
   - tool: "magick"
     description: "Packing multi-resolution icon container"
+    filename_suffix: "_{{ icon_sizes.replace(',', '_') }}"
     command_template: |
       "tools/magick.exe" "{{ input_path }}" 
       -background none 
-      -define icon:auto-resize=16,32,48,256 
-      "{{ output_path_no_ext }}.ico"
+      -define icon:auto-resize={{ icon_sizes }} 
+      "{{ output_path }}"
