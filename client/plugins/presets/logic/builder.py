@@ -72,6 +72,7 @@ class CommandBuilder:
         render_context = {
             'tool_exe': tool_exe,
             'python_exe': sys.executable,
+            'ffmpeg_path': self._registry.get_tool_path('ffmpeg'),  # Always available for presets
             **context
         }
         

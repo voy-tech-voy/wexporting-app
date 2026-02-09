@@ -1,0 +1,72 @@
+# ============================================================================
+# VIDEO THUMBNAIL SPRITE V2 (STORYBOARD)
+# ============================================================================
+# Location: client/plugins/presets/assets/presets/video/video_thumbnail_sprite_v2.yaml
+# Category: video
+# Logic: Uses a Python script to generate a sprite sheet and VTT/JSON metadata.
+# ============================================================================
+
+meta:
+  id: "video_thumbnail_sprite_v2"
+  name: "Sprite Sheet V2"
+  category: "web"
+  description: "Creates a tiled 'storyboard' image and VTT/JSON metadata for seek-bar previews."
+  version: "2.0"
+  output_extension: ".jpg" 
+
+style:
+  accent_color: "#F28C28"         # Developer Orange
+  icon: "grid-view"
+  glow_strength: "normal"
+
+constraints:
+  accepted_types: ["video"]
+  accepted_extensions: [".mp4", ".mov", ".mkv", ".webm"]
+  min_duration: 1.0
+
+# --- THE USER INTERFACE ---
+parameters:
+  - id: "rows"
+    type: "slider"
+    label: "Grid Rows"
+    default: 5
+    min_value: 1
+    max_value: 20
+    tooltip: "Number of rows in the sprite grid."
+
+  - id: "columns"
+    type: "slider"
+    label: "Grid Columns"
+    default: 5
+    min_value: 1
+    max_value: 20
+    tooltip: "Number of columns in the sprite grid."
+
+  - id: "thumb_width"
+    type: "slider"
+    label: "Tile Width (px)"
+    default: 160
+    min_value: 80
+    max_value: 320
+    tooltip: "The width of each individual thumbnail in the grid."
+
+  - id: "format"
+    type: "segmented_pill"
+    label: "Metadata Format"
+    default: "vtt"
+    options: ["vtt", "json"]
+    tooltip: "Format for the timestamp-to-coordinate mapping file."
+
+# --- THE EXECUTION LOGIC ---
+pipeline:
+  - tool: "magick" # Use magick as dummy tool to avoid FFmpeg progress flag injection
+    description: "Generating storyboard and metadata..."
+    
+    filename_suffix: "_sprite_v2"
+    
+    # We call python script, which internally uses FFmpeg
+    # Note: We use tool: "magick" to avoid FFmpeg progress flag injection
+    # CRITICAL: --ffmpeg is at the END to avoid injected flags breaking argument parsing
+    # The Python script filters out -progress/-nostats before argparse
+    command_template: |
+      "{{ python_exe }}" "client/plugins/presets/assets/scripts/video_thumbnail_sprite_v2.py" --input "{{ input_path }}" --output_prefix "{{ output_path_no_ext }}" --rows {{ rows }} --cols {{ columns }} --width {{ thumb_width }} --duration {{ meta.duration }} --format {{ format }} --ffmpeg "{{ ffmpeg_path }}"
