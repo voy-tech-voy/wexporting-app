@@ -11,7 +11,7 @@ meta:
 
 style:
   accent_color: "#1877F2" # Facebook Blue
-  icon: "facebook"
+  icon: "fb"
   glow_strength: "medium"
 
 pipeline:

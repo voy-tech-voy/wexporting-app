@@ -7,7 +7,7 @@
 
 meta:
   id: "web_hero_1080p_webp"
-  name: "Hero Image (WebP)"
+  name: ".WebP"
   category: "web"
   description: "Perfect 1920x1080 hero banner. Optimized for fast page loads."
   version: "1.0"

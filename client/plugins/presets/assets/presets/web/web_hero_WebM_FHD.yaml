@@ -8,7 +8,7 @@
 
 meta:
   id: "web_hero_1080p_av1"
-  name: "Hero Video (WebM AV1)"
+  name: ".WebM AV1"
   category: "web"
   description: "Optimized 1080p background video. Uses AV1 for maximum compression."
   version: "1.1"

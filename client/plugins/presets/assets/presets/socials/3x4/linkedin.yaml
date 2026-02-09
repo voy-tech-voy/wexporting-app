@@ -11,7 +11,7 @@ meta:
 
 style:
   accent_color: "#0A66C2" # LinkedIn Blue
-  icon: "briefcase"
+  icon: "in"
   glow_strength: "medium"
 
 constraints:
