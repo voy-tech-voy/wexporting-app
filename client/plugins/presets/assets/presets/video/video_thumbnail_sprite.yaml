@@ -12,6 +12,7 @@ meta:
   category: "video"
   description: "Creates a tiled 'storyboard' image for seek-bar previews on websites."
   version: "1.0"
+  output_extension: ".jpg" # Force output extension to .jpg (overriding input .mp4)
 
 style:
   accent_color: "#F28C28"         # Developer Orange

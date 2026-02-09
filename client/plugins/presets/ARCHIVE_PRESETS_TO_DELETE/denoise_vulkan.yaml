@@ -1,0 +1,103 @@
+# ============================================================================
+# HIGH-ISO NOISE ERASER (NLMEANS VULKAN)
+# ============================================================================
+# Location: client/plugins/presets/assets/presets/video_noise_eraser_gpu.yaml
+# Category: video
+# Logic: Uses Vulkan-accelerated Non-Local Means for fast, edge-preserving denoising.
+# ============================================================================
+
+meta:
+  id: "video_noise_eraser_nlmeans_vulkan"
+  name: "Noise Eraser (GPU)"
+  category: "video"
+  description: "Hardware-accelerated neural-style denoising. Requires a Vulkan-capable GPU."
+  version: "1.0"
+
+style:
+  accent_color: "#ef4444"         # Red (High Performance/Hardware)
+  icon: "text:GPU\nDENOISE"
+  glow_strength: "strong"
+
+constraints:
+  accepted_types: ["video"]
+  accepted_extensions: [".mp4", ".mov", ".mkv", ".avi"]
+  min_duration: 0.5
+  # System constraint: Agent/User must have Vulkan drivers installed
+  requires_gpu: true 
+
+# --- THE USER INTERFACE ---
+parameters:
+  - id: "denoise_strength"
+    type: "slider"
+    label: "Denoise Strength"
+    default: 2.0
+    min_value: 0.5
+    max_value: 10.0
+    # Note: Vulkan sigma (s) often behaves slightly differently than CPU. 
+    # A range of 0.5 - 5.0 is usually sufficient.
+    tooltip: "Controls the sigma value. Higher = smoother but potential waxy look."
+
+  - id: "search_area"
+    type: "segmented_pill"
+    label: "Quality Mode"
+    options: ["Performance", "Quality", "Ultra"]
+    default: "Quality"
+    tooltip: "Ultra uses massive search radius (r=15) which is only viable on GPU."
+
+# --- THE EXECUTION LOGIC ---
+pipeline:
+  - tool: "ffmpeg"
+    description: "Initializing Vulkan and performing GPU-accelerated NLMeans"
+    
+    filename_suffix: "_GPU_Denoised"
+    
+    command_template: |
+      {# --- 1. INITIALIZE VULKAN DEVICE --- #}
+      {# We create a device instance named 'vk' attached to card 0 #}
+      {{ tool_exe }} -init_hw_device vulkan=vk:0 -filter_hw_device vk
+      
+      -y -i "{{ input_path }}"
+      
+      {# --- PARAMETER MAPPING --- #}
+      {% set s_val = denoise_strength | float %}
+      
+      {# p = Patch Size (local neighborhood), r = Search Radius (how far to look) #}
+      {% if search_area == 'Performance' %}
+        {% set p_size = 3 %}{% set r_area = 5 %}
+      {% elif search_area == 'Quality' %}
+        {% set p_size = 5 %}{% set r_area = 9 %}
+      {% else %}
+        {# 'Ultra' mode: Vulkan can handle this, CPU would choke #}
+        {% set p_size = 7 %}{% set r_area = 15 %}
+      {% endif %}
+      
+      {# --- VULKAN FILTER CHAIN --- #}
+      {# 1. format=nv12/yuv420p: Ensure compatible input for upload #}
+      {# 2. hwupload: Move frame from RAM to VRAM #}
+      {# 3. nlmeans_vulkan: Run the shader on GPU #}
+      {# 4. hwdownload: Move frame from VRAM back to RAM #}
+      {# 5. format=yuv420p: Convert back to standard layout for x264 encoding #}
+      
+      -vf "format=yuv420p,hwupload,nlmeans_vulkan=s={{ s_val }}:p={{ p_size }}:r={{ r_area }},hwdownload,format=yuv420p"
+      
+      {# --- ENCODING SETTINGS --- #}
+      {# Using libx264 (CPU) for final encode to ensure max compatibility #}
+      -c:v libx264 -preset slow -crf 18
+      
+      {% if meta.has_audio %}
+        -c:a copy
+      {% else %}
+        -an
+      {% endif %}
+      
+      -movflags +faststart
+      "{{ output_path }}"
+
+# ============================================================================
+# CHECKLIST
+# ============================================================================
+# [x] Init: Added `-init_hw_device vulkan=vk:0`
+# [x] Context: Added `-filter_hw_device vk`
+# [x] Pipeline: Implemented `hwupload` -> `nlmeans_vulkan` -> `hwdownload`
+# [x] Tuning: Adjusted `search_area` defaults to leverage GPU speed (allows higher `r` values).
+# [x] Safety: Ensured `format=yuv420p` conversion after download to prevent encoding errors.

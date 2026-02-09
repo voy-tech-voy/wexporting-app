@@ -1,0 +1,91 @@
+# ============================================================================
+# SVG OPTIMIZER (SCOUR)
+# ============================================================================
+# Location: client/plugins/presets/assets/presets/vector/optimize_svg_scour.yaml
+# Category: vector
+# Logic: Uses Scour (Python) to optimize and minify SVG files.
+# ============================================================================
+
+meta:
+  id: "vector_optimize_svg_scour"
+  name: "Optimize SVG"
+  category: "vector"
+  description: "Advanced SVG optimization using Scour. Reduces file size by removing metadata, comments, and unused definitions."
+  version: "1.0"
+  output_extension: ".svg"
+
+style:
+  accent_color: "#FFB13B"         # SVG Logo Orange
+  icon: "Small\nSVG"
+  glow_strength: "normal"
+
+constraints:
+  accepted_types: ["image"]
+  accepted_extensions: [".svg"]
+  min_duration: 0.0
+
+parameters:
+  - id: "precision"
+    type: "slider"
+    label: "Decimal Precision"
+    default: 3
+    min_value: 1
+    max_value: 8
+    tooltip: "Number of decimal places for coordinate values. Lower = smaller size but less precision."
+
+  - id: "remove_metadata"
+    type: "toggle"
+    label: "Remove Metadata"
+    default: true
+    tooltip: "Removes XML editor metadata, IDs, comments, and doctype declarations."
+
+  - id: "shorten_ids"
+    type: "toggle"
+    label: "Shorten IDs"
+    default: true
+    tooltip: "Shortens ID attributes to minimal length."
+
+  - id: "indent_type"
+    type: "segmented_pill"
+    label: "Indentation"
+    options: ["None (Minified)", "Space", "Tab"]
+    default: "None (Minified)"
+    tooltip: "None provides the smallest file size."
+
+pipeline:
+  # --------------------------------------------------------------------------
+  # STEP 1: OPTIMIZE SVG
+  # --------------------------------------------------------------------------
+  - tool: "ffmpeg"  # Placeholder tool to enable execution
+    description: "Optimizing SVG vectors..."
+    filename_suffix: "_optimized"
+    command_template: |
+      {# --- SCOUR COMMAND LOGIC --- #}
+      {# Running via python -m scour to ensure we use the venv's installed package #}
+      
+      {# --- FLAGS --- #}
+      {% set flags = '--enable-viewboxing --enable-comment-stripping --shorten-ids' if shorten_ids else '--enable-viewboxing --enable-comment-stripping' %}
+      
+      {% if remove_metadata %}
+        {% set flags = flags + ' --remove-metadata --strip-xml-prolog --remove-titles --remove-descriptions' %}
+      {% endif %}
+      
+      {% if indent_type == 'None (Minified)' %}
+        {% set indent_arg = '--indent=none' %}
+      {% elif indent_type == 'Space' %}
+        {% set indent_arg = '--indent=space' %}
+      {% else %}
+        {% set indent_arg = '--indent=tab' %}
+      {% endif %}
+      
+      {# Execute Scour #}
+      {# Note: We use 'python_exe' assuming it's injected by CommandBuilder #}
+      "{{ python_exe }}" -m scour.scour -i "{{ input_path }}" -o "{{ output_path }}" --set-precision={{ precision }} {{ flags }} {{ indent_arg }}
+
+# ============================================================================
+# CHECKLIST
+# ============================================================================
+# [x] Tool: Uses 'python -m scour' for cross-platform compatibility
+# [x] Input: Restricts to .svg files
+# [x] Parameters: Precision, metadata removal, ID shortening, indentation
+# [x] Output: Forces .svg extension

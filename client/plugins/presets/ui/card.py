@@ -73,6 +73,7 @@ class PresetCard(QFrame):
         self.icon_label = QLabel()
         self.icon_label.setObjectName("CardIcon")
         self.icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.icon_label.setWordWrap(True)  # Allow text icons to wrap
         self._load_icon()
         layout.addWidget(self.icon_label, 3)
         

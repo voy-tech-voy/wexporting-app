@@ -68,8 +68,10 @@ class CommandBuilder:
             raise ToolNotAvailableError(step.tool)
         
         # Build Jinja2 context with tool path
+        import sys
         render_context = {
             'tool_exe': tool_exe,
+            'python_exe': sys.executable,
             **context
         }
         

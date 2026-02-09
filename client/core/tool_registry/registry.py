@@ -164,14 +164,20 @@ class ToolRegistry:
                 creationflags=creationflags
             )
             
-            if result.returncode != 0:
-                return False, None
-            
-            # Extract version
+            # Some tools (like waifu2x) return non-zero for help output
+            # Check if version pattern exists in stdout or stderr first
+            combined_output = result.stdout + result.stderr
             version = None
-            match = re.search(descriptor.version_pattern, result.stdout, re.IGNORECASE)
+            match = re.search(descriptor.version_pattern, combined_output, re.IGNORECASE)
             if match:
-                version = match.group(1)
+                # Pattern found - tool is valid
+                if match.lastindex and match.lastindex >= 1:
+                    version = match.group(1)
+                else:
+                    version = "detected"
+            elif result.returncode != 0:
+                # No pattern match AND non-zero exit - tool is invalid
+                return False, None
             
             # Advanced validation if configured
             if descriptor.validate_capabilities:

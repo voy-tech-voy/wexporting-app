@@ -44,7 +44,7 @@ class DragDropArea(QWidget):
     
     # Supported file extensions for graphics conversion
     SUPPORTED_EXTENSIONS = {
-        'images': ['.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.tif', '.webp', '.gif'],
+        'images': ['.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.tif', '.webp', '.gif', '.svg'],
         'videos': ['.mp4', '.avi', '.mov', '.mkv', '.flv', '.webm', '.m4v'],
         'audio': ['.mp3', '.wav', '.flac', '.aac', '.ogg', '.m4a']
     }
@@ -525,7 +525,7 @@ class DragDropArea(QWidget):
             self,
             "Select files for conversion",
             "",
-            "All Supported (*.jpg *.jpeg *.png *.bmp *.tiff *.gif *.mp4 *.avi *.mov *.mkv *.mp3 *.wav);;Images (*.jpg *.jpeg *.png *.bmp *.tiff *.gif);;Videos (*.mp4 *.avi *.mov *.mkv);;Audio (*.mp3 *.wav *.flac);;All Files (*)"
+            "All Supported (*.jpg *.jpeg *.png *.bmp *.tiff *.gif *.svg *.mp4 *.avi *.mov *.mkv *.mp3 *.wav);;Images (*.jpg *.jpeg *.png *.bmp *.tiff *.gif *.svg);;Videos (*.mp4 *.avi *.mov *.mkv);;Audio (*.mp3 *.wav *.flac);;All Files (*)"
         )
         
         if files:

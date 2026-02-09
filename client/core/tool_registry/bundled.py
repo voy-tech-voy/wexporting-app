@@ -75,8 +75,18 @@ def resolve_bundled_tool_path(binary_name: str, bundle_subpath: str = "tools") -
         if os.path.exists(meipass_path):
             return meipass_path
     else:
-        # Development mode
-        dev_path = os.path.join(get_dev_tools_dir(), binary_name)
+        # Development mode - use bundle_subpath
+        dev_tools_root = get_dev_tools_dir()
+        
+        # If bundle_subpath is just "tools", look directly in tools/
+        # Otherwise, bundle_subpath is relative to project root (e.g., "tools/waifu2x-...")
+        if bundle_subpath == "tools":
+            dev_path = os.path.join(dev_tools_root, binary_name)
+        else:
+            # bundle_subpath includes "tools/..." so use project root
+            project_root = os.path.dirname(dev_tools_root)
+            dev_path = os.path.join(project_root, bundle_subpath, binary_name)
+        
         if os.path.exists(dev_path):
             return dev_path
     

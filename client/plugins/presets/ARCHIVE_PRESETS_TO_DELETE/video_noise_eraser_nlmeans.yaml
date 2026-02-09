@@ -59,7 +59,7 @@ pipeline:
       {# --- NLMEANS PARAMETER MAPPING --- #}
       {# s = Strength (Luma), p = Patch Size, r = Research Area #}
       {% set luma_s = denoise_strength | float %}
-      {% set chroma_s = (denoise_strength * 1.5) if color_noise_fix else 0 %}
+      {% set chroma_s = (luma_s * 1.5) if color_noise_fix else 0 %}
       
       {% if keep_detail == 'Speed' %}
         {% set p_size = 3 %}{% set r_area = 7 %}
