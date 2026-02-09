@@ -849,7 +849,10 @@ class GlowEffectManager(QObject):
         if not self._widget or not self._top_window:
             return
             
-        btn_pos = self._widget.mapTo(self._top_window, QPoint(0, 0))
+        # Use global coordinates for robust mapping
+        global_pos = self._widget.mapToGlobal(QPoint(0, 0))
+        btn_pos = self._top_window.mapFromGlobal(global_pos)
+    
         w = self._widget.width()
         h = self._widget.height()
         
@@ -889,6 +892,11 @@ class GlowEffectManager(QObject):
             
     def _update_frame(self):
         """Update all animations each frame"""
+        # Continuously update position to track parent movements/resizes
+        # This handles cases where the button's parent moves (e.g. sidebar slide)
+        # but the button's local position doesn't change
+        self.update_position()
+        
         # Update pulse
         if self._glow_overlay:
             elapsed = time.time() - self._pulse_start_time

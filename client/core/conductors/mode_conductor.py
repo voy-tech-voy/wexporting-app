@@ -124,9 +124,12 @@ class ModeConductor(QObject):
         # 1. Hide Command Panel
         self.panel_animator.close()
         
-        # 2. Deactivate Lab Button (Ghost style)
+        # 2. Deactivate Lab Button (Ghost style) and highlight preset mode
         self.lab_btn.set_style_solid(False)
         self.lab_btn.set_main_icon("client/assets/icons/lab_icon.svg")
+        
+        # Highlight preset mode in control bar (hides custom preset button)
+        self.control_bar.highlight_preset()
         
         # 3. Notify CommandPanel state
         self.command_panel.set_lab_mode_active(False)
@@ -168,10 +171,13 @@ class ModeConductor(QObject):
             "client/assets/icons/loop_icon3.svg"
         ]
         
-        # 1. Update lab button appearance
+        # 1. Update lab button appearance and control bar state
         if 0 <= lab_tab < len(icons):
             self.lab_btn.set_main_icon(icons[lab_tab])
             self.lab_btn.set_style_solid(True)
+        
+        # Highlight lab mode in control bar (shows custom preset button)
+        self.control_bar.highlight_lab()
         
         # 2. Reset Preset button to default state
         self.preset_status_btn.set_active(False)

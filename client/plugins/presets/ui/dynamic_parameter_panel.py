@@ -1,5 +1,7 @@
-from PyQt6.QtWidgets import QFrame, QVBoxLayout, QLabel, QApplication
+from PyQt6.QtWidgets import QFrame, QVBoxLayout, QLabel, QApplication, QPushButton
 from PyQt6.QtCore import QPropertyAnimation, QEasingCurve, pyqtSignal, QTimer, pyqtProperty
+from PyQt6.QtGui import QPixmap, QPainter, QIcon
+from PyQt6.QtSvg import QSvgRenderer
 from typing import Optional
 from client.gui.animators.animation_driver import AnimationDriver
 
@@ -17,6 +19,8 @@ class DynamicParameterPanel(QFrame):
     - Proper padding and spacing between parameters
     - AnimationDriver integration for dev panel tuning
     """
+    
+    go_to_lab_clicked = pyqtSignal(dict)  # Emits lab_mode_settings
     
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -69,6 +73,23 @@ class DynamicParameterPanel(QFrame):
         self._update_description_style()
         self._layout.addWidget(self._description_label)
         
+        # Go to Lab button (hidden by default, shown for Lab Mode reference presets)
+        # Uses a container with two icons stacked diagonally
+        from PyQt6.QtWidgets import QHBoxLayout
+        from PyQt6.QtGui import QPixmap
+        from PyQt6.QtCore import QSize
+        
+        # Create button with icon container
+        self._go_to_lab_btn = QPushButton("↩ Go to Lab Settings")
+        self._go_to_lab_btn.setObjectName("GoToLabButton")
+        self._go_to_lab_btn.hide()
+        
+        # Create icon label that will hold the dual icons
+        self._lab_icon_label = QLabel()
+        self._lab_icon_label.setFixedSize(24, 24)
+        
+        self._layout.addWidget(self._go_to_lab_btn)
+        
         # Parameter form container (will be set via set_content)
         self._parameter_form = None
         
@@ -77,6 +98,7 @@ class DynamicParameterPanel(QFrame):
         self.setFixedHeight(0)
         
         self._apply_styles()
+        self._update_go_to_lab_button_style()
     
     # Custom property for smooth height animation - uses setFixedHeight to bypass layout constraints
     @pyqtProperty(int)
@@ -104,6 +126,82 @@ class DynamicParameterPanel(QFrame):
                 border-radius: 8px;
             }}
         """)
+    
+    def _update_go_to_lab_button_style(self):
+        """Update Go to Lab button styling."""
+        from client.gui.theme_variables import get_color
+        from client.gui.theme_manager import ThemeManager
+        
+        is_dark = ThemeManager.instance().is_dark_mode()
+        # Use existing btn_lab_solid color (blue) - accent_secondary doesn't exist
+        accent = get_color("btn_lab_solid", is_dark)
+        accent_hover = get_color("info", is_dark)  # Use info blue for hover
+        
+        self._go_to_lab_btn.setStyleSheet(f"""
+            QPushButton#GoToLabButton {{
+                background-color: {accent};
+                color: white;
+                border: none;
+                border-radius: 6px;
+                padding: 10px 20px;
+                font-size: 14px;
+                font-weight: 600;
+                margin-top: 4px;
+                margin-bottom: 8px;
+                min-width: 220px;
+            }}
+            QPushButton#GoToLabButton:hover {{
+                background-color: {accent_hover};
+            }}
+            QPushButton#GoToLabButton:pressed {{
+                background-color: {accent};
+                padding-top: 11px;
+                padding-bottom: 9px;
+            }}
+        """)
+    
+    def _update_lab_button_icon(self, file_type: str):
+        """Update the Go to Lab button icon based on file type."""
+        from PyQt6.QtCore import QSize, Qt, QRectF
+        from client.utils.resource_path import get_resource_path
+        
+        # Map file type to icon paths
+        type_icons = {
+            'image': 'client/assets/icons/pic_icon.svg',
+            'video': 'client/assets/icons/vid_icon.svg',
+            'gif': 'client/assets/icons/loop_icon3.svg',
+            'loop': 'client/assets/icons/loop_icon3.svg'
+        }
+        
+        # Get the main lab mode icon
+        main_icon_path = get_resource_path(type_icons.get(file_type, 'client/assets/icons/vid_icon.svg'))
+        
+        # Create composite icon with dual display
+        # Main icon (lab mode type) at 20x20, positioned at top-left
+        # Submode icon (lab icon) at 12x12, positioned at bottom-right diagonal
+        composite = QPixmap(28, 28)
+        composite.fill(Qt.GlobalColor.transparent)
+        
+        painter = QPainter(composite)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
+        
+        # Draw main icon (lab mode type) - convert QRect to QRectF
+        renderer = QSvgRenderer(main_icon_path)
+        main_rect = QRectF(0, 0, 20, 20)  # Top-left, 20x20
+        renderer.render(painter, main_rect)
+        
+        # Draw submode icon (lab icon) smaller, at bottom-right diagonal
+        lab_icon_path = get_resource_path('client/assets/icons/lab_icon.svg')
+        sub_renderer = QSvgRenderer(lab_icon_path)
+        sub_rect = QRectF(16, 16, 12, 12)  # Bottom-right diagonal, 12x12
+        sub_renderer.render(painter, sub_rect)
+        
+        painter.end()
+        
+        # Set icon on button
+        self._go_to_lab_btn.setIcon(QIcon(composite))
+        self._go_to_lab_btn.setIconSize(QSize(28, 28))
     
     def _update_title_style(self):
         """Update title label styling."""
@@ -143,10 +241,11 @@ class DynamicParameterPanel(QFrame):
         self._apply_styles()
         self._update_title_style()
         self._update_description_style()
+        self._update_go_to_lab_button_style()
         if self._parameter_form and hasattr(self._parameter_form, 'update_theme'):
             self._parameter_form.update_theme(is_dark)
     
-    def set_content(self, title: str, parameter_form, description: str = ""):
+    def set_content(self, title: str, parameter_form, description: str = "", preset=None):
         """
         Set the panel content.
         
@@ -154,6 +253,7 @@ class DynamicParameterPanel(QFrame):
             title: Title text to display
             parameter_form: ParameterForm widget to display (can be None)
             description: Description text to display below title
+            preset: PresetDefinition object (optional, for Lab Mode detection)
         """
         self._title_label.setText(title)
         
@@ -162,6 +262,25 @@ class DynamicParameterPanel(QFrame):
             self._description_label.setText(description)
         else:
             self._description_label.setText("No parameters required for this preset.")
+        
+        # Show/hide Go to Lab button based on preset type
+        if preset and preset.raw_yaml.get('meta', {}).get('execution_mode') == 'lab_mode_reference':
+            lab_settings = preset.raw_yaml.get('lab_mode_settings', {})
+            if lab_settings:
+                self._go_to_lab_btn.show()
+                # Disconnect any previous connections
+                try:
+                    self._go_to_lab_btn.clicked.disconnect()
+                except:
+                    pass
+                # Connect button click to emit lab settings
+                self._go_to_lab_btn.clicked.connect(
+                    lambda: self.go_to_lab_clicked.emit(lab_settings)
+                )
+            else:
+                self._go_to_lab_btn.hide()
+        else:
+            self._go_to_lab_btn.hide()
         
         # Remove old parameter form if exists
         if self._parameter_form and self._parameter_form != parameter_form:

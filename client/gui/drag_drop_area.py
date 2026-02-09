@@ -147,10 +147,23 @@ class DragDropArea(QWidget):
             self._preset_orchestrator = PresetOrchestrator(registry, self.file_list_widget)
             self._preset_orchestrator.preset_selected.connect(self._on_preset_selected)
             self._preset_orchestrator.gallery_dismissed.connect(self._on_preset_dismissed)
+            self._preset_orchestrator.go_to_lab_requested.connect(self._on_go_to_lab_requested)
             print(f"[DragDropArea] Preset plugin initialized with {len(self._preset_orchestrator.presets)} presets")
         except Exception as e:
             print(f"[DragDropArea] Failed to initialize preset plugin: {e}")
             self._preset_orchestrator = None
+    
+    def ensure_preset_orchestrator(self):
+        """
+        Ensure preset orchestrator is initialized. Called by CommandPanel.
+        
+        Returns:
+            PresetOrchestrator instance or None if initialization failed
+        """
+        if not hasattr(self, '_preset_orchestrator') or self._preset_orchestrator is None:
+            print("[DragDropArea] Initializing preset plugin for custom preset creation")
+            self._setup_preset_plugin()
+        return self._preset_orchestrator
     
     def _on_preset_selected(self, preset):
         """Handle preset selection from the gallery."""
@@ -163,6 +176,16 @@ class DragDropArea(QWidget):
         print("[DragDropArea] Preset gallery dismissed")
         self._current_view_mode = ViewMode.FILES
         self.view_mode_changed.emit(ViewMode.FILES.value)
+    
+    def _on_go_to_lab_requested(self, lab_settings: dict):
+        """Forward go to lab request to main window."""
+        print(f"[DragDropArea] Go to Lab requested with {len(lab_settings)} settings")
+        # Find main window and call restoration method
+        main_window = self.window()
+        if hasattr(main_window, '_on_restore_lab_settings'):
+            main_window._on_restore_lab_settings(lab_settings)
+        else:
+            print("[DragDropArea] Warning: MainWindow does not have _on_restore_lab_settings method")
     
     # =========================================================================
     # SMART CONTAINER API (Mediator-Shell Pattern)

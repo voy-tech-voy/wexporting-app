@@ -119,6 +119,9 @@ class PresetDefinition:
     # Raw YAML for debugging/extension
     raw_yaml: Dict[str, Any] = field(default_factory=dict)
     
+    # User preset flag
+    is_user_preset: bool = False
+    
     @property
     def is_available(self) -> bool:
         """Check if preset can be used (all tools present)"""

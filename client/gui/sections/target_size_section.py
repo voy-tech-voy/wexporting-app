@@ -167,6 +167,32 @@ class TargetSizeSection(QWidget):
         # No manual updates needed
         pass
     
+    def restore_settings(self, settings: dict):
+        """
+        Restore target size settings from saved parameters.
+        
+        Args:
+            settings: Dictionary with target size parameters
+        """
+        # Restore target size value
+        if 'target_size_mb' in settings and settings['target_size_mb'] is not None:
+            self.target_size_spinbox.setValue(settings['target_size_mb'])
+        
+        # Restore auto-resize checkbox
+        if 'auto_resize' in settings:
+            self.auto_resize_checkbox.setChecked(settings['auto_resize'])
+        
+        # Restore multiple variants checkbox
+        if 'multiple_variants' in settings:
+            self.multiple_variants_checkbox.setChecked(settings['multiple_variants'])
+        
+        # Restore variant values
+        if 'size_variants' in settings and settings['size_variants']:
+            variants = settings['size_variants']
+            if isinstance(variants, list):
+                self.variants_input.setText(','.join(str(v) for v in variants))
+    
+    
     def _on_multiple_toggled(self, multiple: bool):
         """Handle multiple variants checkbox toggle."""
         if multiple:

@@ -15,6 +15,7 @@ from .models import (
 from .manager import PresetManager
 from .builder import CommandBuilder
 from .analyzer import MediaAnalyzer
+from .custom_preset_generator import CustomPresetGenerator
 from .exceptions import (
     PresetError,
     PresetLoadError,
@@ -36,6 +37,7 @@ __all__ = [
     'PresetManager',
     'CommandBuilder',
     'MediaAnalyzer',
+    'CustomPresetGenerator',
     # Exceptions
     'PresetError',
     'PresetLoadError',

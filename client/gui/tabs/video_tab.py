@@ -249,13 +249,98 @@ class VideoTab(BaseTab):
             'time_start': self.time_range_slider.getStartValue() if self.enable_time_cutting.isChecked() else 0.0,
             'time_end': self.time_range_slider.getEndValue() if self.enable_time_cutting.isChecked() else 1.0,
             'retime_enabled': self.enable_retime.isChecked(),
-            'retime_speed': self.retime_slider.value() / 10.0 if self.enable_retime.isChecked() else 1.0,
-            'estimator_version': self.version_selector.get_selected_version(),
-        }
-
         # Merge resize params
         params.update(resize_params)
         return params
+
+    def restore_settings(self, settings: dict):
+        """
+        Restore Lab Mode settings to UI controls.
+        
+        Args:
+            settings: Dictionary of saved Lab Mode settings
+        """
+        # Restore codec
+        if 'codec' in settings:
+            self.codec.setCurrentText(settings['codec'])
+            
+        # Restore quality settings
+        if 'quality' in settings:
+            self.quality.setValue(int(settings['quality']))
+            
+        if 'multiple_qualities' in settings:
+            self.multiple_qualities.setChecked(settings['multiple_qualities'])
+            
+        if 'quality_variants' in settings:
+            variants = settings['quality_variants']
+            if isinstance(variants, list):
+                variants_str = ", ".join(map(str, variants))
+                self.quality_variants.setText(variants_str)
+            else:
+                self.quality_variants.setText(str(variants))
+            
+        # Restore rotation
+        if 'rotation_angle' in settings:
+            self.rotation_angle.setCurrentText(settings['rotation_angle'])
+            
+        # Restore time cutting
+        if 'enable_time_cutting' in settings:
+            enabled = settings['enable_time_cutting']
+            self.enable_time_cutting.setChecked(enabled)
+            if enabled:
+                start = settings.get('time_start', 0.0)
+                end = settings.get('time_end', 1.0)
+                if hasattr(self.time_range_slider, 'setStartValue'):
+                    self.time_range_slider.setStartValue(start)
+                if hasattr(self.time_range_slider, 'setEndValue'):
+                    self.time_range_slider.setEndValue(end)
+
+        # Restore retime
+        if 'retime_enabled' in settings:
+            enabled = settings['retime_enabled']
+            self.enable_retime.setChecked(enabled)
+            if enabled and 'retime_speed' in settings:
+                speed = settings['retime_speed']
+                # Slider is speed * 10
+                self.retime_slider.setValue(int(speed * 10))
+            
+        # Restore estimator version
+        if 'estimator_version' in settings:
+            version = settings['estimator_version']
+            for i in range(self.version_selector.combo.count()):
+                if self.version_selector.combo.itemData(i) == version:
+                    self.version_selector.combo.setCurrentIndex(i)
+                    break
+
+        # Restore resize section parameters
+        resize_params = {
+            'resize_mode': settings.get('resize_mode'),
+            'resize_value': settings.get('resize_value'),
+            'current_resize': settings.get('current_resize'),
+            'multiple_resize': settings.get('multiple_resize', False),
+            'resize_variants': settings.get('resize_variants', [])
+        }
+        if any(v is not None for v in resize_params.values()):
+            self.resize_section.restore_settings(resize_params)
+            
+        # Restore target size section
+        target_params = {
+            'target_size_mb': settings.get('video_max_size_mb'),
+            'auto_resize': settings.get('video_auto_resize', False),
+            'multiple_variants': settings.get('multiple_max_sizes', False),
+            'size_variants': settings.get('max_size_variants', [])
+        }
+        
+        # Restore if we have either a target size OR variants
+        if target_params['target_size_mb'] is not None or target_params['size_variants']:
+            self.target_size_section.restore_settings(target_params)
+            
+        # Set visualization mode (Max Size vs Manual)
+        size_mode = settings.get('video_size_mode', 'manual')
+        if size_mode == 'max_size':
+            self.set_mode("Max Size")
+        else:
+            self.set_mode("Manual")
     
     def update_theme(self, is_dark: bool):
         """Apply theme styling to all elements."""

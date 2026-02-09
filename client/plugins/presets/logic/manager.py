@@ -78,15 +78,29 @@ class PresetManager:
             print(f"[PresetManager] Presets directory not found: {presets_path}")
             return []
         
-        # Scan recursively for YAML files in all subdirectories
+        # Scan built-in presets
         yaml_files = list(presets_path.glob("**/*.yaml")) + list(presets_path.glob("**/*.yml"))
         
         for yaml_file in yaml_files:
             try:
                 preset = self.load_preset(str(yaml_file))
+                preset.is_user_preset = False  # Mark as built-in
                 self._presets[preset.id] = preset
             except PresetLoadError as e:
                 print(f"[PresetManager] Warning: {e}")
+        
+        # Scan user custom presets
+        user_presets_path = presets_path.parent / "user_custom_presets"
+        if user_presets_path.exists():
+            user_yaml_files = list(user_presets_path.glob("**/*.yaml")) + list(user_presets_path.glob("**/*.yml"))
+            
+            for yaml_file in user_yaml_files:
+                try:
+                    preset = self.load_preset(str(yaml_file))
+                    preset.is_user_preset = True  # Mark as user-created
+                    self._presets[preset.id] = preset
+                except PresetLoadError as e:
+                    print(f"[PresetManager] Warning: {e}")
         
         return list(self._presets.values())
     

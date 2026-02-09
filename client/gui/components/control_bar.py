@@ -28,6 +28,7 @@ class ControlBar(QWidget):
     clear_files_clicked = pyqtSignal()
     preset_mode_clicked = pyqtSignal()
     lab_mode_clicked = pyqtSignal(int)  # Tab index
+    custom_preset_clicked = pyqtSignal()  # Create custom preset
     
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -88,6 +89,13 @@ class ControlBar(QWidget):
         # --- Spacer (Right) ---
         layout.addStretch()
         
+        # --- Custom Preset Button (between spacer and Lab button) ---
+        from client.gui.widgets.custom_preset_button import CustomPresetButton
+        self.custom_preset_btn = CustomPresetButton()
+        self.custom_preset_btn.setVisible(False)  # Hidden by default, shown when Lab Mode is active
+        self.custom_preset_btn.clicked.connect(self.custom_preset_clicked.emit)
+        layout.addWidget(self.custom_preset_btn)
+        
         # --- Right: Lab Button (in fixed-width container) ---
         lab_container = QWidget()
         lab_container.setFixedWidth(220)
@@ -132,11 +140,18 @@ class ControlBar(QWidget):
         self.set_preset_active(True)
         self.set_lab_solid(False)
         self.set_lab_icon("client/assets/icons/lab_icon.svg")
+        self.custom_preset_btn.setVisible(False)  # Hide custom preset button in Preset Mode
     
     def highlight_lab(self):
         """Visual highlight for lab mode active."""
         self.set_preset_active(False)
         self.set_lab_solid(True)
+        self.custom_preset_btn.setVisible(True)  # Show custom preset button in Lab Mode
+    
+    def set_custom_preset_visible(self, visible: bool):
+        """Show/hide the custom preset button."""
+        self.custom_preset_btn.setVisible(visible)
+
 
     def update_theme(self, is_dark: bool):
         """Update theme for all child widgets."""

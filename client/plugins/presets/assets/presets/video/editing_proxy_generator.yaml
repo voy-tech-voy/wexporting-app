@@ -15,7 +15,7 @@ meta:
 
 style:
   accent_color: "#FFBD00"         # Professional Gold/Yellow
-  icon: "text:PROXY\nVIDEO"
+  icon: "text:proxy\nvideo"
   glow_strength: "normal"
 
 constraints:

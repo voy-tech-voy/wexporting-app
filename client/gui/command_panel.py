@@ -214,6 +214,7 @@ class CommandPanel(QWidget):
         self._image_tab.set_transform_mode('resize')
         self._video_tab.set_transform_mode('resize')
         self._loop_tab.set_transform_mode('resize')
+
     
     # =========================================================================
     # PUBLIC API - Parameters & Signals
@@ -406,6 +407,98 @@ class CommandPanel(QWidget):
         """Set whether top bar preset mode is active."""
         self._top_bar_preset_active = active
     
+    def restore_lab_settings(self, settings: dict):
+        """
+        Restore Lab Mode settings from a custom preset.
+        
+        Args:
+            settings: Lab mode settings dict from preset's lab_mode_settings
+        """
+        print(f"[CommandPanel] Restoring Lab Mode settings for type: {settings.get('type', 'unknown')}")
+        
+        # Determine which tab based on type
+        file_type = settings.get('type', 'video')
+        
+        # Switch to the appropriate tab
+        if file_type == 'video':
+            self.set_current_tab(1)  # Video tab
+        elif file_type == 'image':
+            self.set_current_tab(0)  # Image tab
+        elif file_type in ['gif', 'loop']:
+            self.set_current_tab(2)  # Loop tab
+        
+        # Delegate restoration to the tab (if it has restore_settings method)
+        current_tab = self.tabs.currentWidget()
+        if hasattr(current_tab, 'restore_settings'):
+            current_tab.restore_settings(settings)
+        else:
+            print(f"[CommandPanel] Warning: Current tab does not have restore_settings method")
+    
+    def create_custom_preset(self):
+        """Handle custom preset button click - create preset from current settings."""
+        # Get current Lab Mode parameters
+        params = self.get_conversion_params()
+        
+        # Find the DragDropArea to position the toast
+        main_window = self.window()
+        if not hasattr(main_window, 'drag_drop_area'):
+            print("[CommandPanel] Error: DragDropArea not found")
+            return
+            
+        drop_area = main_window.drag_drop_area
+        
+        # Ensure orchestrator is initialized
+        orchestrator = drop_area.ensure_preset_orchestrator()
+        if not orchestrator:
+            print("[CommandPanel] Error: Failed to initialize PresetOrchestrator")
+            return
+        
+        # Initialize toast if needed
+        if not hasattr(self, '_input_toast'):
+            from client.gui.components.toast_notification import InputToast
+            # Parent to drop area so it stays with it
+            self._input_toast = InputToast(
+                message="Enter preset name:", 
+                placeholder="My Custom Preset", 
+                button_text="Create", 
+                parent=drop_area,
+                position="top-right"
+            )
+            self._input_toast.accepted.connect(self._create_preset_with_name)
+            
+        self._input_toast.show_toast()
+        
+        # Store pending params for when user confirms
+        self._pending_preset_params = params
+
+    def _create_preset_with_name(self, name: str):
+        """Callback when toast accepts input"""
+        if not hasattr(self, '_pending_preset_params') or not name.strip():
+            return
+            
+        params = self._pending_preset_params
+        
+        # Get Orchestrator
+        try:
+            main_window = self.window()
+            orchestrator = main_window.drag_drop_area.ensure_preset_orchestrator()
+            
+            if orchestrator:
+                # Create the preset
+                preset_id = orchestrator.create_custom_preset(params, name.strip())
+                
+                if preset_id:
+                    print(f"[CommandPanel] Created custom preset: {name} ({preset_id})")
+            else:
+                print("[CommandPanel] Error: Failed to initialize PresetOrchestrator")
+        except Exception as e:
+            print(f"[CommandPanel] Error creating custom preset: {e}")
+            import traceback
+            traceback.print_exc()
+            
+        # Clear pending params
+        self._pending_preset_params = None
+    
     # =========================================================================
     # THEME & GPU
     # =========================================================================
@@ -416,6 +509,8 @@ class CommandPanel(QWidget):
         self._image_tab.update_theme(is_dark)
         self._video_tab.update_theme(is_dark)
         self._loop_tab.update_theme(is_dark)
+        if hasattr(self, 'custom_preset_button'):
+            self.custom_preset_button.update_theme(is_dark)
     
     def set_dev_mode(self, is_dev: bool):
         """Enable/disable dev mode features on all tabs (e.g., estimator version selector)."""

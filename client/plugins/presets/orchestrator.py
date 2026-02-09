@@ -8,7 +8,7 @@ from typing import Optional, List, Dict, Any, TYPE_CHECKING
 from PyQt6.QtWidgets import QWidget
 from PyQt6.QtCore import QObject, pyqtSignal
 
-from client.plugins.presets.logic import PresetManager, CommandBuilder, PresetDefinition, MediaAnalyzer
+from client.plugins.presets.logic import PresetManager, CommandBuilder, PresetDefinition, MediaAnalyzer, CustomPresetGenerator
 from client.plugins.presets.ui import PresetGallery, ParameterForm
 from client.utils.gpu_detector import get_gpu_detector
 
@@ -42,6 +42,7 @@ class PresetOrchestrator(QObject):
     conversion_progress = pyqtSignal(int, int, str)  # current, total, message
     conversion_finished = pyqtSignal(bool, str)  # success, message - LEGACY
     conversion_completed = pyqtSignal(int, int, int, int)  # successful, failed, skipped, stopped - NEW
+    go_to_lab_requested = pyqtSignal(dict)  # lab_mode_settings
     
     def __init__(self, registry: 'ToolRegistryProtocol', parent_widget: QWidget):
         """
@@ -61,11 +62,13 @@ class PresetOrchestrator(QObject):
         self._manager = PresetManager(registry, gpu_detector=gpu_detector)
         self._builder = CommandBuilder(registry)
         self._analyzer = MediaAnalyzer(registry)
+        self._custom_preset_generator = CustomPresetGenerator()
         
         # Initialize UI
         self._gallery = PresetGallery(parent_widget)
         self._gallery.preset_selected.connect(self._on_preset_selected)
         self._gallery.dismissed.connect(self._on_gallery_dismissed)
+        self._gallery.go_to_lab_requested.connect(self._on_go_to_lab)
         
         # Parameter form (created lazily per preset)
         self._parameter_form: Optional[ParameterForm] = None
@@ -108,6 +111,13 @@ class PresetOrchestrator(QObject):
             print("[PresetOrchestrator] No preset selected")
             return
         
+        # Check if this is a Lab Mode reference preset
+        execution_mode = preset.raw_yaml.get('meta', {}).get('execution_mode')
+        if execution_mode == 'lab_mode_reference':
+            print(f"[PresetOrchestrator] Executing Lab Mode reference preset: {preset.name}")
+            self._execute_lab_mode_preset(files, output_mode, organized_name, custom_path)
+            return
+        
         # Stop any existing conversion
         if self._conversion_engine and self._conversion_engine.isRunning():
             print("[PresetOrchestrator] Stopping existing conversion")
@@ -138,6 +148,95 @@ class PresetOrchestrator(QObject):
         self.conversion_started.emit()
         
         # Start engine thread
+        self._conversion_engine.start()
+    
+    def _execute_lab_mode_preset(self, files: List[str], output_mode: str, 
+                                  organized_name: str, custom_path: str):
+        """
+        Execute a Lab Mode reference preset using Lab Mode conversion engines.
+        
+        Args:
+            files: List of input file paths
+            output_mode: Output directory mode
+            organized_name: Folder name for organized mode
+            custom_path: Path for custom mode
+        """
+        preset = self._selected_preset
+        lab_settings = preset.raw_yaml.get('lab_mode_settings', {})
+        
+        if not lab_settings:
+            print("[PresetOrchestrator] Error: Lab Mode settings not found in preset")
+            return
+        
+        # Stop any existing conversion
+        if self._conversion_engine and self._conversion_engine.isRunning():
+            print("[PresetOrchestrator] Stopping existing conversion")
+            self._conversion_engine.stop_conversion()
+            self._conversion_engine.wait()
+        
+        # Merge lab settings with output settings
+        params = lab_settings.copy()
+        
+        # Translate output_mode to params that SuffixManager expects
+        if output_mode == "source":
+            params['use_nested_output'] = False
+            params['output_dir'] = ''
+        elif output_mode == "organized":
+            params['use_nested_output'] = True
+            params['nested_output_name'] = organized_name
+            params['output_dir'] = ''
+        elif output_mode == "custom":
+            params['use_nested_output'] = False
+            params['output_dir'] = custom_path or ''
+        
+        params['files'] = files
+        
+        print(f"[PresetOrchestrator] Executing Lab Mode reference preset: {preset.name}")
+        print(f"[PresetOrchestrator] Files: {len(files)}, Output mode: {output_mode}")
+        print(f"[PresetOrchestrator] Lab settings: comparison={params.get('comparison_enabled', False)}")
+        
+        # Determine which engine to use based on size mode
+        size_mode = params.get('video_size_mode') or params.get('image_size_mode') or params.get('gif_size_mode')
+        
+        # Get progress manager from main window
+        main_window = self._parent_widget
+        while main_window.parent() is not None:
+            main_window = main_window.parent()
+        
+        progress_manager = getattr(main_window, 'progress_manager', None)
+        
+        if size_mode == 'max_size':
+            # Use TargetSizeConversionEngine
+            from client.core.target_size import TargetSizeConversionEngine
+            self._conversion_engine = TargetSizeConversionEngine(files, params, progress_manager)
+            print(f"[PresetOrchestrator] Using TargetSizeConversionEngine for Lab Mode preset")
+        else:
+            # Use ManualModeConversionEngine
+            from client.core.manual_mode import ManualModeConversionEngine
+            self._conversion_engine = ManualModeConversionEngine(files, params, progress_manager)
+            print(f"[PresetOrchestrator] Using ManualModeConversionEngine for Lab Mode preset")
+        
+        # Connect engine signals
+        self._conversion_engine.progress_updated.connect(self._on_engine_progress)
+        self._conversion_engine.status_updated.connect(self._on_engine_status)
+        self._conversion_engine.file_completed.connect(self._on_engine_file_completed)
+        
+        # Handle different signal names
+        if hasattr(self._conversion_engine, 'conversion_completed'):
+            self._conversion_engine.conversion_completed.connect(self._on_engine_completed)
+        elif hasattr(self._conversion_engine, 'conversion_finished'):
+            # Convert old signal to new format
+            def on_legacy_finished(success, message):
+                if success:
+                    self._on_engine_completed(len(files), 0, 0, 0)
+                else:
+                    self._on_engine_completed(0, len(files), 0, 0)
+            self._conversion_engine.conversion_finished.connect(on_legacy_finished)
+        
+        # Emit started signal
+        self.conversion_started.emit()
+        
+        # Start engine
         self._conversion_engine.start()
     
     def stop_conversion(self):
@@ -229,6 +328,11 @@ class PresetOrchestrator(QObject):
         """Handle gallery dismissal."""
         self._gallery.hide_animated()
         self.gallery_dismissed.emit()
+    
+    def _on_go_to_lab(self, lab_settings: dict):
+        """Forward go to lab request from gallery."""
+        print(f"[PresetOrchestrator] Go to Lab requested with {len(lab_settings)} settings")
+        self.go_to_lab_requested.emit(lab_settings)
     
     def build_commands(self, preset: PresetDefinition, context: dict) -> List[str]:
         """
@@ -322,6 +426,32 @@ class PresetOrchestrator(QObject):
     def parameter_form(self) -> Optional[ParameterForm]:
         """Get the parameter form widget."""
         return self._parameter_form
+    
+    def create_custom_preset(self, lab_params: Dict[str, Any], preset_name: str) -> bool:
+        """
+        Create a custom preset from Lab Mode parameters.
+        
+        Args:
+            lab_params: Parameters from CommandPanel.get_conversion_params()
+            preset_name: User-provided name for the preset
+            
+        Returns:
+            True if preset was created successfully, False otherwise
+        """
+        try:
+            # Generate preset YAML file
+            filepath = self._custom_preset_generator.generate_from_lab_params(lab_params, preset_name)
+            print(f"[PresetOrchestrator] Custom preset created: {filepath}")
+            
+            # Reload presets to include the new one
+            self.reload_presets()
+            
+            return True
+        except Exception as e:
+            print(f"[PresetOrchestrator] Failed to create custom preset: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
     
     def update_theme(self, is_dark: bool):
         """Update theme for gallery and all preset components."""

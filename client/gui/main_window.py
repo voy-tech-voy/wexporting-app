@@ -207,6 +207,7 @@ class MainWindow(QMainWindow):
         # Connect signals to MainWindow handlers (Mediator routing)
         self.control_bar.preset_mode_clicked.connect(self._on_preset_btn_clicked)
         self.control_bar.lab_mode_clicked.connect(self._on_lab_item_clicked)
+        self.control_bar.custom_preset_clicked.connect(lambda: self.command_panel.create_custom_preset())
         
         # Expose child references for backward compatibility
         self.add_files_btn = self.control_bar.add_files_btn
@@ -267,6 +268,25 @@ class MainWindow(QMainWindow):
         """Handle lab button state change (delegates to ModeConductor)."""
         if self.mode_conductor:
             self.mode_conductor.on_lab_state_changed(icon_path, is_solid)
+    
+    def _on_restore_lab_settings(self, lab_settings: dict):
+        """Restore Lab Mode settings from a custom preset."""
+        print(f"[MainWindow] Restoring Lab Mode settings: {lab_settings.get('type', 'unknown')}")
+        
+        # 1. Determine which tab based on type
+        file_type = lab_settings.get('type', 'video')
+        lab_tab_map = {'image': 0, 'video': 1, 'gif': 2, 'loop': 2}
+        lab_tab = lab_tab_map.get(file_type, 1)
+        
+        # 2. Switch to Lab Mode with the correct tab
+        if self.mode_conductor:
+            self.mode_conductor.switch_mode(Mode.LAB, lab_tab=lab_tab)
+        
+        # 3. Hide preset gallery
+        self.drag_drop_area.set_view_mode(ViewMode.FILES)
+        
+        # 4. Restore settings to CommandPanel (with small delay to ensure tab is active)
+        QTimer.singleShot(100, lambda: self.command_panel.restore_lab_settings(lab_settings))
     
     def create_middle_section(self, parent_layout):
         """Create the split middle section with drag-drop and command areas"""

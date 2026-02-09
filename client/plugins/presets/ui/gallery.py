@@ -12,6 +12,7 @@ from PyQt6.QtCore import Qt, pyqtSignal, QPropertyAnimation, QEasingCurve, QTime
 from PyQt6.QtGui import QPainter, QPainterPath
 
 from typing import List, Dict
+from PyQt6 import sip
 from client.plugins.presets.logic.models import PresetDefinition
 from client.plugins.presets.ui.card import PresetCard
 from client.plugins.presets.ui.filter_bar import CategoryFilterBar
@@ -34,6 +35,7 @@ class PresetGallery(BlurBackgroundMixin, QWidget):
     
     preset_selected = pyqtSignal(object)  # PresetDefinition
     dismissed = pyqtSignal()
+    go_to_lab_requested = pyqtSignal(dict)  # lab_mode_settings
     
     # Animation configuration
     ANIMATION_DURATION = 250  # Fade-in duration in ms
@@ -167,6 +169,7 @@ class PresetGallery(BlurBackgroundMixin, QWidget):
         
         self._parameter_form = ParameterForm()
         self._param_panel = DynamicParameterPanel()
+        self._param_panel.go_to_lab_clicked.connect(self._on_go_to_lab)
         main_layout.addWidget(self._param_panel)
     
     def _on_scroll(self, value):
@@ -376,12 +379,20 @@ class PresetGallery(BlurBackgroundMixin, QWidget):
         scroll_pos = self._scroll.verticalScrollBar().value()
         
         # Update card selection states
-        if self._selected_card:
-            self._selected_card.set_selected(False)
+        # Deselect previous card (if it still exists)
+        if self._selected_card is not None:
+            try:
+                # Check if the card still exists and is valid
+                if not sip.isdeleted(self._selected_card):
+                    self._selected_card.set_selected(False)
+            except RuntimeError:
+                # Card was deleted, ignore
+                pass
+            self._selected_card = None
         
         # Find and select the clicked card
         for card in self._cards:
-            if card.preset == preset:
+            if card.preset.preset_id == preset.preset_id:
                 card.set_selected(True)
                 self._selected_card = card
                 break
@@ -392,7 +403,8 @@ class PresetGallery(BlurBackgroundMixin, QWidget):
             self._param_panel.set_content(
                 title=f"{preset.name} Settings",
                 parameter_form=self._parameter_form,
-                description=preset.description
+                description=preset.description,
+                preset=preset  # Pass preset for Lab Mode detection
             )
             self._param_panel.show_animated()
         else:
@@ -401,7 +413,8 @@ class PresetGallery(BlurBackgroundMixin, QWidget):
             self._param_panel.set_content(
                 title=preset.name,
                 parameter_form=None,
-                description=preset.description
+                description=preset.description,
+                preset=preset  # Pass preset for Lab Mode detection
             )
             self._param_panel.show_animated()
         
@@ -409,7 +422,12 @@ class PresetGallery(BlurBackgroundMixin, QWidget):
         QTimer.singleShot(0, lambda: self._scroll.verticalScrollBar().setValue(scroll_pos))
         
         self.preset_selected.emit(preset)
-
+    
+    def _on_go_to_lab(self, lab_settings: dict):
+        """Forward go to lab request to orchestrator."""
+        print(f"[PresetGallery] Go to Lab requested with {len(lab_settings)} settings")
+        self.go_to_lab_requested.emit(lab_settings)
+    
 
     
     def mouseDoubleClickEvent(self, event):

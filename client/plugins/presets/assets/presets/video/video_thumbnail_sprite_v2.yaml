@@ -8,7 +8,7 @@
 
 meta:
   id: "video_thumbnail_sprite_v2"
-  name: "Sprite Sheet V2"
+  name: "thumbnails\nwith\nmetadata"
   category: "web"
   description: "Creates a tiled 'storyboard' image and VTT/JSON metadata for seek-bar previews."
   version: "2.0"
@@ -16,7 +16,7 @@ meta:
 
 style:
   accent_color: "#F28C28"         # Developer Orange
-  icon: "grid-view"
+  icon: "text:storyboard"
   glow_strength: "normal"
 
 constraints:

@@ -357,6 +357,129 @@ class LoopTab(BaseTab):
         
         return params
     
+    def restore_settings(self, settings: dict):
+        """
+        Restore Lab Mode settings to UI controls.
+        
+        Args:
+            settings: Dictionary of saved Lab Mode settings
+        """
+        print(f"[LoopTab] Restoring settings: {len(settings)} parameters")
+        
+        # Restore format (GIF vs WebM)
+        loop_format = settings.get('loop_format', 'GIF')
+        self.format_selector.setCurrentText(loop_format)
+        
+        # Restore rotation
+        if 'rotation_angle' in settings:
+            self.rotation_angle.setCurrentText(settings['rotation_angle'])
+        
+        # Restore estimator version
+        if 'estimator_version' in settings:
+            version = settings['estimator_version']
+            # Find the index with this version data
+            for i in range(self.version_selector.combo.count()):
+                if self.version_selector.combo.itemData(i) == version:
+                    self.version_selector.combo.setCurrentIndex(i)
+                    break
+        
+        
+        # Restore resize section parameters
+        resize_params = {
+            'resize_mode': settings.get('resize_mode'),
+            'resize_value': settings.get('resize_value'),
+            'current_resize': settings.get('current_resize'),
+            'multiple_resize': settings.get('multiple_resize', False),
+            'resize_variants': settings.get('resize_variants', [])
+        }
+        if any(v is not None for v in resize_params.values()):
+            self.resize_section.restore_settings(resize_params)
+        
+        # Restore target size section (Max Size mode)
+        is_gif = (loop_format == 'GIF')
+        prefix = 'gif_' if is_gif else 'video_'
+        
+        target_params = {
+            'target_size_mb': settings.get(f'{prefix}max_size_mb'),
+            'auto_resize': settings.get(f'{prefix}auto_resize', False),
+            'multiple_variants': settings.get(f'{prefix}multiple_max_sizes', False),
+            'size_variants': settings.get(f'{prefix}max_size_variants', [])
+        }
+        # Restore if we have either a target size OR variants
+        if target_params['target_size_mb'] is not None or target_params['size_variants']:
+            self.target_size_section.restore_settings(target_params)
+        
+        # Restore time section parameters
+        time_params = {
+            'enable_time_cutting': settings.get('enable_time_cutting', False),
+            'time_start': settings.get('time_start', 0.0),
+            'time_end': settings.get('time_end', 1.0),
+            'retime_enabled': settings.get('retime_enabled', False),
+            'retime_speed': settings.get('retime_speed', 1.0)
+        }
+        if any(v is not None for v in time_params.values()):
+            self.time_section.set_params(time_params)
+        
+        # Restore GIF-specific parameters
+        if is_gif:
+            # FPS
+            if 'gif_fps' in settings:
+                self.gif_fps.setCurrentText(str(settings['gif_fps']))
+            
+            # Colors
+            if 'gif_colors' in settings:
+                self.gif_colors.setCurrentText(str(settings['gif_colors']))
+            
+            # Dither quality
+            if 'gif_dither' in settings:
+                self.gif_dither_slider.setValue(settings['gif_dither'])
+            
+            # Blur
+            if 'gif_blur' in settings:
+                self.gif_blur.setChecked(settings['gif_blur'])
+            
+            # Multiple variants checkbox
+            if 'gif_multiple_variants' in settings:
+                self.gif_variants_checkbox.setChecked(settings['gif_multiple_variants'])
+            
+            # Variant values
+            if 'gif_fps_variants' in settings:
+                variants = settings['gif_fps_variants']
+                if isinstance(variants, list):
+                    self.gif_fps_variants.setText(','.join(str(v) for v in variants))
+            
+            if 'gif_colors_variants' in settings:
+                variants = settings['gif_colors_variants']
+                if isinstance(variants, list):
+                    self.gif_colors_variants.setText(','.join(str(v) for v in variants))
+            
+            if 'gif_dither_variants' in settings:
+                variants = settings['gif_dither_variants']
+                if isinstance(variants, list):
+                    self.gif_dither_variants.setText(','.join(str(v) for v in variants))
+        
+        # Restore WebM-specific parameters
+        else:
+            # Quality
+            if 'webm_quality' in settings:
+                self.webm_quality.setValue(settings['webm_quality'])
+            
+            # Multiple variants checkbox
+            if 'webm_multiple_variants' in settings:
+                self.webm_variants_checkbox.setChecked(settings['webm_multiple_variants'])
+            
+            # Variant values
+            if 'webm_quality_variants' in settings:
+                variants = settings['webm_quality_variants']
+                if isinstance(variants, list):
+                    self.webm_quality_variants.setText(','.join(str(v) for v in variants))
+        
+        # Update visibility based on restored settings
+        self._update_format_visibility()
+        
+        print(f"[LoopTab] Settings restored successfully")
+    
+    
     def update_theme(self, is_dark: bool):
         """Apply theme styling to all elements."""
         self._is_dark_theme = is_dark

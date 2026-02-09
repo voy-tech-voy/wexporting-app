@@ -93,6 +93,12 @@ class PresetCard(QFrame):
         if color is None:
             color = QColor(Theme.text())
         
+        # Check if this is a Lab Mode reference preset - show dual icon
+        if (self._preset.raw_yaml.get('meta', {}).get('execution_mode') == 'lab_mode_reference' and
+            self._preset.raw_yaml.get('lab_mode_settings')):
+            self._load_lab_mode_icon(color)
+            return
+        
         icon_name = self._preset.style.icon
         
         # Check for text-based icon (text: prefix or emoji/unicode)
@@ -214,6 +220,74 @@ class PresetCard(QFrame):
                 font-weight: bold;
                 color: {color.name()};
             """)
+    
+    def _load_lab_mode_icon(self, color: QColor):
+        """Render dual icon for Lab Mode reference presets."""
+        from PyQt6.QtSvg import QSvgRenderer
+        from PyQt6.QtCore import QRectF, QByteArray
+        import re
+        
+        # Get lab mode type from settings
+        lab_settings = self._preset.raw_yaml.get('lab_mode_settings', {})
+        file_type = lab_settings.get('type', 'video')
+        
+        # Map file type to icon paths
+        type_icons = {
+            'image': 'client/assets/icons/pic_icon.svg',
+            'video': 'client/assets/icons/vid_icon.svg',
+            'gif': 'client/assets/icons/loop_icon3.svg',
+            'loop': 'client/assets/icons/loop_icon3.svg'
+        }
+        
+        # Get icon paths
+        main_icon_path = get_resource_path(type_icons.get(file_type, 'client/assets/icons/vid_icon.svg'))
+        lab_icon_path = get_resource_path('client/assets/icons/lab_icon.svg')
+        
+        # Create composite pixmap
+        composite = QPixmap(self.ICON_SIZE, self.ICON_SIZE)
+        composite.fill(Qt.GlobalColor.transparent)
+        
+        painter = QPainter(composite)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
+        
+        # Load and color main icon (lab mode type)
+        try:
+            with open(main_icon_path, 'r', encoding='utf-8') as f:
+                main_svg = f.read()
+            
+            # Apply color to SVG
+            main_svg = re.sub(r'fill="(?!none)[^"]*"', f'fill="{color.name()}"', main_svg)
+            main_svg = re.sub(r'stroke="(?!none)[^"]*"', f'stroke="{color.name()}"', main_svg)
+            
+            # Render main icon at 45x45 in top-left
+            main_renderer = QSvgRenderer(QByteArray(main_svg.encode('utf-8')))
+            main_rect = QRectF(0, 0, 45, 45)
+            main_renderer.render(painter, main_rect)
+        except Exception as e:
+            print(f"[PresetCard] Error loading main icon: {e}")
+        
+        # Load and color lab icon (smaller, bottom-right diagonal)
+        try:
+            with open(lab_icon_path, 'r', encoding='utf-8') as f:
+                lab_svg = f.read()
+            
+            # Apply color to SVG
+            lab_svg = re.sub(r'fill="(?!none)[^"]*"', f'fill="{color.name()}"', lab_svg)
+            lab_svg = re.sub(r'stroke="(?!none)[^"]*"', f'stroke="{color.name()}"', lab_svg)
+            
+            # Render lab icon at 25x25 in bottom-right diagonal
+            lab_renderer = QSvgRenderer(QByteArray(lab_svg.encode('utf-8')))
+            lab_rect = QRectF(self.ICON_SIZE - 25, self.ICON_SIZE - 25, 25, 25)
+            lab_renderer.render(painter, lab_rect)
+        except Exception as e:
+            print(f"[PresetCard] Error loading lab icon: {e}")
+        
+        painter.end()
+        
+        # Set the composite pixmap
+        self.icon_label.setPixmap(composite)
+    
     
     def _apply_styles(self):
         """Apply the card styling from design spec."""

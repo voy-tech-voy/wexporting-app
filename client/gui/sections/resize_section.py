@@ -140,11 +140,44 @@ class ResizeSection(QWidget):
     
     def update_theme(self, is_dark: bool):
         """Apply theme styling to all elements."""
-        if hasattr(self.resize_mode, 'update_theme'):
-            self.resize_mode.update_theme(is_dark)
+        # CustomComboBox and ThemedCheckBox widgets auto-update via ThemeManager signal
+        # No manual updates needed
+        pass
+    
+    def restore_settings(self, settings: dict):
+        """
+        Restore resize settings from saved parameters.
         
-        if hasattr(self.multiple_variants, 'update_theme'):
-            self.multiple_variants.update_theme(is_dark)
+        Args:
+            settings: Dictionary with resize parameters
+        """
+        # Restore resize mode
+        if 'resize_mode' in settings and settings['resize_mode']:
+            self.resize_mode.setCurrentText(settings['resize_mode'])
+        
+        # Restore resize value
+        if 'resize_value' in settings and settings['resize_value'] is not None:
+            self.resize_value.setValue(settings['resize_value'])
+        
+        # Restore multiple variants checkbox
+        if 'multiple_resize' in settings:
+            self.multiple_variants.setChecked(settings['multiple_resize'])
+        
+        # Restore variant values
+        if 'resize_variants' in settings and settings['resize_variants']:
+            variants = settings['resize_variants']
+            if isinstance(variants, list):
+                # Strip formatting (L prefix, % suffix) to get raw values
+                raw_values = []
+                for v in variants:
+                    v_str = str(v)
+                    if v_str.startswith('L'):
+                        raw_values.append(v_str[1:])
+                    elif v_str.endswith('%'):
+                        raw_values.append(v_str[:-1])
+                    else:
+                        raw_values.append(v_str)
+                self.size_variants.setText(','.join(raw_values))
     
     def _on_multiple_toggled(self, multiple: bool):
         """Handle multiple variants checkbox toggle."""

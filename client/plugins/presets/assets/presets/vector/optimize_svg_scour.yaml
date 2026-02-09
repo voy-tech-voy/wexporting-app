@@ -9,8 +9,8 @@
 meta:
   id: "vector_optimize_svg_scour"
   name: "Optimize SVG"
-  category: "vector"
-  description: "Advanced SVG optimization using Scour. Reduces file size by removing metadata, comments, and unused definitions."
+  category: "utility"
+  description: "Advanced SVG optimization. Reduces file size by removing metadata, comments, and unused definitions."
   version: "1.0"
   output_extension: ".svg"
 
