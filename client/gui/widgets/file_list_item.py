@@ -9,7 +9,7 @@ import subprocess
 import tempfile
 from PyQt6.QtCore import Qt, pyqtSignal, QSize
 from PyQt6.QtWidgets import QWidget, QHBoxLayout, QLabel, QPushButton
-from PyQt6.QtGui import QPixmap, QCursor
+from PyQt6.QtGui import QPixmap, QCursor, QPainter, QLinearGradient, QColor, QPainterPath, QBrush, QPen
 
 from client.gui.theme import Theme
 
@@ -17,6 +17,9 @@ from client.gui.theme import Theme
 class FileListItemWidget(QWidget):
     """Custom widget for list items with hover-based remove button and progress indicator"""
     remove_clicked = pyqtSignal()
+    status_clicked = pyqtSignal()
+    
+    _noise_texture = None # Static texture cache
     
     def __init__(self, text, file_path=None, parent=None):
         super().__init__(parent)
@@ -29,6 +32,7 @@ class FileListItemWidget(QWidget):
         self._hovered = False
         self.file_path = file_path
         self._is_completed = False  # Track if conversion is complete
+        self._status = None # None | 'success' | 'skipped' | 'failed' | 'stopped'
         self._QEvent = QEvent  # Store for eventFilter
         
         self._is_dark = True # Default
@@ -71,9 +75,161 @@ class FileListItemWidget(QWidget):
         
         self.update_button_style(self._is_dark)
     
+    
+    def set_status(self, status: str):
+        """Set visual status (success/skipped/failed/stopped)"""
+        self._status = status
+        self.update() # Trigger repaint
+        
+    def clear_status(self):
+        """Clear visual status"""
+        self._status = None
+        self.update()
+
     def set_completed(self):
-        """Mark item as completed"""
+        """Mark item as completed (Legacy compatibility)"""
+        self.set_status('success')
         self._is_completed = True
+        
+    def mousePressEvent(self, event):
+        """Clear status on click (notify parent)"""
+        # Always emit click to allow parent to clear ALL statuses
+        self.status_clicked.emit()
+        super().mousePressEvent(event)
+    
+    @staticmethod
+    def _get_noise_texture():
+        """
+        Get or create static noise texture using void-and-cluster algorithm (Blue Noise).
+        This provides high-quality dithering for smooth gradient fades.
+        """
+        if FileListItemWidget._noise_texture is None:
+            # Generate 64x64 blue noise (simplified approximation)
+            import random
+            from PyQt6.QtGui import QImage
+            
+            # Generate 32x32 blue noise (scaled up to 64x64 for lower frequency/larger grain)
+            import random
+            from PyQt6.QtGui import QImage
+            
+            size = 32 # Smaller generation size = larger grain when scaled
+            random.seed(42) 
+            
+            # Start with random values
+            pattern = [[random.random() for _ in range(size)] for _ in range(size)]
+            
+            # Void-and-cluster approximation (3 passes)
+            for _ in range(3):
+                new_pattern = [[0.0 for _ in range(size)] for _ in range(size)]
+                for y in range(size):
+                    for x in range(size):
+                        total = 0.0
+                        count = 0
+                        for dy in [-1, 0, 1]:
+                            for dx in [-1, 0, 1]:
+                                if dx == 0 and dy == 0: continue
+                                nx, ny = (x + dx) % size, (y + dy) % size
+                                total += pattern[ny][nx]
+                                count += 1
+                        avg = total / count
+                        if pattern[y][x] > avg:
+                            new_pattern[y][x] = min(1.0, pattern[y][x] + 0.1)
+                        else:
+                            new_pattern[y][x] = max(0.0, pattern[y][x] - 0.1)
+                pattern = new_pattern
+            
+            # Convert to QImage
+            img = QImage(size, size, QImage.Format.Format_ARGB32)
+            img.fill(QColor(0, 0, 0, 0))
+            
+            for y in range(size):
+                for x in range(size):
+                    val = pattern[y][x]
+                    # MUCHO SUBTLER: Max opacity reduced from 40 to 12
+                    alpha = int(val * 12) 
+                    img.setPixelColor(x, y, QColor(255, 255, 255, alpha))
+            
+            # Scale up to 64x64 for "lower frequency" look
+            FileListItemWidget._noise_texture = QPixmap.fromImage(img).scaled(
+                64, 64, 
+                Qt.AspectRatioMode.IgnoreAspectRatio, 
+                Qt.TransformationMode.FastTransformation # Pixelated look for noise is fine/better
+            )
+            
+        return FileListItemWidget._noise_texture
+
+    def paintEvent(self, event):
+        """Paint status gradient if active"""
+        super().paintEvent(event)
+        
+        if self._status:
+            painter = QPainter(self)
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+            
+            # Determine color based on status
+            color_hex = Theme.success() # Default green
+            if self._status == 'skipped':
+                color_hex = Theme.warning()
+            elif self._status == 'failed':
+                color_hex = Theme.error()
+            elif self._status == 'stopped':
+                color_hex = Theme.warning()
+                
+            base_color = QColor(color_hex)
+            
+            # 1. Base Gradient: Color -> Transparent
+            gradient = QLinearGradient(0, 0, self.width(), 0)
+            
+            c1 = QColor(base_color)
+            c1.setAlpha(80) # Stronger start
+            
+            c_mid = QColor(base_color)
+            c_mid.setAlpha(20)
+            
+            c2 = QColor(base_color)
+            c2.setAlpha(0)
+            
+            gradient.setColorAt(0.0, c1)
+            gradient.setColorAt(0.4, c_mid)
+            gradient.setColorAt(1.0, c2)
+            
+            path = QPainterPath()
+            path.addRoundedRect(0, 0, self.width(), self.height(), Theme.RADIUS_MD, Theme.RADIUS_MD)
+            
+            # Fill base gradient
+            painter.fillPath(path, QBrush(gradient))
+            
+            # 2. Apply Noise Dithering
+            # Draw noise into a temporary pixmap, apply gradient mask, then overlay
+            noise_tex = self._get_noise_texture()
+            if noise_tex:
+                # Create noise layer
+                noise_pix = QPixmap(self.size())
+                noise_pix.fill(Qt.GlobalColor.transparent)
+                
+                np = QPainter(noise_pix)
+                np.setRenderHint(QPainter.RenderHint.Antialiasing)
+                
+                # Tile the noise
+                np.setClipPath(path)
+                np.drawTiledPixmap(self.rect(), noise_tex)
+                
+                # Apply Gradient Mask to Noise (DestinationIn)
+                # Keep noise only where the gradient fades to reduce banding
+                np.setCompositionMode(QPainter.CompositionMode.CompositionMode_DestinationIn)
+                
+                mask_grad = QLinearGradient(0, 0, self.width(), 0)
+                # Mask Alpha: 0 (invisible) -> 255 (visible) -> 0
+                mask_grad.setColorAt(0.0, QColor(0, 0, 0, 0))    # Clean start
+                mask_grad.setColorAt(0.2, QColor(0, 0, 0, 200))  # Noise starts
+                mask_grad.setColorAt(0.6, QColor(0, 0, 0, 255))  # Max noise in fade zone
+                mask_grad.setColorAt(1.0, QColor(0, 0, 0, 0))    # Clean end
+                
+                np.fillRect(self.rect(), mask_grad)
+                np.end()
+                
+                # Overlay masked noise
+                painter.drawPixmap(0, 0, noise_pix)
     
     def update_theme(self, is_dark):
         """Update widget colors based on theme"""

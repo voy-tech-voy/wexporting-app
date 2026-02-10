@@ -746,7 +746,7 @@ class CreditBar(QWidget):
         painter.setBrush(QBrush(empty_c))
         painter.drawPath(path)
         
-        # Draw Filled Portion (Clipped)
+        # Draw Filled Portion (Clipped) with gradient
         if self._max_credits > 0:
             fill_ratio = self._current_credits / self._max_credits
         else:
@@ -759,14 +759,55 @@ class CreditBar(QWidget):
         
         fill_rect = QRectF(icon_x, fill_y, icon_w, fill_h)
         
-        # Apply Gain to Fill Color
-        fill_c = QColor(self._color_energy)
-        h_val, s_val, v_val, a_val = fill_c.getHsvF()
-        v_val = min(1.0, v_val * self._gain)
-        fill_c.setHsvF(h_val, s_val, v_val, self._filled_transparency)
+        # Flat color based on fill ratio with interpolation
+        # 100% - 75%: Blue (Theme.accent_turbo)
+        # 75% - 50%: Green (Theme.success)
+        # 50% - 35%: Orange (Theme.warning)
+        # 35% - 0%: Red (Theme.error)
+        
+        # Define stops
+        stops = [
+            (1.0, QColor("#2196F3")),   # Blue
+            (0.75, QColor("#2196F3")),  # Blue (Stay blue until 75%)
+            (0.50, QColor("#4CAF50")),  # Green
+            (0.35, QColor("#FF9800")),  # Orange
+            (0.15, QColor("#F44336")),  # Red
+            (0.0, QColor("#F44336"))    # Red
+        ]
+        
+        # Find segment
+        c1 = stops[-1][1] # Default low
+        c2 = stops[0][1] # Default high
+        t = 0.0
+        
+        for i in range(len(stops) - 1):
+            high_stop = stops[i]
+            low_stop = stops[i+1]
+            if fill_ratio <= high_stop[0] and fill_ratio >= low_stop[0]:
+                c1 = low_stop[1]
+                c2 = high_stop[1]
+                # Calculate local t (0.0 to 1.0 within segment)
+                range_span = high_stop[0] - low_stop[0]
+                if range_span > 0:
+                    t = (fill_ratio - low_stop[0]) / range_span
+                else:
+                    t = 0.0
+                break
+        
+        # Interpolate
+        r = c1.red() + (c2.red() - c1.red()) * t
+        g = c1.green() + (c2.green() - c1.green()) * t
+        b = c1.blue() + (c2.blue() - c1.blue()) * t
+        
+        final_color = QColor(int(r), int(g), int(b))
+        
+        # Apply gain/transparency
+        h_v, s_v, v_v, _ = final_color.getHsvF()
+        v_v = min(1.0, v_v * self._gain)
+        final_color.setHsvF(h_v, s_v, v_v, self._filled_transparency)
         
         painter.setClipPath(path)
-        painter.setBrush(QBrush(fill_c))
+        painter.setBrush(QBrush(final_color))
         painter.drawRect(fill_rect)
 
 

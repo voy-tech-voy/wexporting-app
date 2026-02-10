@@ -65,17 +65,39 @@ class DragDropArea(QWidget):
         # Progress display removed - only show completion
         pass
     
+    def eventFilter(self, source, event):
+        """Handle events for child widgets"""
+        # Clear statuses when clicking empty space in list
+        if (source == self.file_list_widget.viewport() and 
+            event.type() == QEvent.Type.MouseButtonPress):
+            self.clear_all_statuses()
+            
+        return super().eventFilter(source, event)
+
     def set_file_completed(self, file_index):
         """Mark a file as completed"""
+        self.set_file_status(file_index, 'success')
+
+    def set_file_status(self, file_index: int, status: str):
+        """Set visual status for a file item. status: 'success'|'skipped'|'failed'|'stopped'"""
         if 0 <= file_index < self.file_list_widget.count():
             item = self.file_list_widget.item(file_index)
             # Store completion state in item data
-            item.setData(Qt.ItemDataRole.UserRole + 1, True)
+            if status == 'success':
+                item.setData(Qt.ItemDataRole.UserRole + 1, True)
             
-            # Mark the widget as completed (no visual change)
+            # Update widget status
             widget = self.file_list_widget.itemWidget(item)
-            if widget and hasattr(widget, 'set_completed'):
-                widget.set_completed()
+            if widget and hasattr(widget, 'set_status'):
+                widget.set_status(status)
+
+    def clear_all_statuses(self):
+        """Clear visual status from all files"""
+        for i in range(self.file_list_widget.count()):
+            item = self.file_list_widget.item(i)
+            widget = self.file_list_widget.itemWidget(item)
+            if widget and hasattr(widget, 'clear_status'):
+                widget.clear_status()
 
     # NOTE: set_preset_active removed - preset_status_btn is now in MainWindow's control bar
     # State updates go through the preset_applied signal handled by MainWindow.on_preset_applied
@@ -85,8 +107,11 @@ class DragDropArea(QWidget):
         for i in range(self.file_list_widget.count()):
             item = self.file_list_widget.item(i)
             widget = self.file_list_widget.itemWidget(item)
-            if widget and hasattr(widget, 'clear_progress'):
-                widget.clear_progress()
+            if widget:
+                if hasattr(widget, 'clear_progress'):
+                    widget.clear_progress()
+                if hasattr(widget, 'clear_status'):
+                    widget.clear_status()
         self._current_processing_index = -1
         
     def setup_ui(self):
@@ -103,8 +128,8 @@ class DragDropArea(QWidget):
         self.file_list_widget.setMinimumHeight(300)
         
         # Disable Selection! (Allow only highlight)
-        self.file_list_widget.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
-        
+        self.file_list_widget.setSelectionMode(QListWidget.SelectionMode.ExtendedSelection)
+        self.file_list_widget.viewport().installEventFilter(self) # Detect clicks on empty space
         
         # Disable dashed focus rectangle
         self.file_list_widget.setFocusPolicy(Qt.FocusPolicy.NoFocus)
@@ -691,6 +716,9 @@ class DragDropArea(QWidget):
                     
                     item_widget.remove_clicked.connect(create_remove_handler(item_widget))
                     
+                    # Global clear when clicking an item
+                    item_widget.status_clicked.connect(self.clear_all_statuses)
+                    
                     # Set size and add to list
                     item.setSizeHint(item_widget.sizeHint())
                     self.file_list_widget.addItem(item)
@@ -903,6 +931,30 @@ class DragDropArea(QWidget):
             if 0 <= row < len(self.file_list):
                 self.remove_file_by_index(row)
     
+    def show_insufficient_credits_toast(self):
+        """Show a large, centered toast for insufficient credits."""
+        from client.gui.components.toast_notification import ToastNotification
+        
+        # Dismiss any existing toast
+        if hasattr(self, '_active_toast') and self._active_toast:
+            try:
+                self._active_toast.deleteLater()
+            except RuntimeError:
+                pass
+                
+        message = "<b>Insufficient Credits</b><br>Please recharge to continue."
+        
+        self._active_toast = ToastNotification(
+            message=message,
+            icon_type="warning",
+            duration=4000,
+            parent=self,
+            position="center",
+            size="large"
+        )
+        self._active_toast.dismissed.connect(lambda: setattr(self, '_active_toast', None))
+        self._active_toast.show_toast()
+
     def show_unsupported_files_toast(self, count):
         """Show a toast notification for unsupported files"""
         from client.gui.components.toast_notification import ToastNotification
@@ -935,10 +987,10 @@ class DragDropArea(QWidget):
         """
         from client.gui.components.toast_notification import ToastNotification
         
-        # Colors matching the app theme/dialog manager
-        app_green = "#4CAF50"   # Success green
-        app_yellow = "#FFC107"  # Warning yellow
-        app_red = "#F44336"     # Error red
+        # Colors matching the app theme
+        app_green = Theme.success()
+        app_yellow = Theme.warning()
+        app_red = Theme.error()
         
         parts = []
         # Concise status messages

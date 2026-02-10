@@ -24,7 +24,7 @@ class ToastNotification(QFrame):
     
     dismissed = pyqtSignal()
     
-    def __init__(self, message: str, icon_type: str = "warning", duration: int = 4000, parent=None, position: str = "top-left"):
+    def __init__(self, message: str, icon_type: str = "warning", duration: int = 4000, parent=None, position: str = "top-left", size: str = "standard"):
         """
         Initialize toast notification.
         
@@ -33,13 +33,15 @@ class ToastNotification(QFrame):
             icon_type: Type of icon ("warning", "error", "info")
             duration: Time in milliseconds before auto-dismiss (default 4000ms = 4s)
             parent: Parent widget
-            position: Toast position ("top-left", "top-right", "bottom-left", "bottom-right", "top-center", "bottom-center")
+            position: Toast position ("top-left", "top-right", "bottom-left", "bottom-right", "top-center", "bottom-center", "center")
+            size: Size variant ("standard", "large")
         """
         super().__init__(parent)
         self._message = message
         self._icon_type = icon_type
         self._duration = duration
         self._position = position
+        self._size_variant = size
         
         self.setObjectName("ToastNotification")
         # Ensure stylesheet background styling works correctly
@@ -74,7 +76,8 @@ class ToastNotification(QFrame):
         layout.addWidget(self.message_label, 1)
         
         # Set fixed width but allow height to adjust
-        self.setFixedWidth(340) # Slightly wider
+        # Adaptive width: Min 300, Max will be set in show_toast based on parent
+        self.setMinimumWidth(300)
         self.adjustSize()
         
     def _load_icon(self):
@@ -90,12 +93,31 @@ class ToastNotification(QFrame):
         icon_text = icon_map.get(self._icon_type, "ℹ️")
         self.icon_label.setText(icon_text)
         self.icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        
+        # Determine sizing based on variant
+        if self._size_variant == "large":
+            font_size = Theme.FONT_SIZE_XL  # Larger font
+            radius = Theme.RADIUS_LG + 4
+            padding = "24px 32px"
+            icon_size = "32px"
+        else:
+            font_size = Theme.FONT_SIZE_LG
+            radius = Theme.RADIUS_LG
+            padding = "12px 16px"
+            icon_size = "18px"
+            
         self.icon_label.setStyleSheet(f"""
-            font-size: 18px;
+            font-size: {icon_size};
             background: transparent;
             border: none;
         """)
         
+        self.icon_label.setStyleSheet(f"""
+            font-size: {icon_size};
+            background: transparent;
+            border: none;
+        """)
+
     def _apply_styles(self):
         """Apply theme-aware styling."""
         # Color based on icon type
@@ -109,10 +131,15 @@ class ToastNotification(QFrame):
         bg_color = Theme.surface_element()
         text_color = Theme.text()
         font_family = Theme.FONT_BODY
-        # Use Large font size (16px) as requested
-        font_size = Theme.FONT_SIZE_LG
-        radius = Theme.RADIUS_LG
         
+        # Determine sizing based on variant
+        if self._size_variant == "large":
+            font_size = Theme.FONT_SIZE_XL
+            radius = Theme.RADIUS_LG + 4
+        else:
+            font_size = Theme.FONT_SIZE_LG
+            radius = Theme.RADIUS_LG
+            
         self.setStyleSheet(f"""
             QFrame#ToastNotification {{
                 background-color: {bg_color};
@@ -126,6 +153,7 @@ class ToastNotification(QFrame):
                 font-weight: 500;
                 background-color: transparent;
                 border: none;
+                padding: 0px;
             }}
         """)
         
@@ -135,9 +163,18 @@ class ToastNotification(QFrame):
         if self.parent():
             parent_rect = self.parent().rect()
             # Ensure size is calculated before positioning
-            self.adjustSize()
+            
+            # Adaptive Width: Cap at 80% of parent width, but allow hugging content
+            max_w = int(parent_rect.width() * 0.8)
+            self.setMaximumWidth(max_w)
+            self.adjustSize() # Recalculate size with new constraints
             
             padding = 16
+            
+            # Handle large variant padding
+            if self._size_variant == "large":
+                padding = 32
+                
             # Default to top-left
             x, y = padding, padding
             
@@ -159,6 +196,9 @@ class ToastNotification(QFrame):
             elif self._position == "bottom-center":
                 x = (parent_rect.width() - self.width()) // 2
                 y = parent_rect.height() - self.height() - padding
+            elif self._position == "center":
+                x = (parent_rect.width() - self.width()) // 2
+                y = (parent_rect.height() - self.height()) // 2
             
             self.move(x, y)
             self.raise_()  # Bring to front

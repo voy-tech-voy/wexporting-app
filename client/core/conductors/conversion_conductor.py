@@ -125,6 +125,9 @@ class ConversionConductor(QObject):
         self.conversion_engine.file_progress_updated.connect(self.on_file_progress)
         self.conversion_engine.status_updated.connect(self.update_status)
         self.conversion_engine.file_completed.connect(self.on_file_completed)
+        self.conversion_engine.file_skipped.connect(self.on_file_skipped)
+        self.conversion_engine.file_failed.connect(self.on_file_failed)
+        self.conversion_engine.file_stopped.connect(self.on_file_stopped)
         
         # Handle different signal names between engines
         # NEW: Connect to unified conversion_completed signal if available
@@ -224,6 +227,9 @@ class ConversionConductor(QObject):
                 orchestrator._conversion_engine.status_updated.connect(on_status)
                 orchestrator._conversion_engine.file_progress_updated.connect(on_file_progress)
                 orchestrator._conversion_engine.file_completed.connect(on_file_completed)
+                orchestrator._conversion_engine.file_skipped.connect(self.on_file_skipped)
+                orchestrator._conversion_engine.file_failed.connect(self.on_file_failed)
+                orchestrator._conversion_engine.file_stopped.connect(self.on_file_stopped)
         
         # Delegate execution to orchestrator (async, non-blocking)
         orchestrator.start_conversion(
@@ -358,6 +364,30 @@ class ConversionConductor(QObject):
                 self._completed_files_count += 1
                 break
     
+    def on_file_skipped(self, source_file):
+        """Handle skipped file."""
+        # Mark as skipped in UI
+        for i, f in enumerate(self.drag_drop_area.file_list):
+            if f == source_file:
+                self.drag_drop_area.set_file_status(i, 'skipped')
+                break
+
+    def on_file_failed(self, source_file):
+        """Handle failed file."""
+        # Mark as failed in UI
+        for i, f in enumerate(self.drag_drop_area.file_list):
+            if f == source_file:
+                self.drag_drop_area.set_file_status(i, 'failed')
+                break
+
+    def on_file_stopped(self, source_file):
+        """Handle stopped file."""
+        # Mark as stopped in UI
+        for i, f in enumerate(self.drag_drop_area.file_list):
+            if f == source_file:
+                self.drag_drop_area.set_file_status(i, 'stopped')
+                break
+    
     def on_conversion_finished(self, success, message):
         """Handle conversion completion (LEGACY - for backward compatibility)."""
         # Reset progress manager state
@@ -413,13 +443,18 @@ class ConversionConductor(QObject):
         if energy_mgr.is_premium:
             return True
         
-        # Calculate total cost
-        conversion_type = self._detect_conversion_type(params)
-        total_cost = 0
+        # Use ProgressManager to get total outputs (includes all variants)
+        result = self.progress_manager.calculate_from_params(files, params)
+        total_outputs = result.total_outputs
         
-        for file in files:
-            cost = energy_mgr.calculate_cost(conversion_type, params)
-            total_cost += cost
+        if total_outputs == 0:
+            # No valid files to convert
+            return True
+        
+        # Calculate per-output cost (accumulates enabled operations)
+        conversion_type = self._detect_conversion_type(params)
+        per_output_cost = energy_mgr.calculate_cost(conversion_type, params)
+        total_cost = total_outputs * per_output_cost
         
         # Request energy (job-based: server for large, local for small)
         # Note: JWT token is set via EnergyManager.set_store_auth()
@@ -437,16 +472,43 @@ class ConversionConductor(QObject):
         Presets are typically video/complex, so we estimate higher cost.
         """
         from client.core.energy_manager import EnergyManager
+        from client.core.progress_manager import AppMode
         
         energy_mgr = EnergyManager.instance()
         
         if energy_mgr.is_premium:
             return True
         
-        # Estimate cost (presets are usually video-level complexity)
-        total_cost = len(files) * energy_mgr.COST_VIDEO
+        # Use ProgressManager to get total outputs (presets don't have variants currently, but future-proof)
+        result = self.progress_manager.calculate(
+            file_list=files,
+            app_mode=AppMode.PRESET,
+            preset=self._active_preset
+        )
+        total_outputs = result.total_outputs
         
-        if not energy_mgr.request_job_energy(total_cost, "preset", {}):
+        if total_outputs == 0:
+            # No valid files to convert
+            return True
+        
+        # Get active preset details
+        preset_params = {'preset_id': 'unknown'}
+        if self._active_preset:
+            preset_params = {
+                'preset_id': self._active_preset.id,
+                'preset_category': self._active_preset.category,
+                'credit_cost': self._active_preset.credit_cost
+            }
+            
+        # Calculate single output cost
+        # We use 'video' as base type for presets if unknown, or infer from preset category
+        # But actually EnergyManager.calculate_cost handles the type if preset_id is present
+        # We pass 'video' as a safe default conversion_type to trigger the lookup
+        per_output_cost = energy_mgr.calculate_cost('video', preset_params)
+        
+        total_cost = total_outputs * per_output_cost
+        
+        if not energy_mgr.request_job_energy(total_cost, "preset", preset_params):
             self._show_insufficient_energy_dialog(total_cost, energy_mgr.get_balance())
             return False
         
@@ -463,16 +525,6 @@ class ConversionConductor(QObject):
     
     
     def _show_insufficient_energy_dialog(self, required, available):
-        """Show dialog when user has insufficient energy."""
-        from client.core.energy_manager import EnergyManager
-        energy_mgr = EnergyManager.instance()
-        
-        refresh_time = energy_mgr.get_time_until_refresh()
-        
-        message = f"""This conversion requires {required} energy, but you only have {available} available.
-
-Your energy will refresh to {energy_mgr.MAX_DAILY_ENERGY} in {refresh_time}.
-
-Upgrade to Premium for unlimited conversions!"""
-        
-        self.dialogs.show_warning("Insufficient Energy", message)
+        """Show toast when user has insufficient energy (replaces old dialog)."""
+        # Call the new toast method in drag_drop_area
+        self.drag_drop_area.show_insufficient_credits_toast()

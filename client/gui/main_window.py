@@ -11,7 +11,7 @@ from PyQt6.QtWidgets import (
     QGraphicsDropShadowEffect, QSplitter, QStatusBar
 )
 from PyQt6.QtGui import QIcon, QFont, QAction, QColor
-from PyQt6.QtCore import Qt, pyqtSignal, QPoint, QSize, pyqtSlot, QTimer
+from PyQt6.QtCore import Qt, pyqtSignal, QPoint, QSize, pyqtSlot, QTimer, QEvent
 
 from .drag_drop_area import DragDropArea
 from .command_panel import CommandPanel
@@ -127,6 +127,18 @@ class MainWindow(QMainWindow):
         # Reset drop area rendering after 1ms
         from PyQt6.QtCore import QTimer
         QTimer.singleShot(1, self.drag_drop_area.clear_files)
+
+        # Global event filter for clearing statuses
+        QApplication.instance().installEventFilter(self)
+
+    def eventFilter(self, source, event):
+        """Global event filter to handle click-anywhere behavior"""
+        if event.type() == QEvent.Type.MouseButtonPress:
+            # Clear file statuses on any click anywhere in the app
+            if hasattr(self, 'drag_drop_area'):
+                self.drag_drop_area.clear_all_statuses()
+        
+        return super().eventFilter(source, event)
         
     def setup_ui(self):
         """Setup the main user interface layout"""
