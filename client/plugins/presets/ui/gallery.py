@@ -392,7 +392,7 @@ class PresetGallery(BlurBackgroundMixin, QWidget):
         
         # Find and select the clicked card
         for card in self._cards:
-            if card.preset.preset_id == preset.preset_id:
+            if card.preset.id == preset.id:
                 card.set_selected(True)
                 self._selected_card = card
                 break

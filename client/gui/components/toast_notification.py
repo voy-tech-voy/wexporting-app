@@ -224,12 +224,16 @@ class InputToast(QFrame):
     accepted = pyqtSignal(str)
     cancelled = pyqtSignal()
     
-    def __init__(self, message: str, placeholder: str = "", button_text: str = "Add", parent=None, position: str = "top-right"):
+    def __init__(self, message: str, placeholder: str = "", button_text: str = "Add", parent=None, position: str = "top-right", description: str = ""):
         super().__init__(parent)
         self._message = message
         self._placeholder = placeholder
         self._button_text = button_text
         self._position = position
+        self._description = description
+        self._is_confirmation_mode = False
+        self._confirmation_timer = None
+        self._align_widget = None  # Store widget reference, not position
         
         self.setObjectName("InputToast")
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
@@ -247,60 +251,90 @@ class InputToast(QFrame):
         
     def _setup_ui(self):
         """Setup UI components"""
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(12, 8, 12, 8)
-        layout.setSpacing(8)
+        from PyQt6.QtWidgets import QLineEdit, QPushButton, QVBoxLayout
         
-        # Input (no label, just the input field)
-        from PyQt6.QtWidgets import QLineEdit
+        # Use VBoxLayout if description is provided
+        if self._description:
+            main_layout = QVBoxLayout(self)
+            main_layout.setContentsMargins(12, 10, 12, 10)
+            main_layout.setSpacing(8)
+            
+            # Description label
+            self.description_label = QLabel(self._description)
+            self.description_label.setObjectName("ToastDescription")
+            self.description_label.setWordWrap(True)
+            main_layout.addWidget(self.description_label)
+            
+            # Input row
+            input_layout = QHBoxLayout()
+            input_layout.setSpacing(8)
+            input_layout.setContentsMargins(0, 0, 0, 0)
+        else:
+            input_layout = QHBoxLayout(self)
+            input_layout.setContentsMargins(12, 8, 12, 8)
+            input_layout.setSpacing(8)
+        
+        # Input field
         self.input = QLineEdit()
         self.input.setPlaceholderText(self._placeholder)
         self.input.setMinimumWidth(200)
         self.input.returnPressed.connect(self._on_accept)
-        layout.addWidget(self.input)
+        input_layout.addWidget(self.input)
         
-        # Checkmark Button (replacing "Create" button)
-        from PyQt6.QtWidgets import QPushButton
+        # Checkmark Button
         self.btn = QPushButton("✓")
         self.btn.setObjectName("ToastCheckButton")
         self.btn.setFixedSize(28, 28)
         self.btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn.clicked.connect(self._on_accept)
-        layout.addWidget(self.btn)
+        input_layout.addWidget(self.btn)
         
-        # Close Button (red frame, no text)
-        self.close_btn = QPushButton("")
+        # Close Button (X symbol)
+        self.close_btn = QPushButton("✕")
         self.close_btn.setObjectName("ToastCloseButton")
-        self.close_btn.setFixedSize(24, 24)
+        self.close_btn.setFixedSize(28, 28)
         self.close_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.close_btn.clicked.connect(self.cancel)
-        layout.addWidget(self.close_btn)
+        input_layout.addWidget(self.close_btn)
+        
+        # Add input layout to main layout if using VBoxLayout
+        if self._description:
+            main_layout.addLayout(input_layout)
         
     def _apply_styles(self):
         """Apply theme styles"""
         bg_color = Theme.surface_element()
         text_color = Theme.text()
         border_color = Theme.border()
-        accent_color = Theme.accent()
-        success_color = Theme.success()
+        info_color = Theme.color("info")  # Blue for toast outline
+        success_color = Theme.success()  # Green for accept button
+        error_color = Theme.error()  # Red for cancel button
+        input_bg = Theme.param_bg()  # Unified input background
         
         self.setStyleSheet(f"""
             QFrame#InputToast {{
                 background-color: {bg_color};
-                border: 1px solid {border_color};
+                border: 2px solid {info_color};
                 border-radius: {Theme.RADIUS_LG}px;
             }}
-            QLineEdit {{
-                background-color: {Theme.param_bg()};
+            QLabel#ToastDescription {{
                 color: {text_color};
-                border: 1px solid {Theme.border()};
-                border-radius: {Theme.RADIUS_SM}px;
-                padding: 6px 10px;
                 font-family: '{Theme.FONT_BODY}';
-                font-size: {Theme.FONT_SIZE_BASE}px;
+                font-size: {Theme.FONT_SIZE_LG}px;
+                background-color: transparent;
+                border: none;
+            }}
+            QLineEdit {{
+                background-color: {input_bg};
+                color: {text_color};
+                border: 1px solid {border_color};
+                border-radius: {Theme.RADIUS_SM}px;
+                padding: 8px 12px;
+                font-family: '{Theme.FONT_BODY}';
+                font-size: {Theme.FONT_SIZE_LG}px;
             }}
             QLineEdit:focus {{
-                border: 1px solid {accent_color};
+                border: 1px solid {info_color};
             }}
             QPushButton#ToastCheckButton {{
                 background-color: transparent;
@@ -315,38 +349,73 @@ class InputToast(QFrame):
                 color: {bg_color};
             }}
             QPushButton#ToastCheckButton:pressed {{
-                background-color: transparent;
-                border: 2px solid {accent_color};
-                color: {accent_color};
+                background-color: {Theme.color_with_alpha("accent_success", 0.8)};
+                border: 2px solid {success_color};
+                color: {bg_color};
             }}
             QPushButton#ToastCloseButton {{
                 background-color: transparent;
-                border: 2px solid {Theme.error()};
+                color: {error_color};
+                border: 2px solid {error_color};
                 border-radius: {Theme.RADIUS_SM}px;
+                font-size: 16px;
+                font-weight: bold;
             }}
             QPushButton#ToastCloseButton:hover {{
-                border-color: {Theme.error()};
+                background-color: {error_color};
+                color: {bg_color};
             }}
             QPushButton#ToastCloseButton:pressed {{
-                background-color: {Theme.error()};
+                background-color: {Theme.color_with_alpha("error", 0.8)};
+                border: 2px solid {error_color};
+                color: {bg_color};
             }}
         """)
         
     def show_toast(self):
         """Show the toast with slide-in animation."""
-        if self.parent():
-            parent_rect = self.parent().rect()
+        # Reset state - restore input mode
+        if self._is_confirmation_mode:
+            self._is_confirmation_mode = False
+            # Remove event filter if it was added
+            try:
+                QApplication.instance().removeEventFilter(self)
+            except:
+                pass
+            # Stop confirmation timer if running
+            if self._confirmation_timer:
+                self._confirmation_timer.stop()
+                self._confirmation_timer = None
+            # Show input controls
+            self.input.show()
+            self.btn.show()
+            self.close_btn.show()
+            # Reset description label if it exists
+            if hasattr(self, 'description_label') and self._description:
+                self.description_label.setText(self._description)
+                self.description_label.setStyleSheet(f"""
+                    QLabel {{
+                        color: {Theme.text()};
+                        font-family: '{Theme.FONT_BODY}';
+                        font-size: {Theme.FONT_SIZE_LG}px;
+                        background-color: transparent;
+                        border: none;
+                    }}
+                """)
+            # Clear input field
+            self.input.clear()
+            # Reset styles (blue border for input mode)
+            self._apply_styles()
+            self.layout().update()
+            self.layout().activate()
+            self.updateGeometry()
             self.adjustSize()
-            
-            padding = 16
-            
-            # Position at top-right by default
-            if self._position == "top-right":
-                x = parent_rect.width() - self.width() - padding
-                y = padding
-            else:
-                x = padding
-                y = padding
+        
+        if self.parent():
+            # Calculate position (adjustSize must be called first)
+            self.adjustSize()
+            pos = self._calculate_position()
+            x, y = pos.x(), pos.y()
                 
             self.move(x, y - 20) # Start slightly higher
             self.show()
@@ -369,7 +438,11 @@ class InputToast(QFrame):
             self.fade_anim.setEndValue(1.0)
             self.fade_anim.start()
             
+            
             self.input.setFocus()
+            
+            # Install event filter to detect clicks outside
+            QApplication.instance().installEventFilter(self)
             
     def hide_toast(self):
         """Hide with animation"""
@@ -385,16 +458,158 @@ class InputToast(QFrame):
             self.fade_anim.start()
         else:
             self.close()
+            
+        # Ensure event filter is removed
+        try:
+            QApplication.instance().removeEventFilter(self)
+        except:
+            pass
 
     def _on_accept(self):
         text = self.input.text().strip()
         if text:
             self.accepted.emit(text)
-            self.hide_toast()
+            # Don't hide immediately - let the callback handle showing confirmation or hiding
             
     def cancel(self):
         self.cancelled.emit()
         self.hide_toast()
+    
+    def set_align_widget(self, widget):
+        """Set the widget to align with. Position will be calculated on each show."""
+        self._align_widget = widget
+    
+    def _calculate_position(self):
+        """Calculate toast position. Always call adjustSize() before this."""
+        if not self.parent():
+            return QPoint(0, 0)
+        
+        parent_rect = self.parent().rect()
+        padding = 16
+        
+        # X: always right-aligned to parent edge
+        x = parent_rect.width() - self.width() - padding
+        
+        # Y: from aligned widget or default to top
+        if self._align_widget:
+            try:
+                # Get widget's global position
+                widget_global_pos = self._align_widget.mapToGlobal(self._align_widget.rect().topLeft())
+                # Convert to parent's coordinate system
+                parent_local_pos = self.parent().mapFromGlobal(widget_global_pos)
+                y = parent_local_pos.y()
+            except:
+                # Widget might be deleted, fall back to top
+                y = padding
+        else:
+            y = padding
+        
+        # Clamp to parent bounds
+        if y + self.height() > parent_rect.height():
+            y = parent_rect.height() - self.height() - padding
+        if y < padding:
+            y = padding
+        
+        return QPoint(x, y)
+    
+    def set_confirmation_mode(self, message: str, duration: int = 4000):
+        """Switch toast to confirmation mode with auto-dismiss."""
+        self._is_confirmation_mode = True
+        
+        # Update border to success color (green)
+        self.setStyleSheet(f"""
+            QFrame#InputToast {{
+                background-color: {Theme.surface_element()};
+                border: 2px solid {Theme.success()};
+                border-radius: {Theme.RADIUS_LG}px;
+            }}
+        """)
+        
+        # Hide input and buttons
+        self.input.hide()
+        self.btn.hide()
+        self.close_btn.hide()
+        
+        # Update or create description label to show confirmation
+        if hasattr(self, 'description_label'):
+            self.description_label.setText(message)
+            self.description_label.setStyleSheet(f"""
+                QLabel {{
+                    color: {Theme.success()};
+                    font-family: '{Theme.FONT_BODY}';
+                    font-size: {Theme.FONT_SIZE_LG}px;
+                    font-weight: bold;
+                    background-color: transparent;
+                    border: none;
+                }}
+            """)
+        else:
+            # Create confirmation label
+            from PyQt6.QtWidgets import QVBoxLayout
+            self.description_label = QLabel(message)
+            self.description_label.setObjectName("ToastConfirmation")
+            self.description_label.setWordWrap(True)
+            self.description_label.setStyleSheet(f"""
+                QLabel {{
+                    color: {Theme.success()};
+                    font-family: '{Theme.FONT_BODY}';
+                    font-size: {Theme.FONT_SIZE_LG}px;
+                    font-weight: bold;
+                    background-color: transparent;
+                    border: none;
+                }}
+            """)
+            self.layout().addWidget(self.description_label)
+        
+        # Recalculate size and reposition
+        self.adjustSize()
+        if self.parent():
+            pos = self._calculate_position()
+            self.move(pos)
+        
+        # Setup auto-dismiss timer
+        if self._confirmation_timer:
+            self._confirmation_timer.stop()
+        
+        self._confirmation_timer = QTimer()
+        self._confirmation_timer.setSingleShot(True)
+        self._confirmation_timer.timeout.connect(self.hide_toast)
+        self._confirmation_timer.start(duration)
+        
+        # Install event filter for click-to-dismiss
+        QApplication.instance().installEventFilter(self)
+    
+    def eventFilter(self, obj, event):
+        """Handle global events for click-to-dismiss behavior."""
+        if event.type() == QEvent.Type.MouseButtonPress:
+            # Get the widget that was clicked
+            global_pos = event.globalPosition().toPoint()
+            widget_at_pos = QApplication.widgetAt(global_pos)
+            
+            # Check if the click is inside this toast or any of its children
+            is_inside_toast = False
+            if widget_at_pos:
+                # Walk up the parent chain to see if this toast is an ancestor
+                current = widget_at_pos
+                while current:
+                    if current == self:
+                        is_inside_toast = True
+                        break
+                    current = current.parentWidget()
+            
+            # Only dismiss if click is outside the toast
+            if not is_inside_toast:
+                # If in confirmation mode, click anywhere outside dismisses
+                if self._is_confirmation_mode:
+                    self.hide_toast()
+                    return True # Consume event
+                
+                # If in input mode, dismiss on outside click
+                if self.isVisible():
+                    self.cancel()
+                    return True # Consume event to prevent accidental clicks behind
+                    
+        return super().eventFilter(obj, event)
         
     def update_theme(self, is_dark: bool):
         Theme.set_dark_mode(is_dark)

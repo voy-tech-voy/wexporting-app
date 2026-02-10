@@ -151,6 +151,12 @@ class CommandPanel(QWidget):
         self._create_side_buttons()
         
         layout.addWidget(self.tabs)
+        
+        # Connect custom preset buttons from each tab
+        self._image_tab.custom_preset_btn.clicked.connect(self.create_custom_preset)
+        self._video_tab.custom_preset_btn.clicked.connect(self.create_custom_preset)
+        self._loop_tab.custom_preset_btn.clicked.connect(self.create_custom_preset)
+        
         return container
     
     def _create_side_buttons(self):
@@ -402,6 +408,8 @@ class CommandPanel(QWidget):
         self._lab_mode_active = active
         mode = self.mode_buttons.get_mode() if hasattr(self, 'mode_buttons') else "Max Size"
         self._update_side_buttons_visibility(mode)
+        
+        # Custom preset buttons are always visible (removed visibility control)
     
     def set_top_bar_preset_mode(self, active: bool):
         """Set whether top bar preset mode is active."""
@@ -453,18 +461,29 @@ class CommandPanel(QWidget):
             print("[CommandPanel] Error: Failed to initialize PresetOrchestrator")
             return
         
+        # Get the button that was clicked (from current tab)
+        current_tab = self.tabs.currentWidget()
+        button = None
+        if hasattr(current_tab, 'custom_preset_btn'):
+            button = current_tab.custom_preset_btn
+        
         # Initialize toast if needed
         if not hasattr(self, '_input_toast'):
             from client.gui.components.toast_notification import InputToast
             # Parent to drop area so it stays with it
             self._input_toast = InputToast(
-                message="Enter preset name:", 
-                placeholder="My Custom Preset", 
+                message="", 
+                placeholder="Enter custom preset name", 
                 button_text="Create", 
                 parent=drop_area,
-                position="top-right"
+                position="top-right",
+                description="Create custom preset.\nSave current Lab mode settings as:"
             )
             self._input_toast.accepted.connect(self._create_preset_with_name)
+        
+        # Align toast with button if available
+        if button:
+            self._input_toast.set_align_widget(button)
             
         self._input_toast.show_toast()
         
@@ -489,6 +508,9 @@ class CommandPanel(QWidget):
                 
                 if preset_id:
                     print(f"[CommandPanel] Created custom preset: {name} ({preset_id})")
+                    # Show confirmation message
+                    if hasattr(self, '_input_toast'):
+                        self._input_toast.set_confirmation_mode(f"✓ Preset '{name}' created successfully", duration=4000)
             else:
                 print("[CommandPanel] Error: Failed to initialize PresetOrchestrator")
         except Exception as e:
@@ -509,8 +531,14 @@ class CommandPanel(QWidget):
         self._image_tab.update_theme(is_dark)
         self._video_tab.update_theme(is_dark)
         self._loop_tab.update_theme(is_dark)
-        if hasattr(self, 'custom_preset_button'):
-            self.custom_preset_button.update_theme(is_dark)
+        
+        # Update custom preset buttons on all tabs
+        if hasattr(self._image_tab, 'custom_preset_btn'):
+            self._image_tab.custom_preset_btn.update_theme(is_dark)
+        if hasattr(self._video_tab, 'custom_preset_btn'):
+            self._video_tab.custom_preset_btn.update_theme(is_dark)
+        if hasattr(self._loop_tab, 'custom_preset_btn'):
+            self._loop_tab.custom_preset_btn.update_theme(is_dark)
     
     def set_dev_mode(self, is_dev: bool):
         """Enable/disable dev mode features on all tabs (e.g., estimator version selector)."""

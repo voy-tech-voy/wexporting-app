@@ -135,6 +135,25 @@ class ImageTab(BaseTab):
         self.quality_variants_label.setVisible(False)
         self.format_group.add_row(self.quality_variants_label, self.quality_variants)
         
+        # --- Spacer to push button to bottom ---
+        spacer = QWidget()
+        spacer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.format_group.add_row(spacer)
+        
+        # --- Custom Preset Button (bottom of settings group) ---
+        from client.gui.widgets.custom_preset_button import CustomPresetButton
+        button_container = QWidget()
+        button_layout = QHBoxLayout(button_container)
+        button_layout.setContentsMargins(0, 0, 0, 0)
+        button_layout.setSpacing(0)
+        
+        self.custom_preset_btn = CustomPresetButton()
+        self.custom_preset_btn.setVisible(True)  # Always visible
+        button_layout.addWidget(self.custom_preset_btn)
+        button_layout.addStretch()
+        
+        self.format_group.add_row(button_container)
+        
         # ============================================================
         # TRANSFORM FOLDER (Bottom)
         # ============================================================

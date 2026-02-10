@@ -1,5 +1,5 @@
 from PyQt6.QtWidgets import QFrame, QVBoxLayout, QLabel, QApplication, QPushButton
-from PyQt6.QtCore import QPropertyAnimation, QEasingCurve, pyqtSignal, QTimer, pyqtProperty
+from PyQt6.QtCore import QPropertyAnimation, QEasingCurve, pyqtSignal, QTimer, pyqtProperty, Qt
 from PyQt6.QtGui import QPixmap, QPainter, QIcon
 from PyQt6.QtSvg import QSvgRenderer
 from typing import Optional
@@ -74,19 +74,47 @@ class DynamicParameterPanel(QFrame):
         self._layout.addWidget(self._description_label)
         
         # Go to Lab button (hidden by default, shown for Lab Mode reference presets)
-        # Uses a container with two icons stacked diagonally
-        from PyQt6.QtWidgets import QHBoxLayout
+        # Custom button with lab vial icons on both sides
+        from PyQt6.QtWidgets import QHBoxLayout, QWidget
         from PyQt6.QtGui import QPixmap
         from PyQt6.QtCore import QSize
         
-        # Create button with icon container
-        self._go_to_lab_btn = QPushButton("↩ Go to Lab Settings")
+        # Create a container widget for the button
+        self._go_to_lab_btn = QPushButton()
         self._go_to_lab_btn.setObjectName("GoToLabButton")
+        self._go_to_lab_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._go_to_lab_btn.hide()
         
-        # Create icon label that will hold the dual icons
-        self._lab_icon_label = QLabel()
-        self._lab_icon_label.setFixedSize(24, 24)
+        # Create a horizontal layout for the button content
+        btn_layout = QHBoxLayout(self._go_to_lab_btn)
+        btn_layout.setContentsMargins(16, 8, 16, 8)
+        btn_layout.setSpacing(12)
+        
+        # Left vial icon
+        self._left_vial_icon = QLabel()
+        self._left_vial_icon.setFixedSize(28, 28)
+        self._left_vial_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        btn_layout.addWidget(self._left_vial_icon)
+        
+        # Text label
+        self._btn_text_label = QLabel("Go to Lab Settings")
+        self._btn_text_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._btn_text_label.setStyleSheet("""
+            QLabel {
+                background: transparent;
+                border: none;
+                color: white;
+                font-size: 16px;
+                font-weight: 600;
+            }
+        """)
+        btn_layout.addWidget(self._btn_text_label, 1)
+        
+        # Right vial icon
+        self._right_vial_icon = QLabel()
+        self._right_vial_icon.setFixedSize(28, 28)
+        self._right_vial_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        btn_layout.addWidget(self._right_vial_icon)
         
         self._layout.addWidget(self._go_to_lab_btn)
         
@@ -140,68 +168,58 @@ class DynamicParameterPanel(QFrame):
         self._go_to_lab_btn.setStyleSheet(f"""
             QPushButton#GoToLabButton {{
                 background-color: {accent};
-                color: white;
                 border: none;
                 border-radius: 6px;
-                padding: 10px 20px;
-                font-size: 14px;
-                font-weight: 600;
-                margin-top: 4px;
-                margin-bottom: 8px;
-                min-width: 220px;
+                min-width: 240px;
+                min-height: 52px;
             }}
             QPushButton#GoToLabButton:hover {{
                 background-color: {accent_hover};
             }}
             QPushButton#GoToLabButton:pressed {{
                 background-color: {accent};
-                padding-top: 11px;
-                padding-bottom: 9px;
             }}
         """)
+        
+        # Load vial icons
+        self._load_vial_icons()
     
-    def _update_lab_button_icon(self, file_type: str):
-        """Update the Go to Lab button icon based on file type."""
-        from PyQt6.QtCore import QSize, Qt, QRectF
+    def _load_vial_icons(self):
+        """Load lab vial icons for the button."""
+        from PyQt6.QtSvg import QSvgRenderer
+        from PyQt6.QtCore import QByteArray, QRectF
         from client.utils.resource_path import get_resource_path
+        import re
         
-        # Map file type to icon paths
-        type_icons = {
-            'image': 'client/assets/icons/pic_icon.svg',
-            'video': 'client/assets/icons/vid_icon.svg',
-            'gif': 'client/assets/icons/loop_icon3.svg',
-            'loop': 'client/assets/icons/loop_icon3.svg'
-        }
+        # Get the lab vial icon path
+        vial_icon_path = get_resource_path('client/assets/icons/lab_icon.svg')
         
-        # Get the main lab mode icon
-        main_icon_path = get_resource_path(type_icons.get(file_type, 'client/assets/icons/vid_icon.svg'))
-        
-        # Create composite icon with dual display
-        # Main icon (lab mode type) at 20x20, positioned at top-left
-        # Submode icon (lab icon) at 12x12, positioned at bottom-right diagonal
-        composite = QPixmap(28, 28)
-        composite.fill(Qt.GlobalColor.transparent)
-        
-        painter = QPainter(composite)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
-        
-        # Draw main icon (lab mode type) - convert QRect to QRectF
-        renderer = QSvgRenderer(main_icon_path)
-        main_rect = QRectF(0, 0, 20, 20)  # Top-left, 20x20
-        renderer.render(painter, main_rect)
-        
-        # Draw submode icon (lab icon) smaller, at bottom-right diagonal
-        lab_icon_path = get_resource_path('client/assets/icons/lab_icon.svg')
-        sub_renderer = QSvgRenderer(lab_icon_path)
-        sub_rect = QRectF(16, 16, 12, 12)  # Bottom-right diagonal, 12x12
-        sub_renderer.render(painter, sub_rect)
-        
-        painter.end()
-        
-        # Set icon on button
-        self._go_to_lab_btn.setIcon(QIcon(composite))
-        self._go_to_lab_btn.setIconSize(QSize(28, 28))
+        try:
+            with open(vial_icon_path, 'r', encoding='utf-8') as f:
+                vial_svg = f.read()
+            
+            # Apply white color to SVG for visibility on blue background
+            vial_svg = re.sub(r'fill="(?!none)[^"]*"', f'fill="white"', vial_svg)
+            vial_svg = re.sub(r'stroke="(?!none)[^"]*"', f'stroke="white"', vial_svg)
+            
+            # Render to pixmap
+            renderer = QSvgRenderer(QByteArray(vial_svg.encode('utf-8')))
+            pixmap = QPixmap(28, 28)
+            pixmap.fill(Qt.GlobalColor.transparent)
+            
+            painter = QPainter(pixmap)
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+            painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
+            renderer.render(painter)
+            painter.end()
+            
+            # Set the same icon for both left and right
+            self._left_vial_icon.setPixmap(pixmap)
+            self._right_vial_icon.setPixmap(pixmap)
+        except Exception as e:
+            print(f"[DynamicParameterPanel] Error loading vial icons: {e}")
+    
+
     
     def _update_title_style(self):
         """Update title label styling."""
@@ -356,7 +374,14 @@ class DynamicParameterPanel(QFrame):
         desc_height = max(desc_hint.height(), 20)
         height += desc_height
         
-        # Spacing between description and form (if form exists)
+        # Go to Lab button (if visible)
+        if self._go_to_lab_btn.isVisible():
+            height += self.TITLE_SPACING  # Spacing before button
+            btn_hint = self._go_to_lab_btn.sizeHint()
+            btn_height = max(btn_hint.height(), 52)  # min-height is 52px
+            height += btn_height
+        
+        # Spacing between description/button and form (if form exists)
         if self._parameter_form:
             height += 8  # Additional spacing
             

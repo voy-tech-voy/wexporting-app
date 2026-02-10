@@ -241,7 +241,27 @@ class PresetCard(QFrame):
         
         # Get icon paths
         main_icon_path = get_resource_path(type_icons.get(file_type, 'client/assets/icons/vid_icon.svg'))
-        lab_icon_path = get_resource_path('client/assets/icons/lab_icon.svg')
+        
+        # Determine submode icon based on size_mode setting
+        # Check for different size_mode fields depending on file type
+        size_mode = None
+        if file_type in ['gif', 'loop']:
+            size_mode = lab_settings.get('gif_size_mode')
+        elif file_type == 'video':
+            size_mode = lab_settings.get('video_size_mode')
+        elif file_type == 'image':
+            size_mode = lab_settings.get('image_size_mode')
+        
+        # Default to checking generic size_mode if type-specific not found
+        if not size_mode:
+            size_mode = lab_settings.get('size_mode', 'manual')
+        
+        # Map size_mode to icon
+        if size_mode == 'max_size':
+            submode_icon_path = get_resource_path('client/assets/icons/target_icon.svg')
+        else:
+            # Default to manual mode icon (settings)
+            submode_icon_path = get_resource_path('client/assets/icons/settings_v2.svg')
         
         # Create composite pixmap
         composite = QPixmap(self.ICON_SIZE, self.ICON_SIZE)
@@ -267,21 +287,21 @@ class PresetCard(QFrame):
         except Exception as e:
             print(f"[PresetCard] Error loading main icon: {e}")
         
-        # Load and color lab icon (smaller, bottom-right diagonal)
+        # Load and color submode icon (smaller, bottom-right diagonal)
         try:
-            with open(lab_icon_path, 'r', encoding='utf-8') as f:
-                lab_svg = f.read()
+            with open(submode_icon_path, 'r', encoding='utf-8') as f:
+                submode_svg = f.read()
             
             # Apply color to SVG
-            lab_svg = re.sub(r'fill="(?!none)[^"]*"', f'fill="{color.name()}"', lab_svg)
-            lab_svg = re.sub(r'stroke="(?!none)[^"]*"', f'stroke="{color.name()}"', lab_svg)
+            submode_svg = re.sub(r'fill="(?!none)[^"]*"', f'fill="{color.name()}"', submode_svg)
+            submode_svg = re.sub(r'stroke="(?!none)[^"]*"', f'stroke="{color.name()}"', submode_svg)
             
-            # Render lab icon at 25x25 in bottom-right diagonal
-            lab_renderer = QSvgRenderer(QByteArray(lab_svg.encode('utf-8')))
-            lab_rect = QRectF(self.ICON_SIZE - 25, self.ICON_SIZE - 25, 25, 25)
-            lab_renderer.render(painter, lab_rect)
+            # Render submode icon at 25x25 in bottom-right diagonal
+            submode_renderer = QSvgRenderer(QByteArray(submode_svg.encode('utf-8')))
+            submode_rect = QRectF(self.ICON_SIZE - 25, self.ICON_SIZE - 25, 25, 25)
+            submode_renderer.render(painter, submode_rect)
         except Exception as e:
-            print(f"[PresetCard] Error loading lab icon: {e}")
+            print(f"[PresetCard] Error loading submode icon: {e}")
         
         painter.end()
         

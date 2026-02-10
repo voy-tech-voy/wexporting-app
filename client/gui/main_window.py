@@ -207,7 +207,6 @@ class MainWindow(QMainWindow):
         # Connect signals to MainWindow handlers (Mediator routing)
         self.control_bar.preset_mode_clicked.connect(self._on_preset_btn_clicked)
         self.control_bar.lab_mode_clicked.connect(self._on_lab_item_clicked)
-        self.control_bar.custom_preset_clicked.connect(lambda: self.command_panel.create_custom_preset())
         
         # Expose child references for backward compatibility
         self.add_files_btn = self.control_bar.add_files_btn
