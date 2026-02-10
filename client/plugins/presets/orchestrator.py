@@ -44,18 +44,20 @@ class PresetOrchestrator(QObject):
     conversion_completed = pyqtSignal(int, int, int, int)  # successful, failed, skipped, stopped - NEW
     go_to_lab_requested = pyqtSignal(dict)  # lab_mode_settings
     
-    def __init__(self, registry: 'ToolRegistryProtocol', parent_widget: QWidget):
+    def __init__(self, registry: 'ToolRegistryProtocol', parent_widget: QWidget, conversion_conductor=None):
         """
         Initialize the orchestrator.
         
         Args:
             registry: Tool registry for validation and path resolution (injected)
             parent_widget: Widget to parent the gallery overlay to
+            conversion_conductor: ConversionConductor for lab mode preset execution (optional)
         """
         super().__init__(parent_widget)
         
         self._registry = registry
         self._parent_widget = parent_widget
+        self._conversion_conductor = conversion_conductor
         
         # Initialize logic components
         gpu_detector = get_gpu_detector()
@@ -153,7 +155,7 @@ class PresetOrchestrator(QObject):
     def _execute_lab_mode_preset(self, files: List[str], output_mode: str, 
                                   organized_name: str, custom_path: str):
         """
-        Execute a Lab Mode reference preset using Lab Mode conversion engines.
+        Execute a Lab Mode reference preset - delegates to ConversionConductor.
         
         Args:
             files: List of input file paths
@@ -168,76 +170,17 @@ class PresetOrchestrator(QObject):
             print("[PresetOrchestrator] Error: Lab Mode settings not found in preset")
             return
         
-        # Stop any existing conversion
-        if self._conversion_engine and self._conversion_engine.isRunning():
-            print("[PresetOrchestrator] Stopping existing conversion")
-            self._conversion_engine.stop_conversion()
-            self._conversion_engine.wait()
-        
-        # Merge lab settings with output settings
-        params = lab_settings.copy()
-        
-        # Translate output_mode to params that SuffixManager expects
-        if output_mode == "source":
-            params['use_nested_output'] = False
-            params['output_dir'] = ''
-        elif output_mode == "organized":
-            params['use_nested_output'] = True
-            params['nested_output_name'] = organized_name
-            params['output_dir'] = ''
-        elif output_mode == "custom":
-            params['use_nested_output'] = False
-            params['output_dir'] = custom_path or ''
-        
-        params['files'] = files
-        
-        print(f"[PresetOrchestrator] Executing Lab Mode reference preset: {preset.name}")
-        print(f"[PresetOrchestrator] Files: {len(files)}, Output mode: {output_mode}")
-        print(f"[PresetOrchestrator] Lab settings: comparison={params.get('comparison_enabled', False)}")
-        
-        # Determine which engine to use based on size mode
-        size_mode = params.get('video_size_mode') or params.get('image_size_mode') or params.get('gif_size_mode')
-        
-        # Get progress manager from main window
-        main_window = self._parent_widget
-        while main_window.parent() is not None:
-            main_window = main_window.parent()
-        
-        progress_manager = getattr(main_window, 'progress_manager', None)
-        
-        if size_mode == 'max_size':
-            # Use TargetSizeConversionEngine
-            from client.core.target_size import TargetSizeConversionEngine
-            self._conversion_engine = TargetSizeConversionEngine(files, params, progress_manager)
-            print(f"[PresetOrchestrator] Using TargetSizeConversionEngine for Lab Mode preset")
+        # Delegate to ConversionConductor if available
+        if self._conversion_conductor:
+            print(f"[PresetOrchestrator] Delegating Lab Mode preset to ConversionConductor")
+            self._conversion_conductor.start_preset_conversion_with_settings(
+                files, lab_settings, output_mode, organized_name, custom_path
+            )
+            # Emit started signal for UI consistency
+            self.conversion_started.emit()
         else:
-            # Use ManualModeConversionEngine
-            from client.core.manual_mode import ManualModeConversionEngine
-            self._conversion_engine = ManualModeConversionEngine(files, params, progress_manager)
-            print(f"[PresetOrchestrator] Using ManualModeConversionEngine for Lab Mode preset")
-        
-        # Connect engine signals
-        self._conversion_engine.progress_updated.connect(self._on_engine_progress)
-        self._conversion_engine.status_updated.connect(self._on_engine_status)
-        self._conversion_engine.file_completed.connect(self._on_engine_file_completed)
-        
-        # Handle different signal names
-        if hasattr(self._conversion_engine, 'conversion_completed'):
-            self._conversion_engine.conversion_completed.connect(self._on_engine_completed)
-        elif hasattr(self._conversion_engine, 'conversion_finished'):
-            # Convert old signal to new format
-            def on_legacy_finished(success, message):
-                if success:
-                    self._on_engine_completed(len(files), 0, 0, 0)
-                else:
-                    self._on_engine_completed(0, len(files), 0, 0)
-            self._conversion_engine.conversion_finished.connect(on_legacy_finished)
-        
-        # Emit started signal
-        self.conversion_started.emit()
-        
-        # Start engine
-        self._conversion_engine.start()
+            print("[PresetOrchestrator] Warning: No ConversionConductor available, cannot execute Lab Mode preset")
+            print("[PresetOrchestrator] This preset requires Lab Mode execution support")
     
     def stop_conversion(self):
         """

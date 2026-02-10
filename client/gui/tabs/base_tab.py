@@ -117,6 +117,34 @@ class BaseTab(QWidget, metaclass=QABCMeta):
         
         return header
     
+    def _create_preset_button(self, parent_group):
+        """
+        Create and add custom preset button to the given group.
+        
+        This is a common pattern across all tabs, extracted to reduce boilerplate.
+        
+        Args:
+            parent_group: The FormGroup to add the button to
+            
+        Returns:
+            CustomPresetButton: The created button instance
+        """
+        from PyQt6.QtWidgets import QHBoxLayout, QSizePolicy
+        from client.gui.widgets.custom_preset_button import CustomPresetButton
+        
+        button_container = QWidget()
+        button_layout = QHBoxLayout(button_container)
+        button_layout.setContentsMargins(0, 0, 0, 0)
+        button_layout.setSpacing(0)
+        
+        self.custom_preset_btn = CustomPresetButton()
+        self.custom_preset_btn.setVisible(True)  # Always visible
+        button_layout.addWidget(self.custom_preset_btn)
+        button_layout.addStretch()
+        
+        parent_group.add_row(button_container)
+        return self.custom_preset_btn
+    
     def _notify_param_change(self):
         """Called by subclasses when any parameter value changes."""
         self._emit_params_changed()

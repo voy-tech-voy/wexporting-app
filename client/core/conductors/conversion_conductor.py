@@ -236,6 +236,59 @@ class ConversionConductor(QObject):
         # Connect engine signals after engine is created
         connect_engine_signals()
     
+    def start_preset_conversion_with_settings(self, files, lab_settings, output_mode, organized_name, custom_path):
+        """
+        Execute Lab Mode preset conversion using lab settings.
+        
+        This method bridges preset orchestrator to the standard conversion flow.
+        It merges lab settings with output settings and delegates to start_conversion.
+        
+        Args:
+            files: List of input file paths
+            lab_settings: Lab mode settings dict from preset's lab_mode_settings
+            output_mode: "source", "organized", or "custom"
+            organized_name: Folder name for organized mode
+            custom_path: Path for custom mode
+        """
+        if not files:
+            self.dialogs.show_warning("No Files", "Please add files for conversion first.")
+            return
+        
+        if self.conversion_engine and self.conversion_engine.isRunning():
+            self.dialogs.show_warning("Conversion Running", "A conversion is already in progress.")
+            return
+        
+        # Merge lab settings with output settings
+        params = lab_settings.copy()
+        
+        # Translate output_mode to params that SuffixManager expects
+        if output_mode == "source":
+            params['use_nested_output'] = False
+            params['output_dir'] = ''
+        elif output_mode == "organized":
+            params['use_nested_output'] = True
+            params['nested_output_name'] = organized_name
+            params['output_dir'] = ''
+        elif output_mode == "custom":
+            params['use_nested_output'] = False
+            params['output_dir'] = custom_path or ''
+        
+        params['files'] = files
+        
+        print(f"[ConversionConductor] Executing Lab Mode preset conversion")
+        print(f"[ConversionConductor] Files: {len(files)}, Output mode: {output_mode}")
+        
+        # Temporarily override drag_drop_area files for start_conversion
+        original_files = self.drag_drop_area.file_list
+        self.drag_drop_area.file_list = files
+        
+        try:
+            # Delegate to standard conversion flow (handles engine selection, signals, etc.)
+            self.start_conversion(params)
+        finally:
+            # Restore original file list
+            self.drag_drop_area.file_list = original_files
+    
     def stop_conversion(self):
         """Stop the current conversion process."""
         # Stop regular conversion engine

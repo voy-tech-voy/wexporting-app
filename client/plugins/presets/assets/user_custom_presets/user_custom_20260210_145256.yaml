@@ -1,0 +1,67 @@
+meta:
+  id: user_custom_20260210_145256
+  name: e
+  category: custom
+  description: Custom preset created from Lab Mode
+  version: '1.0'
+  output_extension: .mp4
+  execution_mode: lab_mode_reference
+style:
+  accent_color: '#9C27B0'
+  icon: text:custom
+  glow_strength: normal
+constraints:
+  accepted_types:
+  - video
+  - image
+  min_duration: 0.1
+lab_mode_settings:
+  output_dir: ''
+  use_nested_output: false
+  nested_output_name: output
+  suffix: _converted
+  overwrite: true
+  _is_dev_mode: true
+  type: video
+  codec: MP4 (H.264)
+  quality: 30
+  multiple_qualities: false
+  quality_variants:
+  - 15.0
+  - 23.0
+  - 31.0
+  video_max_size_mb: null
+  video_auto_resize: true
+  video_size_mode: max_size
+  multiple_max_sizes: true
+  max_size_variants:
+  - 0.5
+  - 1.0
+  - 2.0
+  rotation_angle: No rotation
+  enable_time_cutting: false
+  time_start: 0.0
+  time_end: 1.0
+  retime_enabled: false
+  retime_speed: 1.0
+  resize_mode: No resize
+  resize_value: 720
+  current_resize: null
+  multiple_resize: false
+  multiple_size_variants: false
+  resize_variants: &id001
+  - '480'
+  - '720'
+  - '1280'
+  video_variants: *id001
+lab_mode_info:
+  output_format: ''
+  codec: MP4 (H.264)
+  quality: 30
+  resize_mode: No resize
+  resize_width: ''
+  resize_height: ''
+  rotation_angle: No rotation
+  audio_enabled: true
+  comparison_enabled: false
+  created_timestamp: '2026-02-10T14:52:56.359767'

@@ -1,0 +1,80 @@
+meta:
+  id: user_custom_20260210_141014
+  name: '1'
+  category: custom
+  description: Custom preset created from Lab Mode
+  version: '1.0'
+  output_extension: .mp4
+  execution_mode: lab_mode_reference
+style:
+  accent_color: '#9C27B0'
+  icon: text:custom
+  glow_strength: normal
+constraints:
+  accepted_types:
+  - video
+  - image
+  min_duration: 0.1
+lab_mode_settings:
+  output_dir: ''
+  use_nested_output: false
+  nested_output_name: output
+  suffix: _converted
+  overwrite: true
+  _is_dev_mode: true
+  type: loop
+  loop_format: GIF
+  rotation_angle: 180°
+  estimator_version: v23
+  enable_time_cutting: true
+  time_start: 0.0
+  time_end: 1.0
+  retime_enabled: true
+  retime_speed: 1.0
+  gif_max_size_mb: null
+  gif_auto_resize: true
+  gif_size_mode: max_size
+  gif_multiple_max_sizes: true
+  gif_max_size_variants: &id001
+  - 1.5
+  - 2.0
+  - 3.0
+  multiple_max_sizes: true
+  max_size_variants: *id001
+  resize_mode: By ratio (percent)
+  resize_value: 50
+  current_resize: 50%
+  multiple_resize: true
+  multiple_size_variants: true
+  resize_variants: &id002
+  - 33%
+  - 66%
+  video_variants: *id002
+  gif_fps: 15
+  gif_colors: 256
+  gif_dither: 3
+  gif_blur: false
+  gif_multiple_variants: false
+  gif_fps_variants:
+  - '10'
+  - '15'
+  - '24'
+  gif_colors_variants:
+  - '32'
+  - '64'
+  - '128'
+  gif_dither_variants:
+  - '0'
+  - '3'
+  - '5'
+lab_mode_info:
+  output_format: ''
+  codec: ''
+  quality: ''
+  resize_mode: By ratio (percent)
+  resize_width: ''
+  resize_height: ''
+  rotation_angle: 180°
+  audio_enabled: true
+  comparison_enabled: false
+  created_timestamp: '2026-02-10T14:10:14.985848'

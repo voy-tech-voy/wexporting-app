@@ -41,6 +41,7 @@ class DragDropArea(QWidget):
     files_added = pyqtSignal(list)  # Signal emitted when files are added
     preset_applied = pyqtSignal(object, list)  # Emits (preset, files) when preset selected
     view_mode_changed = pyqtSignal(str)  # Emits new view mode name
+    go_to_lab_requested = pyqtSignal(dict)  # Emits lab_mode_settings when "Go to Lab" is clicked
     
     # Supported file extensions for graphics conversion
     SUPPORTED_EXTENSIONS = {
@@ -132,19 +133,23 @@ class DragDropArea(QWidget):
         # Initialize with cleared state
         self.file_list_widget.clear()
         
-    def _setup_preset_plugin(self):
+    def _setup_preset_plugin(self, conversion_conductor=None):
         """
         Setup the preset plugin inside the drop area.
         
-        Initializes PresetOrchestrator with the ToolRegistry,
+        Initializes PresetOrchestrator with the ToolRegistry and ConversionConductor,
         connecting logic and UI layers.
+        
+        Args:
+            conversion_conductor: ConversionConductor for lab mode preset execution (optional)
         """
         try:
             from client.core.tool_registry import get_registry
             from client.plugins.presets import PresetOrchestrator
             
             registry = get_registry()
-            self._preset_orchestrator = PresetOrchestrator(registry, self.file_list_widget)
+            # Parent gallery to DragDropArea (self) not file_list_widget for full width
+            self._preset_orchestrator = PresetOrchestrator(registry, self, conversion_conductor)
             self._preset_orchestrator.preset_selected.connect(self._on_preset_selected)
             self._preset_orchestrator.gallery_dismissed.connect(self._on_preset_dismissed)
             self._preset_orchestrator.go_to_lab_requested.connect(self._on_go_to_lab_requested)
@@ -178,14 +183,9 @@ class DragDropArea(QWidget):
         self.view_mode_changed.emit(ViewMode.FILES.value)
     
     def _on_go_to_lab_requested(self, lab_settings: dict):
-        """Forward go to lab request to main window."""
+        """Forward go to lab request via signal."""
         print(f"[DragDropArea] Go to Lab requested with {len(lab_settings)} settings")
-        # Find main window and call restoration method
-        main_window = self.window()
-        if hasattr(main_window, '_on_restore_lab_settings'):
-            main_window._on_restore_lab_settings(lab_settings)
-        else:
-            print("[DragDropArea] Warning: MainWindow does not have _on_restore_lab_settings method")
+        self.go_to_lab_requested.emit(lab_settings)
     
     # =========================================================================
     # SMART CONTAINER API (Mediator-Shell Pattern)

@@ -222,8 +222,12 @@ class SidePanelAnimator:
             # Update the maximum width constraint to match animated value
             animator.right_frame.setMaximumWidth(max(0, right_width))
             
-            # Update splitter proportions
-            left_width = total_width - right_width
+            # Recalculate total width dynamically to handle layout shifts from button animations
+            current_sizes = animator.splitter.sizes()
+            current_total = sum(current_sizes)
+            
+            # Update splitter proportions using current total width
+            left_width = current_total - right_width
             animator.splitter.setSizes([left_width, right_width])
             
             # Staggered side buttons reveal (only during show)
@@ -238,8 +242,15 @@ class SidePanelAnimator:
         
         def on_animation_finished():
             if show:
+                # Ensure final sizes are set correctly before removing constraint
+                current_sizes = animator.splitter.sizes()
+                current_total = sum(current_sizes)
+                final_left = current_total - target_right_width
+                animator.splitter.setSizes([final_left, target_right_width])
+                
                 # Remove the maximum width constraint
                 animator.right_frame.setMaximumWidth(16777215)  # QWIDGETSIZE_MAX
+                
                 # Ensure buttons are visible if animation finished before threshold
                 if not animator._buttons_triggered and animator._on_buttons_show:
                     animator._on_buttons_show()

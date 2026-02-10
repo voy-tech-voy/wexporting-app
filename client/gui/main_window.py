@@ -240,6 +240,10 @@ class MainWindow(QMainWindow):
             dialogs=self.dialogs,
             update_status_callback=self.update_status
         )
+        
+        # Inject ConversionConductor into PresetOrchestrator (for lab mode preset execution)
+        # This must be done after conductor is created
+        self.drag_drop_area._setup_preset_plugin(self.conversion_conductor)
     
     # =========================================================================
     # MODE CONDUCTOR DELEGATION
@@ -379,6 +383,7 @@ class MainWindow(QMainWindow):
         # Connect drag-drop area signals
         self.drag_drop_area.files_added.connect(self.on_files_added)
         self.drag_drop_area.preset_applied.connect(self.on_preset_applied)
+        self.drag_drop_area.go_to_lab_requested.connect(self._on_restore_lab_settings)
         
         # Connect drag-drop area status updates to main window
         self.drag_drop_area.update_status = self.update_status
