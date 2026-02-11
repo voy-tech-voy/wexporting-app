@@ -12,6 +12,7 @@ from PyQt6.QtWidgets import QWidget, QHBoxLayout, QLabel, QPushButton
 from PyQt6.QtGui import QPixmap, QCursor, QPainter, QLinearGradient, QColor, QPainterPath, QBrush, QPen
 
 from client.gui.theme import Theme
+from client.gui.dev_panels.noise_params import NoiseParams
 
 
 class FileListItemWidget(QWidget):
@@ -93,8 +94,12 @@ class FileListItemWidget(QWidget):
         
     def mousePressEvent(self, event):
         """Clear status on click (notify parent)"""
-        # Always emit click to allow parent to clear ALL statuses
-        self.status_clicked.emit()
+        # Only clear status if persistence is NOT enabled
+        print(f"[FileListItem] Click detected. Persistence enabled: {NoiseParams.persistence_enabled}")
+        if not NoiseParams.persistence_enabled:
+            # Always emit click to allow parent to clear ALL statuses
+            self.status_clicked.emit()
+            
         super().mousePressEvent(event)
     
     @staticmethod
@@ -108,18 +113,18 @@ class FileListItemWidget(QWidget):
             import random
             from PyQt6.QtGui import QImage
             
-            # Generate 32x32 blue noise (scaled up to 64x64 for lower frequency/larger grain)
+            # Generate blue noise (scaled up for lower frequency/larger grain)
             import random
             from PyQt6.QtGui import QImage
             
-            size = 32 # Smaller generation size = larger grain when scaled
+            size = NoiseParams.texture_size  # Dynamic size from dev panel
             random.seed(42) 
             
             # Start with random values
             pattern = [[random.random() for _ in range(size)] for _ in range(size)]
             
-            # Void-and-cluster approximation (3 passes)
-            for _ in range(3):
+            # Void-and-cluster approximation (dynamic passes)
+            for _ in range(NoiseParams.void_cluster_passes):
                 new_pattern = [[0.0 for _ in range(size)] for _ in range(size)]
                 for y in range(size):
                     for x in range(size):
@@ -145,8 +150,8 @@ class FileListItemWidget(QWidget):
             for y in range(size):
                 for x in range(size):
                     val = pattern[y][x]
-                    # MUCHO SUBTLER: Max opacity reduced from 40 to 12
-                    alpha = int(val * 12) 
+                    # Dynamic max alpha from dev panel
+                    alpha = int(val * NoiseParams.max_alpha) 
                     img.setPixelColor(x, y, QColor(255, 255, 255, alpha))
             
             # Scale up to 64x64 for "lower frequency" look
@@ -177,20 +182,20 @@ class FileListItemWidget(QWidget):
                 
             base_color = QColor(color_hex)
             
-            # 1. Base Gradient: Color -> Transparent
+            # 1. Base Gradient: Color -> Transparent (dynamic from dev panel)
             gradient = QLinearGradient(0, 0, self.width(), 0)
             
             c1 = QColor(base_color)
-            c1.setAlpha(80) # Stronger start
+            c1.setAlpha(NoiseParams.gradient_start_alpha)
             
             c_mid = QColor(base_color)
-            c_mid.setAlpha(20)
+            c_mid.setAlpha(NoiseParams.gradient_mid_alpha)
             
             c2 = QColor(base_color)
             c2.setAlpha(0)
             
             gradient.setColorAt(0.0, c1)
-            gradient.setColorAt(0.4, c_mid)
+            gradient.setColorAt(NoiseParams.gradient_mid_position, c_mid)
             gradient.setColorAt(1.0, c2)
             
             path = QPainterPath()
@@ -219,11 +224,11 @@ class FileListItemWidget(QWidget):
                 np.setCompositionMode(QPainter.CompositionMode.CompositionMode_DestinationIn)
                 
                 mask_grad = QLinearGradient(0, 0, self.width(), 0)
-                # Mask Alpha: 0 (invisible) -> 255 (visible) -> 0
-                mask_grad.setColorAt(0.0, QColor(0, 0, 0, 0))    # Clean start
-                mask_grad.setColorAt(0.2, QColor(0, 0, 0, 200))  # Noise starts
-                mask_grad.setColorAt(0.6, QColor(0, 0, 0, 255))  # Max noise in fade zone
-                mask_grad.setColorAt(1.0, QColor(0, 0, 0, 0))    # Clean end
+                # Mask Alpha: dynamic from dev panel
+                mask_grad.setColorAt(NoiseParams.mask_start_pos, QColor(0, 0, 0, 0))  # Clean start
+                mask_grad.setColorAt(NoiseParams.mask_ramp_pos, QColor(0, 0, 0, NoiseParams.mask_ramp_alpha))  # Noise starts
+                mask_grad.setColorAt(NoiseParams.mask_peak_pos, QColor(0, 0, 0, NoiseParams.mask_peak_alpha))  # Max noise
+                mask_grad.setColorAt(NoiseParams.mask_end_pos, QColor(0, 0, 0, 0))  # Clean end
                 
                 np.fillRect(self.rect(), mask_grad)
                 np.end()

@@ -119,6 +119,11 @@ IMAGE_QUALITY_CONFIG = {
         'quality_min': 0,   # WebP quality (0=worst, 100=best)
         'quality_max': 100,
         'default_quality': 85
+    },
+    'avif': {
+        'crf_min': 0,       # AVIF CRF (0=lossless, 63=worst)
+        'crf_max': 63,
+        'default_quality': 85
     }
 }
 

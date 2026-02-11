@@ -153,11 +153,23 @@ class SidePanelAnimator:
         total_width = sum(current_sizes)
         target_right_width = int(total_width * self.PANEL_TARGET_RATIO)
         
+        # CRITICAL FIX: Respect CommandPanel's minimum size hint to prevent layout jump
+        # When window is shrunk, the ratio-based width might be smaller than the panel's
+        # natural minimum size. This causes a visible jump when max width constraint is removed.
+        min_hint = self.command_panel.minimumSizeHint()
+        min_width = min_hint.width()
+        if target_right_width < min_width:
+            print(f"[SidePanelAnimator] Target {target_right_width} < MinHint {min_width}, using MinHint")
+            target_right_width = min_width
+        
         # Track whether we've triggered side buttons
         self._buttons_triggered = False
         
         if show:
             # SHOWING: Panel slides in from right edge (0 → target width)
+            # DEBUG: Log animation start
+            print(f"[SidePanelAnimator] START SHOW. Total: {total_width}, Target Right: {target_right_width}")
+            
             self.right_frame.setMaximumWidth(0)
             self.right_frame.setVisible(True)
             self.splitter.setSizes([total_width, 0])
@@ -172,6 +184,7 @@ class SidePanelAnimator:
                                   easing_name, total_width, target_right_width)
         else:
             # HIDING: Sequential animation - buttons first, then panel
+            print(f"[SidePanelAnimator] START HIDE. Current Right: {current_sizes[1]}")
             if self._on_buttons_hide:
                 self._on_buttons_hide()
             
@@ -235,6 +248,7 @@ class SidePanelAnimator:
                 progress = right_width / target_right_width if target_right_width > 0 else 0
                 if progress >= animator.BUTTONS_REVEAL_THRESHOLD:
                     animator._buttons_triggered = True
+                    print(f"[SidePanelAnimator] Triggering buttons at width {right_width} (Target: {target_right_width})")
                     if animator._on_buttons_show:
                         animator._on_buttons_show()
         
@@ -246,13 +260,23 @@ class SidePanelAnimator:
                 current_sizes = animator.splitter.sizes()
                 current_total = sum(current_sizes)
                 final_left = current_total - target_right_width
+                
+                print(f"[SidePanelAnimator] FINISHED SHOW. Setting final split: [{final_left}, {target_right_width}]")
                 animator.splitter.setSizes([final_left, target_right_width])
+                
+                # DEBUG: Check actual width before removing constraint
+                print(f"[SidePanelAnimator] Right Frame Width BEFORE constraint update: {animator.right_frame.width()}")
                 
                 # Remove the maximum width constraint
                 animator.right_frame.setMaximumWidth(16777215)  # QWIDGETSIZE_MAX
                 
+                # DEBUG: Check actual width after removing constraint
+                QTimer.singleShot(0, lambda: print(f"[SidePanelAnimator] Right Frame Width AFTER constraint update: {animator.right_frame.width()}"))
+
+                
                 # Ensure buttons are visible if animation finished before threshold
                 if not animator._buttons_triggered and animator._on_buttons_show:
+                    print("[SidePanelAnimator] Force triggering buttons (animation finished early)")
                     animator._on_buttons_show()
             else:
                 # Hide the panel completely

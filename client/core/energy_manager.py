@@ -13,6 +13,7 @@ import json
 import uuid
 import base64
 import time
+import sys
 from datetime import datetime, date, timedelta
 from pathlib import Path
 
@@ -49,15 +50,17 @@ class EnergyManager(QObject):
     # Job-Based Sync Thresholds
     SYNC_THRESHOLD_COST = 5  # Sync with server if job cost > 5
     
-    # Cost Constants
-    COST_IMAGE = 1
-    COST_VIDEO = 5
-    COST_LOOP = 3
+    # Configuration Paths
+    CONFIG_DIR = "client/config"
+    LAB_CREDITS_FILE = "credits_lab.json"
+    PRESETS_CREDITS_FILE = "credits_presets.json"
     
-    MULTIPLIER_TARGET_SIZE = 2.0
-    MULTIPLIER_HEAVY_CODEC = 1.5
-    
-    HEAVY_CODECS = {'av1', 'hevc', 'h265', 'vp9'}
+    # Default Fallback Costs (if config missing)
+    DEFAULT_COSTS = {
+        'image': 1,
+        'video': 5,
+        'loop': 3
+    }
     
     @classmethod
     def instance(cls):
@@ -81,6 +84,11 @@ class EnergyManager(QObject):
         self.store_user_id = None  # Store-specific user ID (from IStoreAuthProvider)
         self.jwt_token = None  # JWT token from server
         
+        # Load credit configurations
+        self._lab_credits = {}
+        self._preset_credits = {}
+        self._load_credit_configs()
+        
         # Initialize API client (will be configured with credentials later)
         from client.config.config import API_BASE_URL
         self.api_client = EnergyAPIClient(API_BASE_URL)
@@ -99,6 +107,38 @@ class EnergyManager(QObject):
         self.load()
         self.check_refresh()
         
+    def _load_credit_configs(self):
+        """Load credit pricing rules from JSON files."""
+        try:
+            # Determine config directory
+            if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+                # Production: Load from bundled assets
+                config_dir = Path(sys._MEIPASS) / "client" / "config"
+            else:
+                # Development: Load from source
+                config_dir = Path(self.CONFIG_DIR)
+                
+            # Load Lab Credits
+            lab_path = config_dir / self.LAB_CREDITS_FILE
+            if lab_path.exists():
+                with open(lab_path, 'r') as f:
+                    self._lab_credits = json.load(f)
+                print(f"[EnergyManager] Loaded Lab credits from {lab_path}")
+            else:
+                print(f"[EnergyManager] Warning: Lab credits file not found at {lab_path}")
+                
+            # Load Preset Credits
+            preset_path = config_dir / self.PRESETS_CREDITS_FILE
+            if preset_path.exists():
+                with open(preset_path, 'r') as f:
+                    self._preset_credits = json.load(f)
+                print(f"[EnergyManager] Loaded Preset credits from {preset_path}")
+            else:
+                print(f"[EnergyManager] Warning: Preset credits file not found at {preset_path}")
+                
+        except Exception as e:
+            print(f"[EnergyManager] Error loading credit configs: {e}")
+
     def _get_storage_path(self):
         """Get path to storage file in user app data"""
         # Ensure directory exists
@@ -242,8 +282,9 @@ class EnergyManager(QObject):
         
         # Large job: reserve with server using JWT
         if not self.jwt_token:
-            print("[EnergyManager] Cannot reserve: No JWT token")
-            return False
+            print("[EnergyManager] No JWT token - falling back to local balance check for large job")
+            # Fall back to local check (no server validation)
+            return self.consume(cost)
         
         # Configure API client with JWT
         self.api_client.set_jwt_token(self.jwt_token)
@@ -258,42 +299,170 @@ class EnergyManager(QObject):
 
     def calculate_cost(self, conversion_type, params=None):
         """
-        Calculate energy cost based on conversion parameters.
+        Calculate energy cost based on conversion parameters and mode (Lab vs Preset).
         
         Args:
-            conversion_type (str): 'image', 'video', 'gif'
-            params (dict): Conversion parameters from CommandPanel
+            conversion_type (str): 'image', 'video', 'gif', 'loop'
+            params (dict): Conversion parameters from CommandPanel/Preset
         """
+        if not params:
+            params = {}
+            
+        # Check if using a preset (Mode-based determination)
+        is_preset = params.get('preset_id') is not None
+        
+        if is_preset:
+            return self._calculate_preset_cost(conversion_type, params)
+        else:
+            return self._calculate_lab_cost(conversion_type, params)
+
+    def _calculate_preset_cost(self, conversion_type, params):
+        """Calculate cost for Preset Mode."""
+        preset_id = params.get('preset_id')
+        
+        # 1. YAML Override (Highest Priority)
+        # Passed via params from ConversionConductor -> PresetDefinition.credit_cost
+        if params.get('credit_cost') is not None:
+            return int(params['credit_cost'])
+            
+        # 2. Specific Preset Override (Config JSON)
+        specific_presets = self._preset_credits.get('specific_presets', {})
+        if preset_id in specific_presets:
+            return specific_presets[preset_id]
+            
+        # 3. Category Fallback
+        category = params.get('preset_category')
+        if category:
+            categories_config = self._preset_credits.get('categories', {})
+            # Try exact match, then lowercase
+            cat_cost = categories_config.get(category) or categories_config.get(category.lower())
+            if cat_cost is not None:
+                return cat_cost
+            
+        # 4. Type Fallback (Lowest Priority)
+        base_costs = self._preset_credits.get('base_costs', {})
+        cost = base_costs.get(f"{conversion_type}_preset", 0)
+        
+        # Fallback if 0 or missing
+        if cost == 0:
+            cost = self.DEFAULT_COSTS.get(conversion_type, 1)
+            
+        # Apply complexity multiplier (if preset params define complexity)
+        complexity = params.get('complexity', 'low')
+        multipliers = self._preset_credits.get('complexity_multipliers', {})
+        multiplier = multipliers.get(complexity, 1.0)
+        
+        return int(cost * multiplier) or 1
+
+    def _calculate_lab_cost(self, conversion_type, params):
+        """Calculate cost for Lab Mode (granular operations)."""
+        mode_config = self._lab_credits.get('modes', {}).get(conversion_type, {})
+        
+        # Determine base cost from format/codec
         cost = 0
         if conversion_type == 'image':
-            cost = self.COST_IMAGE
+            # Image: lookup by format
+            format_name = params.get('format', 'PNG').lower()
+            formats = mode_config.get('formats', {})
+            cost = formats.get(format_name, mode_config.get('default_format_cost', 1))
         elif conversion_type == 'video':
-            cost = self.COST_VIDEO
-        elif conversion_type == 'gif' or conversion_type == 'loop':
-            cost = self.COST_LOOP
+            # Video: lookup by codec
+            codec_raw = params.get('codec', params.get('video_codec', 'MP4 (H.264)'))
+            codec = codec_raw.lower()
+            codecs = mode_config.get('codecs', {})
+            # Match codec key (h264, hevc, av1, vp9)
+            codec_cost = None
+            for key in codecs.keys():
+                if key in codec:
+                    codec_cost = codecs[key]
+                    break
+            cost = codec_cost if codec_cost is not None else mode_config.get('default_codec_cost', 3)
+        elif conversion_type == 'loop':
+            # Loop: lookup by format (GIF or WebM with codec)
+            format_name = params.get('format', 'GIF').lower()
+            formats = mode_config.get('formats', {})
             
-        # Target Size Multiplier
-        # Check params for size mode
-        if params:
-            is_target_size = False
-            if conversion_type == 'video' and params.get('video_size_mode') == 'max_size':
-                is_target_size = True
-            elif conversion_type == 'image' and params.get('image_size_mode') == 'max_size':
-                is_target_size = True
-            elif conversion_type == 'gif' and params.get('gif_size_mode') == 'max_size':
-                is_target_size = True
-                
-            if is_target_size:
-                cost = int(cost * self.MULTIPLIER_TARGET_SIZE)
-                
-            # Heavy Codec Multiplier (Video only)
-            if conversion_type == 'video':
-                codec = params.get('video_codec', '').lower()
-                # Check for AV1/HEVC
-                if any(c in codec for c in self.HEAVY_CODECS):
-                    cost = int(cost * self.MULTIPLIER_HEAVY_CODEC)
+            # Check if WebM with specific codec
+            if 'webm' in format_name:
+                codec_raw = params.get('codec', params.get('webm_codec', ''))
+                codec = codec_raw.lower()
+                if 'av1' in codec:
+                    cost = formats.get('webm_av1', formats.get('webm', mode_config.get('default_format_cost', 5)))
+                elif 'vp9' in codec:
+                    cost = formats.get('webm_vp9', formats.get('webm', mode_config.get('default_format_cost', 5)))
+                else:
+                    cost = formats.get('webm', mode_config.get('default_format_cost', 5))
+            else:
+                cost = formats.get(format_name, mode_config.get('default_format_cost', 5))
+        else:
+            # Fallback
+            cost = self.DEFAULT_COSTS.get(conversion_type, 1)
         
-        return max(1, cost) # Minimum 1
+        # Check if Target Size mode is active
+        size_mode = params.get('image_size_mode') or params.get('video_size_mode') or params.get('gif_size_mode')
+        if size_mode == 'max_size':
+            # Add Target Size mode premium
+            target_size_cost = mode_config.get('target_size_cost', 0)
+            cost += target_size_cost
+        
+        operations = mode_config.get('operations', {})
+        
+        # --- Resize Cost ---
+        if 'resize' in operations:
+            resize_op = operations['resize']
+            
+            # Check for generic resize mode param
+            # Note: Parameter keys differ by tab (image_size_mode, video_size_mode, etc.)
+            # But CommandPanel often normalizes or we check specific keys
+            
+            # Helper to check if resize is actually active
+            is_resize_active = False
+            resize_mode = params.get('resize_mode', 'No resize')
+            
+            if resize_mode != 'No resize':
+                # Map UI string to config key
+                # UI sends: "By width (pixels)", "By longer edge (pixels)", "By ratio (percent)"
+                mode_cost = 0
+                resize_modes_cost = resize_op.get('modes', {})
+                
+                resize_lower = resize_mode.lower()
+                if 'width' in resize_lower:
+                    mode_cost = resize_modes_cost.get('width', 0)
+                    is_resize_active = True
+                elif 'longer edge' in resize_lower:
+                    mode_cost = resize_modes_cost.get('longer_edge', 0)
+                    is_resize_active = True
+                elif 'ratio' in resize_lower or 'percent' in resize_lower:
+                    mode_cost = resize_modes_cost.get('percentage', 0)
+                    is_resize_active = True
+                elif 'height' in resize_lower:
+                    mode_cost = resize_modes_cost.get('width', 0)  # Treat as width/dimension
+                    is_resize_active = True
+                
+                if is_resize_active:
+                    cost += resize_op.get('base', 0)
+                    cost += mode_cost
+
+        # --- Rotate Cost ---
+        if 'rotate' in operations:
+            rotate_angle = params.get('rotation_angle')
+            # Check if rotation is actually active (not None, not 0, not "No rotation")
+            if rotate_angle and rotate_angle != "No rotation":
+                try:
+                    angle_val = float(rotate_angle)
+                    if abs(angle_val) > 0.01: # Account for float precision
+                        cost += operations['rotate'].get('base', 0)
+                except (ValueError, TypeError):
+                    # If it's a string like "90 degrees" or non-numeric but not "No rotation"
+                    cost += operations['rotate'].get('base', 0)
+
+        # --- Retime/Time Cost ---
+        if 'retime' in operations:
+            # Check for time operations
+            if params.get('enable_time_cutting') or params.get('retime_enabled'):
+                 cost += operations['retime'].get('base', 0)
+
+        return max(1, cost)
 
     def get_time_until_refresh(self):
         """Return string "HH:MM" until midnight"""

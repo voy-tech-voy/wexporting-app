@@ -25,6 +25,9 @@ class TargetSizeConversionEngine(QThread):
     file_progress_updated = pyqtSignal(int, float)
     status_updated = pyqtSignal(str)
     file_completed = pyqtSignal(str, str)
+    file_skipped = pyqtSignal(str)
+    file_failed = pyqtSignal(str)
+    file_stopped = pyqtSignal(str)
     conversion_completed = pyqtSignal(int, int, int, int)  # successful, failed, skipped, stopped
     
     def __init__(self, files: list, params: Dict, progress_manager: ConversionProgressManager = None):
@@ -81,6 +84,7 @@ class TargetSizeConversionEngine(QThread):
             if not self._is_compatible_file(file_path, conversion_mode):
                 self.status_updated.emit(f"⚠ Skipped {Path(file_path).name} (incompatible file type for {conversion_mode} conversion)")
                 self.skipped_files += 1
+                self.file_skipped.emit(file_path)
                 continue
             
             # Determine file type and convert based on CONVERSION MODE (not file type!)
@@ -95,12 +99,15 @@ class TargetSizeConversionEngine(QThread):
                 
                 if success:
                     self.successful_conversions += 1
+                    # file_completed is emitted by the format-specific _convert_* methods
                 else:
                     self.failed_conversions += 1
+                    self.file_failed.emit(file_path)
                     
             except Exception as e:
                 self.status_updated.emit(f"Error: {str(e)}")
                 self.failed_conversions += 1
+                self.file_failed.emit(file_path)
         
         # Emit completion
         stopped_count = total_files - (self.successful_conversions + self.failed_conversions + self.skipped_files)
@@ -443,6 +450,7 @@ class TargetSizeConversionEngine(QThread):
                         progress_callback=self._emit_file_progress,
                         rotation=rotation,
                         allow_downscale=auto_resize,
+                        heavy_compression=self.params.get('heavy_compression', False),
                         override_width=override_dims[0] if override_dims else None,
                         override_height=override_dims[1] if override_dims else None
                     )

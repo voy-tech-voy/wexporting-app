@@ -1,0 +1,13 @@
+{
+    "texture_size": 86,
+    "max_alpha": 7,
+    "void_cluster_passes": 2,
+    "gradient_start_alpha": 255,
+    "gradient_mid_alpha": 172,
+    "gradient_mid_position": 0.16,
+    "mask_ramp_pos": 0.89,
+    "mask_ramp_alpha": 255,
+    "mask_peak_pos": 0.55,
+    "mask_peak_alpha": 255,
+    "persistence_enabled": false
+}

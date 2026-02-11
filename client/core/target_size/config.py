@@ -9,6 +9,7 @@ PRODUCTION_DEFAULTS = {
         'jpg': 'v5',
         'webp': 'v6', 
         'png': 'v5',
+        'avif': 'v2',
     },
     'video': {
         'mp4_h264': 'v4',

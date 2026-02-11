@@ -66,6 +66,7 @@ def _normalize_image_format(fmt: str) -> str:
     if 'jpg' in fmt_lower or 'jpeg' in fmt_lower: return 'jpg'
     if 'webp' in fmt_lower: return 'webp'
     if 'png' in fmt_lower: return 'png'
+    if 'avif' in fmt_lower: return 'avif'
     return 'jpg'  # default
 
 def _normalize_video_codec(codec: str) -> str:

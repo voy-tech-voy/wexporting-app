@@ -106,8 +106,12 @@ class MainWindow(QMainWindow):
         # Mediator-Shell: Window behavior (resize, blur)
         self.window_behavior = FramelessWindowBehavior(self, border_width=8)
         
-        # Dev panel reference (lazy initialization)
-        self._dev_theme_panel = None
+        # Dev Panel Manager (centralized)
+        from client.gui.dev_panels import DevPanelManager, NoiseDevPanel
+        from client.gui.dev_theme_panel import DevThemePanel
+        self.dev_panel_manager = DevPanelManager(self)
+        self.dev_panel_manager.register_panel('noise', NoiseDevPanel)
+        self.dev_panel_manager.register_panel('theme', DevThemePanel)
         
         # Conductors (initialized after UI setup)
         self.mode_conductor = None
@@ -134,8 +138,9 @@ class MainWindow(QMainWindow):
     def eventFilter(self, source, event):
         """Global event filter to handle click-anywhere behavior"""
         if event.type() == QEvent.Type.MouseButtonPress:
-            # Clear file statuses on any click anywhere in the app
-            if hasattr(self, 'drag_drop_area'):
+            # Clear file statuses on any click anywhere in the app (unless persistence is enabled)
+            from client.gui.dev_panels.noise_params import NoiseParams
+            if hasattr(self, 'drag_drop_area') and not NoiseParams.persistence_enabled:
                 self.drag_drop_area.clear_all_statuses()
         
         return super().eventFilter(source, event)
@@ -793,16 +798,18 @@ class MainWindow(QMainWindow):
         """Handle global keyboard shortcuts"""
         from PyQt6.QtCore import Qt
         
-        # F12 - Open Dev Theme Panel
-        if event.key() == Qt.Key.Key_F12:
-            self._toggle_dev_theme_panel()
-            event.accept()
+        # Delegate to DevPanelManager
+        if hasattr(self, 'dev_panel_manager') and self.dev_panel_manager.handle_key_event(event):
             return
+        
         
         super().keyPressEvent(event)
     
     def _toggle_dev_theme_panel(self):
-        """Toggle the developer theme panel (F12)"""
+        """Toggle the developer theme panel (F12) - Legacy until refactored"""
+        if not hasattr(self, '_dev_theme_panel'):
+            self._dev_theme_panel = None
+            
         if self._dev_theme_panel is None or not self._dev_theme_panel.isVisible():
             # Create or show the panel
             from client.gui.dev_theme_panel import DevThemePanel
@@ -811,3 +818,13 @@ class MainWindow(QMainWindow):
         else:
             # Hide the panel
             self._dev_theme_panel.close()
+    
+    def _refresh_file_list_items(self):
+        """Force repaint of all file list items to reflect new noise parameters."""
+        if hasattr(self, 'drag_drop_area'):
+            # Trigger update on all file list item widgets
+            for i in range(self.drag_drop_area.file_list_widget.count()):
+                item = self.drag_drop_area.file_list_widget.item(i)
+                widget = self.drag_drop_area.file_list_widget.itemWidget(item)
+                if widget and hasattr(widget, 'update'):
+                    widget.update()  # Force repaint

@@ -29,6 +29,9 @@ class ManualModeConversionEngine(QThread):
     file_progress_updated = pyqtSignal(int, float)        # (file_index, 0.0-1.0) - BLUE bar: single file encoding progress
     status_updated = pyqtSignal(str)                      # Status messages
     file_completed = pyqtSignal(str, str)                 # (source_path, output_path)
+    file_skipped = pyqtSignal(str)                        # (source_path)
+    file_failed = pyqtSignal(str)                         # (source_path)
+    file_stopped = pyqtSignal(str)                        # (source_path)
     conversion_completed = pyqtSignal(int, int, int, int) # (successful, failed, skipped, stopped)
     
     # Current file index for progress callbacks
@@ -85,9 +88,9 @@ class ManualModeConversionEngine(QThread):
         try:
             for i, file_path in enumerate(self.files):
                 if self.should_stop:
-                    stopped = total_files - i
-                    print(f"[ManualModeEngine] Stopped by user, {stopped} files remaining")
-                    break
+                    stopped += 1
+                    self.file_stopped.emit(file_path)
+                    continue
                 
                 # Set current file index for progress callbacks (blue bar)
                 self._current_file_index = i
@@ -102,6 +105,7 @@ class ManualModeConversionEngine(QThread):
                 if converter is None:
                     skipped += 1
                     self._emit_status(f"Skipped: {Path(file_path).name}")
+                    self.file_skipped.emit(file_path)
                     self.file_progress_updated.emit(i, 1.0)
                     continue
                 
@@ -114,6 +118,13 @@ class ManualModeConversionEngine(QThread):
                 if result['failed'] > 0:
                     failed += result['failed']
                     completed_outputs += result['failed']
+                    # Use file_failed only if NO success occurred for this file
+                    if result['successful'] == 0:
+                        self.file_failed.emit(file_path)
+                
+                # Check if file was stopped without any result
+                if result['successful'] == 0 and result['failed'] == 0 and self.should_stop:
+                    self.file_stopped.emit(file_path)
                 
                 # Update overall progress (green bar) based on total outputs
                 if total_outputs > 0:

@@ -116,6 +116,9 @@ class PresetDefinition:
     # Social media grouping - ratio for 2-step selection (e.g., "9x16", "1x1")
     ratio: Optional[str] = None
     
+    # Pricing (Tier 1)
+    credit_cost: Optional[int] = None  # Override cost in credits
+    
     # Raw YAML for debugging/extension
     raw_yaml: Dict[str, Any] = field(default_factory=dict)
     

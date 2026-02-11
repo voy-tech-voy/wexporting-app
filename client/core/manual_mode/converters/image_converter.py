@@ -16,11 +16,11 @@ class ImageConverter(BaseConverter):
     """
     Handles image conversion in manual mode
     
-    Supports: JPG, PNG, WebP, TIFF, BMP
+    Supports: JPG, PNG, WebP, AVIF, TIFF, BMP
     Applies: Quality, Resize, Rotation, Aspect Ratio presets
     """
     
-    SUPPORTED_FORMATS = {'.jpg', '.jpeg', '.png', '.webp', '.tiff', '.bmp'}
+    SUPPORTED_FORMATS = {'.jpg', '.jpeg', '.png', '.webp', '.avif', '.tiff', '.bmp'}
     
     def get_supported_extensions(self) -> set:
         return self.SUPPORTED_FORMATS
@@ -39,6 +39,9 @@ class ImageConverter(BaseConverter):
         try:
             # Ensure output directory exists
             os.makedirs(os.path.dirname(output_path), exist_ok=True)
+            
+            # Emit progress start (blue bar)
+            self.emit_progress(0.0)
             
             # Build FFmpeg pipeline
             stream = self._build_filter_chain(file_path)
@@ -64,6 +67,8 @@ class ImageConverter(BaseConverter):
                 quiet=True
             )
             
+            # Emit progress complete (blue bar)
+            self.emit_progress(1.0)
             self.emit_status(f"[OK] {Path(output_path).name}")
             return True
             
@@ -219,5 +224,17 @@ class ImageConverter(BaseConverter):
         elif format_type == 'webp':
             # WebP quality 0-100 (direct mapping)
             args['quality'] = quality
+        
+        elif format_type == 'avif':
+            # AVIF uses CRF 0-63 (lower=better quality)
+            # UI quality 0-100 (higher=better) → CRF 63-0 (inverted)
+            crf = int(63 - (quality / 100.0) * 63)
+            args['c:v'] = 'libsvtav1'
+            args['crf'] = max(0, min(63, crf))
+            
+            # Heavy compression toggle
+            heavy_compression = self.params.get('heavy_compression', False)
+            args['preset'] = 4 if heavy_compression else 6
+            args['still-picture'] = 1  # Critical for single-frame optimization
         
         return args

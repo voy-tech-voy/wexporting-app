@@ -31,6 +31,7 @@ DEFAULT_MAX_SIZE_VARIANTS = {
     'WebP': '0.1, 0.2, 0.3',
     'JPEG': '0.1, 0.2, 0.3',
     'PNG': '0.1, 0.2, 0.3',
+    'AVIF': '0.1, 0.2, 0.3',
 }
 
 
@@ -82,8 +83,9 @@ class ImageTab(BaseTab):
         
         layout.addWidget(settings_row)
         
-        # Format Selection
-        self.format = FormatButtonRow(["WebP", "JPG", "PNG"])
+        # Format Selection (AVIF first for prominence, WebP default)
+        self.format = FormatButtonRow(["AVIF", "WebP", "JPG", "PNG"])
+        self.format.setCurrentText("WebP")  # Default to WebP
         self.format_group.get_content_layout().insertRow(0, self.format)
         
         # Connect format change to refresh estimator versions
@@ -107,6 +109,13 @@ class ImageTab(BaseTab):
         self.version_selector = EstimatorVersionSelector('image', self)
         self.version_selector.set_format(self.format.currentText())
         self.format_group.add_row(self.version_selector)
+        
+        # --- Heavy compression toggle (AVIF only) ---
+        self.heavy_compression = ThemedCheckBox("Heavy compression")
+        self.heavy_compression.setToolTip("Use slower preset for better compression (~2x encoding time)")
+        self.heavy_compression.setVisible(False)  # Only show for AVIF
+        self.heavy_compression.toggled.connect(lambda _: self._notify_param_change())
+        self.format_group.add_row(self.heavy_compression)
         
         # --- Multiple qualities ---
         self.multiple_qualities = ThemedCheckBox("Multiple variants")
@@ -209,6 +218,7 @@ class ImageTab(BaseTab):
             'max_size_variants': target_params['size_variants'],
             'rotation_angle': self.rotation_angle.currentText(),
             'estimator_version': self.version_selector.get_selected_version(),
+            'heavy_compression': self.heavy_compression.isChecked(),
         }
         # Merge resize params
         params.update(resize_params)
@@ -402,6 +412,10 @@ class ImageTab(BaseTab):
         # Update target size variant defaults based on format
         if hasattr(self, 'target_size_section'):
             self.target_size_section.update_variant_defaults(new_format)
+        
+        # Show/hide heavy compression toggle (AVIF only)
+        if hasattr(self, 'heavy_compression'):
+            self.heavy_compression.setVisible(new_format == 'AVIF')
     
 
     

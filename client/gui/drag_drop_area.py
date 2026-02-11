@@ -19,6 +19,14 @@ from client.utils.resource_path import get_resource_path
 from client.gui.theme import Theme
 from client.gui.custom_widgets import PresetStatusButton, HoverIconButton, FileListItemWidget
 
+# Import refactored helper modules
+from client.core import file_type_utils
+from client.gui.styles import drag_drop_styler
+from client.gui.widgets.placeholder_widget import DropPlaceholderWidget
+from client.gui.dialogs import drop_dialogs
+from client.gui.components import toast_helpers
+from client.gui.components import file_context_menu
+
 from enum import Enum
 
 
@@ -43,12 +51,7 @@ class DragDropArea(QWidget):
     view_mode_changed = pyqtSignal(str)  # Emits new view mode name
     go_to_lab_requested = pyqtSignal(dict)  # Emits lab_mode_settings when "Go to Lab" is clicked
     
-    # Supported file extensions for graphics conversion
-    SUPPORTED_EXTENSIONS = {
-        'images': ['.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.tif', '.webp', '.gif', '.svg'],
-        'videos': ['.mp4', '.avi', '.mov', '.mkv', '.flv', '.webm', '.m4v'],
-        'audio': ['.mp3', '.wav', '.flac', '.aac', '.ogg', '.m4a']
-    }
+    # Note: SUPPORTED_EXTENSIONS moved to client.core.file_type_utils
     
     def __init__(self):
         super().__init__()
@@ -67,10 +70,12 @@ class DragDropArea(QWidget):
     
     def eventFilter(self, source, event):
         """Handle events for child widgets"""
-        # Clear statuses when clicking empty space in list
+        # Clear statuses when clicking empty space in list (unless persistence is enabled)
         if (source == self.file_list_widget.viewport() and 
             event.type() == QEvent.Type.MouseButtonPress):
-            self.clear_all_statuses()
+            from client.gui.dev_panels.noise_params import NoiseParams
+            if not NoiseParams.persistence_enabled:
+                self.clear_all_statuses()
             
         return super().eventFilter(source, event)
 
@@ -319,7 +324,7 @@ class DragDropArea(QWidget):
             # Collect all files including from folders
             all_files = files.copy()
             for folder in folders:
-                folder_files = self.get_supported_files_from_folder(folder, True)
+                folder_files = file_type_utils.get_supported_files_from_folder(folder, True)
                 all_files.extend(folder_files)
             
             # Add files directly to the list
@@ -330,88 +335,19 @@ class DragDropArea(QWidget):
         else:
             event.ignore()
     
-    def _apply_dialog_styling(self, dialog):
-        """Apply consistent rounded corner styling to dialogs"""
-        is_dark = self.theme_manager and self.theme_manager.current_theme == 'dark'
-        Theme.set_dark_mode(is_dark)
-        
-        base_styles = self.theme_manager.get_dialog_styles() if self.theme_manager else ""
-        
-        rounded_style = f"""
-            QDialog {{
-                background-color: {Theme.surface_element()};
-                border-radius: {Theme.RADIUS_LG}px;
-            }}
-        """
-        
-        dialog.setStyleSheet(base_styles + rounded_style)
-        
     def handle_dropped_folders(self, folders):
         """Handle dropped folder(s) with user options"""
-        from PyQt6.QtWidgets import QCheckBox, QVBoxLayout, QDialog, QDialogButtonBox, QLabel
+        files = drop_dialogs.show_folder_drop_dialog(
+            self, folders, self.theme_manager,
+            file_type_utils.count_supported_files,
+            file_type_utils.get_supported_files_from_folder
+        )
         
-        if len(folders) == 1:
-            folder_name = os.path.basename(folders[0])
-            title = f"Process Folder: {folder_name}"
-        else:
-            title = f"Process {len(folders)} Folders"
-            
-        # Create options dialog
-        dialog = QDialog(self)
-        dialog.setWindowTitle("Folder Drop Options")
-        dialog.setFixedSize(400, 250)
-        
-        # Apply consistent rounded corner styling
-        self._apply_dialog_styling(dialog)
-        
-        layout = QVBoxLayout(dialog)
-        
-        if len(folders) == 1:
-            layout.addWidget(QLabel(f"Dropped folder: {folder_name}"))
-        else:
-            layout.addWidget(QLabel(f"Dropped {len(folders)} folder(s):"))
-            for folder in folders[:3]:  # Show first 3
-                layout.addWidget(QLabel(f"• {os.path.basename(folder)}"))
-            if len(folders) > 3:
-                layout.addWidget(QLabel(f"• ... and {len(folders) - 3} more"))
-                
-        layout.addWidget(QLabel("\nChoose processing options:"))
-        
-        # Include subfolders option
-        include_subfolders = QCheckBox("Include subfolders (recursive)")
-        include_subfolders.setChecked(False)
-        layout.addWidget(include_subfolders)
-        
-        # Show file count preview
-        preview_label = QLabel("")
-        layout.addWidget(preview_label)
-        
-        def update_preview():
-            total_count = 0
-            for folder in folders:
-                total_count += self.count_supported_files(folder, include_subfolders.isChecked())
-            preview_label.setText(f"Found {total_count} supported file(s) total")
-        
-        include_subfolders.toggled.connect(update_preview)
-        update_preview()  # Initial count
-        
-        # Dialog buttons
-        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
-        buttons.accepted.connect(dialog.accept)
-        buttons.rejected.connect(dialog.reject)
-        layout.addWidget(buttons)
-        
-        if dialog.exec() == QDialog.DialogCode.Accepted:
-            all_files = []
-            for folder in folders:
-                folder_files = self.get_supported_files_from_folder(folder, include_subfolders.isChecked())
-                all_files.extend(folder_files)
-                
-            if all_files:
-                self.add_files(all_files)
-                self.update_status(f"Added {len(all_files)} files from {len(folders)} folder(s)")
-            else:
-                QMessageBox.information(self, "No Files Found", "No supported files found in the dropped folder(s).")
+        if files:
+            self.add_files(files)
+            self.update_status(f"Added {len(files)} files from {len(folders)} folder(s)")
+        elif files is not None:  # Empty list (no files found)
+            QMessageBox.information(self, "No Files Found", "No supported files found in the dropped folder(s).")
                 
     def update_status(self, message):
         """Emit a status update (to be connected by parent)"""
@@ -421,8 +357,9 @@ class DragDropArea(QWidget):
     def on_drag_enter(self):
         """Handle drag enter visual feedback"""
         if self.theme_manager:
+            is_dark = self.theme_manager.current_theme == 'dark'
             styles = self.theme_manager.get_drag_drop_styles()
-            full_style = styles['drag_over'] + self._get_scrollbar_style()
+            full_style = styles['drag_over'] + drag_drop_styler.get_scrollbar_style(is_dark)
             self.file_list_widget.setStyleSheet(full_style)
         
     def on_drag_leave(self):
@@ -443,113 +380,19 @@ class DragDropArea(QWidget):
         else:
             bg_color = Theme.surface_drop_area()
         
-        # Base DropZone style
-        base_style = f"""
-            QListWidget#DropZone {{
-                background-color: {bg_color};
-                border: 6px dashed {Theme.border()};
-                border-radius: {Theme.RADIUS_LG}px;
-                color: {Theme.text()};
-                font-size: {Theme.FONT_SIZE_BASE}px;
-                padding: 0px;
-                outline: none;
-            }}
-            QListWidget#DropZone:hover {{
-                border-color: {Theme.border_focus()};
-                background-color: {bg_color};
-            }}
-        """
-        # Append scrollbar styling
-        full_style = base_style + self._get_scrollbar_style()
+        # Use styling helper
+        base_style = drag_drop_styler.get_list_style(is_dark, bg_color)
+        scrollbar_style = drag_drop_styler.get_scrollbar_style(is_dark)
+        full_style = base_style + scrollbar_style
         self.file_list_widget.setStyleSheet(full_style)
         
         # Restore completion backgrounds for completed items
         for i in range(self.file_list_widget.count()):
             item = self.file_list_widget.item(i)
             if item:
-                # Update widget theme colors (this also restores completion background if applicable)
                 widget = self.file_list_widget.itemWidget(item)
                 if widget and hasattr(widget, 'update_theme'):
                     widget.update_theme(is_dark)
-            
-    def _get_scrollbar_style(self):
-        """Get modern minimalistic scrollbar styling with grey item selection"""
-        is_dark = self.theme_manager and self.theme_manager.current_theme == 'dark'
-        Theme.set_dark_mode(is_dark)
-        
-        # Common colors from Theme
-        item_selected_bg = Theme.color("surface_hover")
-        item_hover_bg = Theme.color("surface_pressed") if is_dark else Theme.color("surface_hover")
-        text_color = Theme.text()
-        scrollbar_bg = Theme.color("scrollbar_bg")
-        scrollbar_thumb = Theme.color("scrollbar_thumb")
-        scrollbar_thumb_hover = Theme.border_focus()
-        
-        return f"""
-            QListWidget::item {{
-                outline: none;
-                border: none;
-            }}
-            QListWidget::item:selected {{
-                background-color: {item_selected_bg};
-                color: {text_color};
-                outline: none;
-                border: none;
-            }}
-            QListWidget::item:focus {{
-                outline: none;
-                border: none;
-            }}
-            QListWidget::item:selected:focus {{
-                background-color: {item_selected_bg};
-                outline: none;
-                border: none;
-            }}
-            QListWidget::item:hover:!selected {{
-                background-color: transparent;
-                border-radius: {Theme.RADIUS_MD}px;
-            }}
-            QScrollBar:vertical {{
-                background: {scrollbar_bg};
-                width: 10px;
-                border: none;
-                border-radius: 5px;
-            }}
-            QScrollBar::handle:vertical {{
-                background: {scrollbar_thumb};
-                border-radius: 5px;
-                min-height: 30px;
-            }}
-            QScrollBar::handle:vertical:hover {{
-                background: {scrollbar_thumb_hover};
-            }}
-            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
-                height: 0px;
-            }}
-            QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {{
-                background: none;
-            }}
-            QScrollBar:horizontal {{
-                background: {scrollbar_bg};
-                height: 10px;
-                border: none;
-                border-radius: 5px;
-            }}
-            QScrollBar::handle:horizontal {{
-                background: {scrollbar_thumb};
-                border-radius: 5px;
-                min-width: 30px;
-            }}
-            QScrollBar::handle:horizontal:hover {{
-                background: {scrollbar_thumb_hover};
-            }}
-            QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{
-                width: 0px;
-            }}
-            QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {{
-                background: none;
-            }}
-        """
     
     def _apply_scrollbar_style(self):
         """Apply scrollbar styling to the file list widget"""
@@ -581,101 +424,16 @@ class DragDropArea(QWidget):
             
     def add_folder_dialog(self):
         """Open folder dialog to add all supported files from a directory"""
-        from PyQt6.QtWidgets import QFileDialog, QCheckBox, QVBoxLayout, QDialog, QDialogButtonBox, QLabel
-        
-        folder = QFileDialog.getExistingDirectory(
-            self,
-            "Select folder to process all supported files",
-            ""
+        files = drop_dialogs.show_add_folder_dialog(
+            self, self.theme_manager,
+            file_type_utils.count_supported_files,
+            file_type_utils.get_supported_files_from_folder
         )
         
-        if folder:
-            # Create options dialog
-            dialog = QDialog(self)
-            dialog.setWindowTitle("Folder Processing Options")
-            dialog.setFixedSize(400, 200)
-            
-            # Apply consistent rounded corner styling
-            self._apply_dialog_styling(dialog)
-            
-            layout = QVBoxLayout(dialog)
-            
-            layout.addWidget(QLabel(f"Selected folder: {os.path.basename(folder)}"))
-            layout.addWidget(QLabel("Choose processing options:"))
-            
-            # Include subfolders option
-            include_subfolders = QCheckBox("Include subfolders (recursive)")
-            include_subfolders.setChecked(False)
-            layout.addWidget(include_subfolders)
-            
-            # Show file count preview
-            preview_label = QLabel("")
-            layout.addWidget(preview_label)
-            
-            def update_preview():
-                count = self.count_supported_files(folder, include_subfolders.isChecked())
-                preview_label.setText(f"Found {count} supported file(s)")
-            
-            include_subfolders.toggled.connect(update_preview)
-            update_preview()  # Initial count
-            
-            # Dialog buttons
-            buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
-            buttons.accepted.connect(dialog.accept)
-            buttons.rejected.connect(dialog.reject)
-            layout.addWidget(buttons)
-            
-            if dialog.exec() == QDialog.DialogCode.Accepted:
-                files = self.get_supported_files_from_folder(folder, include_subfolders.isChecked())
-                if files:
-                    self.add_files(files)
-                else:
-                    QMessageBox.information(self, "No Files Found", "No supported files found in the selected folder.")
-                    
-    def count_supported_files(self, folder_path, include_subfolders=False):
-        """Count supported files in folder"""
-        count = 0
-        folder = Path(folder_path)
-        
-        if include_subfolders:
-            # Recursive search
-            for file_path in folder.rglob('*'):
-                if file_path.is_file() and self.is_supported_file(file_path.suffix.lower()):
-                    count += 1
-        else:
-            # Only direct files in folder
-            for file_path in folder.iterdir():
-                if file_path.is_file() and self.is_supported_file(file_path.suffix.lower()):
-                    count += 1
-                    
-        return count
-        
-    def get_supported_files_from_folder(self, folder_path, include_subfolders=False):
-        """Get list of supported files from folder"""
-        files = []
-        folder = Path(folder_path)
-        
-        try:
-            if include_subfolders:
-                # Recursive search
-                for file_path in folder.rglob('*'):
-                    if file_path.is_file() and self.is_supported_file(file_path.suffix.lower()):
-                        files.append(str(file_path))
-            else:
-                # Only direct files in folder
-                for file_path in folder.iterdir():
-                    if file_path.is_file() and self.is_supported_file(file_path.suffix.lower()):
-                        files.append(str(file_path))
-                        
-            # Sort files for consistent ordering
-            files.sort()
-            
-        except PermissionError:
-            QMessageBox.warning(self, "Access Denied", f"Cannot access folder: {folder_path}")
-        except Exception as e:
-            QMessageBox.warning(self, "Error", f"Error reading folder: {str(e)}")
-            
-        return files
+        if files:
+            self.add_files(files)
+        elif files is not None:  # Empty list
+            QMessageBox.information(self, "No Files Found", "No supported files found in the selected folder.")
             
     def add_files(self, files):
         """Add files to the conversion list"""
@@ -692,7 +450,7 @@ class DragDropArea(QWidget):
                     
                     # Add to list widget with file info
                     file_name = os.path.basename(file_path)
-                    file_size = self.get_file_size(file_path)
+                    file_size = file_type_utils.get_file_size(file_path)
                     item_text = f"{file_name} ({file_size})"
                     
                     # Create custom widget for the item
@@ -734,24 +492,9 @@ class DragDropArea(QWidget):
             self.files_added.emit(added_files)
             self.update_placeholder_text()
             
-    def get_file_size(self, file_path):
-        """Get human readable file size"""
-        try:
-            size = os.path.getsize(file_path)
-            for unit in ['B', 'KB', 'MB', 'GB']:
-                if size < 1024:
-                    return f"{size:.1f} {unit}"
-                size /= 1024
-            return f"{size:.1f} TB"
-        except:
-            return "Unknown size"
-        
     def is_supported_file(self, extension):
         """Check if file extension is supported"""
-        for category, extensions in self.SUPPORTED_EXTENSIONS.items():
-            if extension in extensions:
-                return True
-        return False
+        return file_type_utils.is_supported_file(extension)
         
     def clear_files(self):
         """Clear all files from the list"""
@@ -765,7 +508,7 @@ class DragDropArea(QWidget):
                 self._preset_orchestrator._gallery.clear_blur_cache()
         
     def update_placeholder_text(self):
-        """Update placeholder - show centered red container when empty"""
+        """Update placeholder - show centered widget when empty"""
         if len(self.file_list) == 0:
             # Don't show placeholder when in PRESETS view mode (gallery is open)
             if self._current_view_mode == ViewMode.PRESETS:
@@ -775,121 +518,32 @@ class DragDropArea(QWidget):
             # Clear all items first to avoid duplicates
             self.file_list_widget.clear()
             
-            # Create a transparent wrapper
-            wrapper = QWidget()
-            wrapper.setStyleSheet("background-color: transparent; border: none;")
-            wrapper_layout = QVBoxLayout(wrapper)
-            wrapper_layout.setContentsMargins(0, 0, 0, 0)
-            # Align center vertically, but let it stretch horizontally
-            wrapper_layout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
+            # Create placeholder widget
+            placeholder = DropPlaceholderWidget()
             
-            # Create small centered container with transparent background
-            container = QWidget()
-            # Remove fixed size to adapt to width
-            from PyQt6.QtWidgets import QSizePolicy
-            container.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-            container.setStyleSheet("background-color: transparent;")
-            container_layout = QVBoxLayout(container)
-            container_layout.setContentsMargins(0, 0, 0, 0)
-            container_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            
-            # Load SVG icon with grey color
-            svg_label = QLabel()
-            svg_label.setStyleSheet("background-color: transparent;")
-            svg_path = Path(__file__).parent.parent / "assets" / "icons" / "drag_drop.svg"
-            if svg_path.exists():
-                # Apply grey color effect to the icon
-                from PyQt6.QtGui import QPainter, QColor
-                from PyQt6.QtWidgets import QGraphicsColorizeEffect
-                
-                pixmap = QPixmap(str(svg_path))
-                # Scale to fit container
-                pixmap = pixmap.scaledToWidth(150, Qt.TransformationMode.SmoothTransformation)
-                svg_label.setPixmap(pixmap)
-                
-                # Apply grey colorize effect
-                colorize_effect = QGraphicsColorizeEffect()
-                colorize_effect.setColor(QColor(128, 128, 128))  # Grey color
-                colorize_effect.setStrength(1.0)
-                svg_label.setGraphicsEffect(colorize_effect)
-            
-            svg_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            container_layout.addWidget(svg_label, alignment=Qt.AlignmentFlag.AlignCenter)
-            
-            # Add text label below the icon
-            text_label = QLabel("drag and drop media files here")
-            text_label.setStyleSheet("""
-                background-color: transparent;
-                color: #888888;
-                font-size: 14px;
-                padding-top: 10px;
-            """)
-            text_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            container_layout.addWidget(text_label, alignment=Qt.AlignmentFlag.AlignCenter)
-            
-            wrapper_layout.addWidget(container)
-            
-            # Get current style and completely override item styling
+            # Get current style and apply placeholder-specific overrides
             if self.theme_manager:
                 styles = self.theme_manager.get_drag_drop_styles()
                 base_style = styles['normal']
             else:
                 base_style = ""
             
-            # Replace ALL item styling to be transparent with no borders/padding
-            modified_style = base_style.replace(
-                'background-color: #3c3c3c;', 
-                'background-color: transparent;'
-            ).replace(
-                'background-color: white;',
-                'background-color: transparent;'
-            ).replace(
-                'border: 1px solid #444;',
-                'border: none;'
-            ).replace(
-                'border: 1px solid #ddd;',
-                'border: none;'
-            ).replace(
-                'margin: 2px;',
-                'margin: 0px;'
-            ).replace(
-                'padding: 8px;',
-                'padding: 0px;'
-            )
-            # Add scrollbar styling
-            modified_style += self._get_scrollbar_style()
-            # Also override padding and hover state to strip Theme Factory defaults
-            # START RESTORATION: User wants dashed line back, but NO padding (thick outline) and NO grey bg
-            modified_style += f"""
-                QListWidget {{
-                    border: 6px dashed {Theme.border()};
-                    border-radius: {Theme.RADIUS_LG}px;
-                    padding: 0px;
-                    background-color: transparent;
-                }}
-                QListWidget:hover {{
-                    border-color: {Theme.border_focus()};
-                    background-color: transparent;
-                }}
-            """
+            is_dark = self.theme_manager and self.theme_manager.current_theme == 'dark'
+            modified_style = drag_drop_styler.get_placeholder_style(is_dark, base_style)
             self.file_list_widget.setStyleSheet(modified_style)
             
-            # Add wrapper to list widget with full vertical height
+            # Add placeholder to list widget
             item = QListWidgetItem()
-            # Use a large enough size to fill the area
             viewport_size = self.file_list_widget.viewport().size()
-            if viewport_size.height() < 100:  # If not properly sized yet
+            if viewport_size.height() < 100:
                 item.setSizeHint(self.file_list_widget.size())
             else:
                 item.setSizeHint(viewport_size)
             item.setBackground(Qt.GlobalColor.transparent)
             item.setFlags(Qt.ItemFlag.NoItemFlags)
-            # Mark as placeholder with special data
             item.setData(Qt.ItemDataRole.UserRole, "PLACEHOLDER")
             self.file_list_widget.addItem(item)
-            self.file_list_widget.setItemWidget(item, wrapper)
-            
-            self.file_list_widget.setItemWidget(item, wrapper)
+            self.file_list_widget.setItemWidget(item, placeholder)
             
         else:
             # Remove any placeholder items if files are present
@@ -932,111 +586,19 @@ class DragDropArea(QWidget):
                 self.remove_file_by_index(row)
     
     def show_insufficient_credits_toast(self):
-        """Show a large, centered toast for insufficient credits."""
-        from client.gui.components.toast_notification import ToastNotification
-        
-        # Dismiss any existing toast
-        if hasattr(self, '_active_toast') and self._active_toast:
-            try:
-                self._active_toast.deleteLater()
-            except RuntimeError:
-                pass
-                
-        message = "<b>Insufficient Credits</b><br>Please recharge to continue."
-        
-        self._active_toast = ToastNotification(
-            message=message,
-            icon_type="warning",
-            duration=4000,
-            parent=self,
-            position="center",
-            size="large"
-        )
-        self._active_toast.dismissed.connect(lambda: setattr(self, '_active_toast', None))
-        self._active_toast.show_toast()
+        """Show a large, centered toast for insufficient energy."""
+        toast_helpers.show_insufficient_energy_toast(self)
 
     def show_unsupported_files_toast(self, count):
         """Show a toast notification for unsupported files"""
-        from client.gui.components.toast_notification import ToastNotification
-        
-        # Dismiss any existing toast
-        if hasattr(self, '_active_toast') and self._active_toast:
-            try:
-                self._active_toast.deleteLater()
-            except RuntimeError:
-                pass
-        
-        # Create and show new toast
-        message = f"{count} unsupported file(s) skipped"
-        self._active_toast = ToastNotification(
-            message=message,
-            icon_type="warning",
-            duration=4000,
-            parent=self
-        )
-        
-        # Clean up reference when dismissed
-        self._active_toast.dismissed.connect(lambda: setattr(self, '_active_toast', None))
-        
-        self._active_toast.show_toast()
+        toast_helpers.show_unsupported_files_toast(self, count)
 
     def show_conversion_toast(self, successful: int, failed: int, skipped: int, stopped: int):
         """
         Show conversion results in a toast notification with color-coded details.
         Replaces the old modal dialog.
         """
-        from client.gui.components.toast_notification import ToastNotification
-        
-        # Colors matching the app theme
-        app_green = Theme.success()
-        app_yellow = Theme.warning()
-        app_red = Theme.error()
-        
-        parts = []
-        # Concise status messages
-        if successful > 0:
-            parts.append(f"<span style='color: {app_green};'><b>{successful}</b> exported</span>")
-        
-        if skipped > 0:
-            parts.append(f"<span style='color: {app_yellow};'><b>{skipped}</b> skipped</span>")
-            
-        if failed > 0:
-            parts.append(f"<span style='color: {app_red};'><b>{failed}</b> failed</span>")
-            
-        if stopped > 0:
-            parts.append(f"<span style='color: {app_yellow};'><b>{stopped}</b> stopped</span>")
-            
-        if not parts:
-            parts.append("No files processed")
-            
-        # Join with line breaks
-        message = "<br>".join(parts)
-        
-        # Determine icon type
-        if failed > 0:
-            icon = "error"
-        elif stopped > 0 or skipped > 0:
-            icon = "warning"
-        else:
-            icon = "info"
-            
-        # Dismiss any existing toast
-        if hasattr(self, '_active_toast') and self._active_toast:
-            try:
-                self._active_toast.deleteLater()
-            except RuntimeError:
-                pass
-                
-        # Show toast with slightly longer duration for results
-        self._active_toast = ToastNotification(
-            message=message,
-            icon_type=icon,
-            duration=5000, 
-            parent=self,
-            position="bottom-right"
-        )
-        self._active_toast.dismissed.connect(lambda: setattr(self, '_active_toast', None))
-        self._active_toast.show_toast()
+        toast_helpers.show_conversion_toast(self, successful, failed, skipped, stopped)
             
     def handle_list_key_press(self, event):
         """Handle keyboard events for the file list"""
@@ -1064,76 +626,18 @@ class DragDropArea(QWidget):
             
     def show_context_menu(self, position):
         """Show context menu for file operations"""
-        item = self.file_list_widget.itemAt(position)
-        
-        # Only show for actual files (not placeholder)
-        if item and item.data(Qt.ItemDataRole.UserRole) != "PLACEHOLDER":
-            from PyQt6.QtWidgets import QMenu
-            
-            menu = QMenu(self)
-            remove_action = menu.addAction("Remove File")
-            show_action = menu.addAction("Show in Explorer")
-            
-            # Themed styling
-            is_dark = self.theme_manager and self.theme_manager.current_theme == 'dark'
-            Theme.set_dark_mode(is_dark)
-            
-            # CSS with first-child (red) and last-child (blue)
-            menu.setStyleSheet(f"""
-                QMenu {{
-                    background-color: {Theme.surface_element()};
-                    color: {Theme.text()};
-                    border: 1px solid {Theme.border()};
-                    border-radius: {Theme.RADIUS_SM}px;
-                    padding: 4px;
-                }}
-                QMenu::item {{
-                    padding: 6px 24px;
-                    border-radius: {Theme.RADIUS_SM}px;
-                }}
-                QMenu::item:selected {{
-                    background-color: #666666;
-                    color: white;
-                }}
-            """)
-            
-            action = menu.exec(self.file_list_widget.mapToGlobal(position))
-            if action == remove_action:
-                self.remove_file_item(item)
-            elif action == show_action:
-                self.show_in_explorer(item)
-            
-    def show_in_explorer(self, item):
-        """Open file location in Windows Explorer and select the file"""
+        file_context_menu.show_file_context_menu(
+            self, self.file_list_widget, position, self.theme_manager,
+            self.remove_file_item, self._show_in_explorer_wrapper
+        )
+    
+    def _show_in_explorer_wrapper(self, item):
+        """Wrapper to extract file path and call explorer helper"""
         if item and item.data(Qt.ItemDataRole.UserRole) != "PLACEHOLDER":
             row = self.file_list_widget.row(item)
             if 0 <= row < len(self.file_list):
                 file_path = self.file_list[row]
-                
-                import subprocess
-                try:
-                    # Verify file exists
-                    if not os.path.exists(file_path):
-                        print(f"File not found: {file_path}")
-                        return
-                    
-                    # Normalize path for Windows
-                    normalized_path = os.path.normpath(file_path)
-                    
-                    # Open Explorer and select the file in a new window
-                    # The /select, parameter highlights the file
-                    subprocess.Popen(['explorer', '/select,', normalized_path])
-                    print(f"Opened Explorer for: {normalized_path}")
-                    
-                except Exception as e:
-                    print(f"Error opening Explorer: {e}")
-                    # Fallback: just open the folder
-                    try:
-                        folder_path = os.path.dirname(file_path)
-                        if os.path.exists(folder_path):
-                            subprocess.Popen(['explorer', os.path.normpath(folder_path)])
-                    except Exception as e2:
-                        print(f"Error opening folder: {e2}")
+                file_context_menu.show_in_explorer(file_path)
             
 
 

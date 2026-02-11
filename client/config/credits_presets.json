@@ -1,0 +1,26 @@
+{
+    "description": "Credit pricing for Preset Mode",
+    "version": "1.0",
+    "base_costs": {
+        "image_preset": 2,
+        "video_preset": 8,
+        "loop_preset": 5
+    },
+    "complexity_multipliers": {
+        "low": 1.0,
+        "medium": 1.5,
+        "high": 2.0
+    },
+    "categories": {
+        "web": 3,
+        "social": 5,
+        "utilities": 2,
+        "upscalers": 10,
+        "vector": 5,
+        "video": 8
+    },
+    "specific_presets": {
+        "social_media_bundle": 10,
+        "professional_grade_denoise": 15
+    }
+}

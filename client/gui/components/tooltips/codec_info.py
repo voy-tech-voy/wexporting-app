@@ -40,11 +40,12 @@ CODEC_COMPARISONS = {
     },
     "image": {
         "title": "Image Format Efficiency",
-        "desc": "WebP offers best quality-to-size ratio",
+        "desc": "AVIF offers best compression, WebP balances quality and speed",
         "items": [
             ("PNG", 30, "warning", "Lossless"),
             ("JPEG", 60, "info", "Standard"),
-            ("WebP", 100, "success", "Best")
+            ("WebP", 85, "success", "Efficient"),
+            ("AVIF", 100, "success", "Best")
         ]
     }
 }

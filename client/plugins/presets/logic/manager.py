@@ -5,6 +5,7 @@ Loads and validates preset definitions from YAML files.
 Uses ToolRegistryProtocol via Dependency Injection to validate tool availability.
 """
 import os
+import sys
 import yaml
 from pathlib import Path
 from typing import Dict, List, Optional, TYPE_CHECKING
@@ -60,6 +61,14 @@ class PresetManager:
     
     def _get_default_presets_dir(self) -> str:
         """Get the default presets directory path."""
+        # Check if running in frozen mode (PyInstaller bundle)
+        if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+            # In frozen mode, assets are at sys._MEIPASS/client/plugins/presets/assets/presets
+            # Note: This path must match the destination in production.spec
+            base_path = Path(sys._MEIPASS)
+            return str(base_path / "client" / "plugins" / "presets" / "assets" / "presets")
+            
+        # Normal dev mode
         # Go from logic/ up to presets/assets/presets/
         plugin_dir = Path(__file__).parent.parent
         return str(plugin_dir / "assets" / "presets")
@@ -205,6 +214,7 @@ class PresetManager:
             parameters=parameters,
             output_extension=meta.get('output_extension'),  # Optional forced extension
             ratio=meta.get('ratio'),  # For social media 2-step selection
+            credit_cost=meta.get('credit_cost'),  # Optional credit cost override
             raw_yaml=data
         )
     

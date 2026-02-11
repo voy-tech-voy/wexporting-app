@@ -473,7 +473,7 @@ class CommandPanel(QWidget):
             # Parent to drop area so it stays with it
             self._input_toast = InputToast(
                 message="", 
-                placeholder="Enter custom preset name", 
+                placeholder="Enter new preset name", 
                 button_text="Create", 
                 parent=drop_area,
                 position="top-right",
@@ -608,3 +608,14 @@ class CommandPanel(QWidget):
     def loop_tab(self):
         """Access loop tab (for MainWindow compatibility)."""
         return self._loop_tab
+
+    def resizeEvent(self, event):
+        """Debug resize event."""
+        super().resizeEvent(event)
+        print(f"[CommandPanel] Resize: {event.size().width()}x{event.size().height()} (Min: {self.minimumWidth()}x{self.minimumHeight()})")
+
+    def minimumSizeHint(self):
+        """Debug minimum size hint."""
+        size = super().minimumSizeHint()
+        print(f"[CommandPanel] MinSizeHint: {size.width()}x{size.height()}")
+        return size
