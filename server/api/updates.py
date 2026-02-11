@@ -89,8 +89,7 @@ def get_update_manifest():
     
     Returns:
         JSON: {
-            'presets': [{'id', 'version', 'hash', 'path'}],
-            'estimators': [{'id', 'version', 'hash', 'type'}]
+            'presets': [{'id', 'version', 'hash', 'path'}]
         }
     """
     try:
@@ -158,49 +157,3 @@ def download_preset(preset_id):
             'message': str(e)
         }), 500
 
-
-@api_bp.route('/updates/download/estimator/<estimator_id>', methods=['GET'])
-@require_valid_license
-def download_estimator(estimator_id):
-    """
-    Download estimator Python content.
-    
-    Args:
-        estimator_id: Estimator filename without extension
-        
-    Returns:
-        Python content as text/plain
-    """
-    try:
-        # Sanitize estimator_id to prevent directory traversal
-        if '..' in estimator_id or '/' in estimator_id or '\\' in estimator_id:
-            return jsonify({
-                'success': False,
-                'error': 'invalid_estimator_id',
-                'message': 'Invalid estimator ID'
-            }), 400
-        
-        content = update_service.get_estimator_content(estimator_id)
-        
-        if content is None:
-            return jsonify({
-                'success': False,
-                'error': 'estimator_not_found',
-                'message': f'Estimator {estimator_id} not found'
-            }), 404
-        
-        logger.info(f"Estimator {estimator_id} downloaded by {request.license_email}")
-        
-        return Response(
-            content,
-            mimetype='text/plain',
-            headers={'Content-Disposition': f'attachment; filename="{estimator_id}.py"'}
-        )
-        
-    except Exception as e:
-        logger.error(f"Failed to download estimator {estimator_id}: {e}")
-        return jsonify({
-            'success': False,
-            'error': 'download_failed',
-            'message': str(e)
-        }), 500
