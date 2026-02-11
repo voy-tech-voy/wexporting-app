@@ -20,7 +20,6 @@ class UpdateManifest:
     
     def __init__(self, data: Dict[str, Any]):
         self.presets = data.get('presets', [])
-        self.estimators = data.get('estimators', [])
         self.generated_at = data.get('generated_at')
     
     def has_updates(self, local_manifest: 'LocalManifest') -> bool:
@@ -28,11 +27,6 @@ class UpdateManifest:
         for preset in self.presets:
             local_version = local_manifest.get_preset_version(preset['id'])
             if local_version != preset['version']:
-                return True
-        
-        for estimator in self.estimators:
-            local_version = local_manifest.get_estimator_version(estimator['id'])
-            if local_version != estimator['version']:
                 return True
         
         return False
@@ -187,34 +181,6 @@ class UpdateClient:
             logger.error(f"Error downloading preset {preset_id}: {e}")
             return None
     
-    async def download_estimator(self, estimator_id: str) -> Optional[str]:
-        """
-        Download estimator Python content.
-        
-        Args:
-            estimator_id: Estimator ID (filename without extension)
-            
-        Returns:
-            Python content or None if download failed
-        """
-        try:
-            headers = {'Authorization': f'Bearer {self.license_key}'}
-            url = f"{self.server_url}/api/v1/updates/download/estimator/{estimator_id}"
-            
-            async with aiohttp.ClientSession() as session:
-                async with session.get(url, headers=headers) as response:
-                    if response.status == 200:
-                        content = await response.text()
-                        logger.info(f"Downloaded estimator: {estimator_id}")
-                        return content
-                    else:
-                        logger.error(f"Failed to download estimator {estimator_id}: HTTP {response.status}")
-                        return None
-        
-        except Exception as e:
-            logger.error(f"Error downloading estimator {estimator_id}: {e}")
-            return None
-    
     async def apply_preset_update(self, preset_id: str, content: str, subdir: str = "") -> bool:
         """
         Write preset to local filesystem.
@@ -241,32 +207,6 @@ class UpdateClient:
             logger.error(f"Failed to apply preset {preset_id}: {e}")
             return False
     
-    async def apply_estimator_update(self, estimator_id: str, content: str, estimator_type: str) -> bool:
-        """
-        Write estimator to local filesystem.
-        
-        Args:
-            estimator_id: Estimator ID
-            content: Python content
-            estimator_type: Type ('loop', 'video', 'image')
-            
-        Returns:
-            True if successful
-        """
-        try:
-            target_dir = self.estimators_base / f"{estimator_type}_estimators"
-            target_dir.mkdir(parents=True, exist_ok=True)
-            
-            target_file = target_dir / f"{estimator_id}.py"
-            target_file.write_text(content, encoding='utf-8')
-            
-            logger.info(f"Applied estimator update: {target_file}")
-            return True
-        
-        except Exception as e:
-            logger.error(f"Failed to apply estimator {estimator_id}: {e}")
-            return False
-    
     async def apply_all_updates(self, manifest: UpdateManifest) -> Dict[str, Any]:
         """
         Apply all available updates from manifest.
@@ -275,11 +215,10 @@ class UpdateClient:
             manifest: UpdateManifest from server
             
         Returns:
-            dict: {'presets_updated': int, 'estimators_updated': int, 'errors': List[str]}
+            dict: {'presets_updated': int, 'errors': List[str]}
         """
         results = {
             'presets_updated': 0,
-            'estimators_updated': 0,
             'errors': []
         }
         
@@ -301,21 +240,5 @@ class UpdateClient:
                         results['errors'].append(f"Failed to apply preset: {preset_id}")
                 else:
                     results['errors'].append(f"Failed to download preset: {preset_id}")
-        
-        # Update estimators
-        for estimator in manifest.estimators:
-            estimator_id = estimator['id']
-            local_version = self.local_manifest.get_estimator_version(estimator_id)
-            
-            if local_version != estimator['version']:
-                content = await self.download_estimator(estimator_id)
-                if content:
-                    if await self.apply_estimator_update(estimator_id, content, estimator['type']):
-                        self.local_manifest.update_estimator_version(estimator_id, estimator['version'])
-                        results['estimators_updated'] += 1
-                    else:
-                        results['errors'].append(f"Failed to apply estimator: {estimator_id}")
-                else:
-                    results['errors'].append(f"Failed to download estimator: {estimator_id}")
         
         return results
