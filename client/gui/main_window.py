@@ -38,13 +38,17 @@ from client.utils.session_manager import SessionManager
 
 # Conductors (Mediator-Shell Pattern)
 from client.core.conductors import (ModeConductor, Mode, ConversionConductor, 
-                                     UpdateConductor, VersionGatewayConductor)
+                                     UpdateConductor, VersionGatewayConductor,
+                                     ThemeConductor)
 from client.gui.dialogs.update_dialog import UpdateDialog
 from client.gui.dialogs.version_update_dialogs import (OptionalVersionUpdateDialog, 
                                                         MandatoryVersionUpdateScreen)
 
+# Mixins
+from client.gui.mixins import WindowEventMixin
 
-class MainWindow(QMainWindow):
+
+class MainWindow(WindowEventMixin, QMainWindow):
     def __init__(self, is_trial=False):
         super().__init__()
         
@@ -126,9 +130,8 @@ class MainWindow(QMainWindow):
         self.setup_conductors()
         self.connect_signals()
         
-        # Connect to theme changes and apply initial theme
-        self.theme_manager.theme_changed.connect(self._on_theme_changed)
-        self._on_theme_changed(self.theme_manager.is_dark_mode())
+        # Connect theme manager signal (now handled by ThemeConductor)
+        # ThemeConductor is initialized in setup_conductors() after all widgets exist
         
         self.check_tools()
         
@@ -267,24 +270,37 @@ class MainWindow(QMainWindow):
             update_status_callback=self.update_status
         )
         
-        # Initialize UpdateConductor (Content Updates)
+        # Initialize UpdateConductor for content updates
         self.update_conductor = UpdateConductor()
         self.update_conductor.updates_available.connect(self.show_update_dialog)
-        self.update_conductor.no_update_found.connect(lambda: self.update_status("No content updates available."))
-        self.update_conductor.update_error.connect(lambda msg: self.update_status(f"Content update check failed: {msg}"))
-        self.update_conductor.check_already_running.connect(lambda: self.update_status("Update check already in progress..."))
-        
-        # Connect update application signals
         self.update_conductor.update_progress.connect(self._on_update_progress)
         self.update_conductor.update_complete.connect(self._on_update_complete)
         self.update_conductor.update_failed.connect(self._on_update_failed)
+        self.update_conductor.check_already_running.connect(
+            lambda: self.update_status("Update check already in progress...")
+        )
         
-        # Initialize VersionGatewayConductor (App Version Updates)
+        # Initialize VersionGatewayConductor for app version updates
         self.version_gateway = VersionGatewayConductor()
-        self.version_gateway.mandatory_update_required.connect(self.show_mandatory_update)
         self.version_gateway.optional_update_available.connect(self.show_optional_update)
+        self.version_gateway.mandatory_update_required.connect(self.show_mandatory_update)
+        
+        # Initialize ThemeConductor for theme management
+        self.theme_conductor = ThemeConductor(
+            theme_manager=self.theme_manager,
+            main_window=self,
+            drag_drop_area=self.drag_drop_area,
+            command_panel=self.command_panel,
+            control_bar=self.control_bar,
+            output_footer=self.output_footer,
+            title_bar_window=self.title_bar_window
+        )
+        # Apply initial theme
+        self.theme_conductor._on_theme_changed(self.theme_manager.is_dark_mode())
+        
         self.version_gateway.up_to_date.connect(lambda: self.update_status("App is up to date."))
         self.version_gateway.check_failed.connect(lambda msg: self.update_status(f"Version check failed: {msg}"))
+
         
         # Start version check immediately on startup (critical for mandatory updates)
         QTimer.singleShot(500, self.version_gateway.check_version)
@@ -318,11 +334,7 @@ class MainWindow(QMainWindow):
         if self.mode_conductor:
             self.mode_conductor.on_lab_item_clicked(item_id)
     
-    def _on_lab_state_changed(self, icon_path, is_solid):
-        """Handle lab button state change (delegates to ModeConductor)."""
-        if self.mode_conductor:
-            self.mode_conductor.on_lab_state_changed(icon_path, is_solid)
-    
+
     def _on_restore_lab_settings(self, lab_settings: dict):
         """Restore Lab Mode settings from a custom preset."""
         print(f"[MainWindow] Restoring Lab Mode settings: {lab_settings.get('type', 'unknown')}")
@@ -583,57 +595,11 @@ class MainWindow(QMainWindow):
             
             self.dialogs.show_tool_status(message)
         
-    def _on_theme_changed(self, is_dark: bool):
-        """Handle theme changes via ThemeManager signal"""
-        # Apply main window styles (with caching to avoid redundant updates)
-        main_style = self.theme_manager.get_main_window_style()
-        
-        # Only call setStyleSheet if the style actually changed
-        if not hasattr(self, '_cached_main_style') or self._cached_main_style != main_style:
-            self.setStyleSheet(main_style)
-            self._cached_main_style = main_style
-        
-        # Update drag drop area theme
-        self.drag_drop_area.set_theme_manager(self.theme_manager)
-        
-        # Update command panel theme
-        if hasattr(self.command_panel, 'update_theme'):
-            self.command_panel.update_theme(is_dark)
-        
-        # Update control bar theme
-        if hasattr(self, 'control_bar'):
-            self.control_bar.update_theme(is_dark)
-        
-        # Update title bar theme
-        self.update_title_bar_theme(is_dark)
-        
-        # Apply global QToolTip styling
-        from client.gui.custom_widgets import apply_tooltip_style
-        apply_tooltip_style(is_dark)
-        
-        # Update output footer theme
-        if hasattr(self, 'output_footer'):
-            self.output_footer.update_theme(is_dark)
-        
-    def update_title_bar_theme(self, is_dark):
-        """Update title bar colors based on theme"""
-        # Delegate to the separate TitleBarWindow
-        if hasattr(self, 'title_bar_window'):
-            self.title_bar_window.apply_theme(is_dark)
-
-        
     def toggle_theme(self):
-        """Toggle between dark and light theme"""
-        current_theme = self.theme_manager.get_current_theme()
-        new_theme = 'light' if current_theme == 'dark' else 'dark'
-        self.theme_manager.set_theme(new_theme)
-        # Note: Widgets auto-update via theme_changed signal
-        # MainWindow-specific updates handled in _on_theme_changed()
-        
-    def toggle_status_bar(self):
-        """Toggle the visibility of the status bar section"""
-        # Status bar toggle is no longer needed - progress is in output footer
-        pass
+        """Toggle between dark and light theme (delegates to ThemeConductor)"""
+        if hasattr(self, 'theme_conductor'):
+            self.theme_conductor.toggle_theme()
+
 
     def show_about(self):
         """Show the About dialog"""
@@ -652,67 +618,8 @@ class MainWindow(QMainWindow):
             # Settings were saved, show confirmation
             self.dialogs.show_info("Settings Saved", "Advanced settings have been saved successfully.")
     
-    def check_for_updates_manual(self):
-        """Manually check for updates (triggered from menu)"""
-        # Show toast immediately
-        self.drag_drop_area.show_toast("Checking for updates...", duration=2000)
-        QApplication.processEvents()
-        
-        # Use QTimer to run check in next loop to allow UI to update (simple async)
-        # For true async without freezing, we'd need a thread, but fetch is usually fast.
-        # User complained about "waits until server checks". 
-        # A simple timer delay allows the toast to render first.
-        from PyQt6.QtCore import QTimer
-        QTimer.singleShot(100, self._perform_update_check)
-        
-    def _perform_update_check(self):
-        """Perform the actual update check"""
-        try:
-            from client.utils.update_checker import check_for_updates, UpdateState
-            from client.gui.dialogs.update_dialog import OptionalUpdateDialog, MandatoryUpdateScreen
-            from PyQt6.QtWidgets import QMessageBox
-            
-            # Check with shorter timeout for manual (or keep 10s if we want robustness)
-            # User wants visual feedback "immediately".
-            
-            result = check_for_updates(timeout=10)
-            
-            if result.state == UpdateState.MANDATORY_UPDATE:
-                # Show mandatory update screen
-                blocker = MandatoryUpdateScreen(result, theme_manager=self.theme_manager)
-                blocker.show()
-                # This will exit the app when user clicks Update
-                
-            elif result.state == UpdateState.OPTIONAL_UPDATE:
-                # Show optional update dialog
-                dialog = OptionalUpdateDialog(result, parent=self, theme_manager=self.theme_manager)
-                dialog.exec()
-                self.update_status("Update check complete")
-                
-            else:
-                # Already up to date - use themed dialog
-                from client.gui.dialogs.update_dialog import UpdateMessageBox
-                msg = UpdateMessageBox(
-                    "No Updates Available",
-                    "You are running the latest version of the application.",
-                    parent=self,
-                    theme_manager=self.theme_manager
-                )
-                msg.exec()
-                self.update_status("App is up to date")
-                
-        except Exception as e:
-            from client.gui.dialogs.update_dialog import UpdateMessageBox
-            msg = UpdateMessageBox(
-                "Update Check Failed",
-                f"Could not check for updates:\n{str(e)}",
-                parent=self,
-                theme_manager=self.theme_manager,
-                is_error=True
-            )
-            msg.exec()
-            self.update_status("Update check failed")
-    
+
+
     def logout(self):
         """Logout from the application and show login window."""
         # Confirm logout first (dialog stays in MainWindow for UI control)
@@ -721,74 +628,7 @@ class MainWindow(QMainWindow):
             session_mgr = SessionManager(self, lambda: self.conversion_engine)
             session_mgr.logout()
             
-    def resizeEvent(self, event):
-        """Handle resize event - sync title bar width"""
-        super().resizeEvent(event)
-        # Sync title bar width
-        if hasattr(self, 'title_bar_window'):
-            self.title_bar_window._sync_width()
 
-    def moveEvent(self, event):
-        """Handle move event - sync title bar position"""
-        super().moveEvent(event)
-        # Sync title bar position
-        if hasattr(self, 'title_bar_window'):
-            self.title_bar_window._sync_position()
-
-    def showEvent(self, event):
-        """Override showEvent - show title bar window"""
-        super().showEvent(event)
-        # Show and position the separate title bar window
-        if hasattr(self, 'title_bar_window'):
-            self.title_bar_window.attach_to(self)
-            self.title_bar_window.show()
-        # NOTE: Blur is now ONLY on the title bar window, not main window
-        self.enable_mouse_tracking_all()
-        
-    def closeEvent(self, event):
-        """Close title bar window when main window closes"""
-        if hasattr(self, 'title_bar_window'):
-            self.title_bar_window.close()
-        super().closeEvent(event)
-        
-    def enable_mouse_tracking_all(self):
-        """Recursively enable mouse tracking for all widgets to ensure resize events propagate"""
-        self.setMouseTracking(True)
-        for widget in self.findChildren(QWidget):
-            widget.setMouseTracking(True)
-    
-    def mousePressEvent(self, event):
-        """Delegate window resize to FramelessWindowBehavior."""
-        if self.window_behavior.handle_mouse_press(event):
-            return
-        super().mousePressEvent(event)
-        
-    def mouseReleaseEvent(self, event):
-        """Delegate to FramelessWindowBehavior."""
-        self.window_behavior.handle_mouse_release(event)
-        super().mouseReleaseEvent(event)
-
-    def mouseMoveEvent(self, event):
-        """Delegate resize and cursor updates to FramelessWindowBehavior."""
-        if self.window_behavior.handle_mouse_move(event):
-            return
-        super().mouseMoveEvent(event)
-    
-    def changeEvent(self, event):
-        """Handle window state changes - sync title bar visibility on minimize/restore"""
-        super().changeEvent(event)
-        if event.type() == event.Type.WindowStateChange:
-            if hasattr(self, 'title_bar_window'):
-                if self.isMinimized():
-                    self.title_bar_window.hide()
-                else:
-                    self.title_bar_window.show()
-                    self.title_bar_window._sync_position()
-        # When main window is activated, also raise the title bar
-        elif event.type() == event.Type.ActivationChange:
-            if self.isActiveWindow() and hasattr(self, 'title_bar_window'):
-                self.title_bar_window.raise_()
-    
     # --- Drag & Drop - Forward to DragDropArea ---
     
     def dragEnterEvent(self, event):
@@ -961,20 +801,7 @@ class MainWindow(QMainWindow):
         self.mandatory_screen = MandatoryVersionUpdateScreen(result)
         self.mandatory_screen.showFullScreen()
             
-    def _toggle_dev_theme_panel(self):
-        """Toggle the developer theme panel (F12) - Legacy until refactored"""
-        if not hasattr(self, '_dev_theme_panel'):
-            self._dev_theme_panel = None
-            
-        if self._dev_theme_panel is None or not self._dev_theme_panel.isVisible():
-            # Create or show the panel
-            from client.gui.dev_theme_panel import DevThemePanel
-            self._dev_theme_panel = DevThemePanel(self)
-            self._dev_theme_panel.show()
-        else:
-            # Hide the panel
-            self._dev_theme_panel.close()
-    
+
     def _refresh_file_list_items(self):
         """Force repaint of all file list items to reflect new noise parameters."""
         if hasattr(self, 'drag_drop_area'):

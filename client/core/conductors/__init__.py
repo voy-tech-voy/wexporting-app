@@ -9,5 +9,7 @@ from .mode_conductor import ModeConductor, Mode
 from .conversion_conductor import ConversionConductor
 from .update_conductor import UpdateConductor
 from .version_gateway_conductor import VersionGatewayConductor
+from .theme_conductor import ThemeConductor
 
-__all__ = ['ModeConductor', 'Mode', 'ConversionConductor', 'UpdateConductor', 'VersionGatewayConductor']
+__all__ = ['ModeConductor', 'Mode', 'ConversionConductor', 'UpdateConductor', 
+           'VersionGatewayConductor', 'ThemeConductor']
