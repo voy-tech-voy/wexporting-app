@@ -183,10 +183,10 @@ class UpdateClient:
     
     async def apply_preset_update(self, preset_id: str, content: str, subdir: str = "") -> bool:
         """
-        Write preset to local filesystem.
+        Write preset to local filesystem with security checks.
         
         Args:
-            preset_id: Preset ID
+            preset_id: Preset ID (sanitized for path safety)
             content: YAML content
             subdir: Subdirectory within presets/ (e.g., 'upscalers', 'video')
             
@@ -194,10 +194,32 @@ class UpdateClient:
             True if successful
         """
         try:
+            import re
+            
+            # SECURITY: Sanitize preset_id to prevent path traversal
+            if not re.match(r'^[a-zA-Z0-9_-]+$', preset_id):
+                logger.error(f"Invalid preset_id (contains unsafe characters): {preset_id}")
+                return False
+            
+            # SECURITY: Sanitize subdir to prevent path traversal
+            if subdir and not re.match(r'^[a-zA-Z0-9_/-]+$', subdir):
+                logger.error(f"Invalid subdir (contains unsafe characters): {subdir}")
+                return False
+            
             target_dir = self.presets_dir / subdir if subdir else self.presets_dir
             target_dir.mkdir(parents=True, exist_ok=True)
             
             target_file = target_dir / f"{preset_id}.yaml"
+            
+            # SECURITY: Verify final path is within presets_dir (prevent path traversal)
+            try:
+                if not target_file.resolve().is_relative_to(self.presets_dir.resolve()):
+                    logger.error(f"Path traversal attempt blocked: {target_file}")
+                    return False
+            except (ValueError, OSError) as e:
+                logger.error(f"Path validation failed: {e}")
+                return False
+            
             target_file.write_text(content, encoding='utf-8')
             
             logger.info(f"Applied preset update: {target_file}")
@@ -224,21 +246,40 @@ class UpdateClient:
         
         # Update presets
         for preset in manifest.presets:
-            preset_id = preset['id']
-            local_version = self.local_manifest.get_preset_version(preset_id)
-            
-            if local_version != preset['version']:
-                content = await self.download_preset(preset_id)
-                if content:
-                    # Extract subdirectory from path
-                    subdir = str(Path(preset['path']).parent) if preset.get('path') else ""
-                    
-                    if await self.apply_preset_update(preset_id, content, subdir):
-                        self.local_manifest.update_preset_version(preset_id, preset['version'])
-                        results['presets_updated'] += 1
+            try:
+                # SECURITY: Schema validation - ensure required fields exist
+                if not isinstance(preset, dict):
+                    logger.error(f"Invalid preset entry (not a dict): {preset}")
+                    results['errors'].append(f"Invalid preset entry format")
+                    continue
+                
+                preset_id = preset.get('id')
+                preset_version = preset.get('version')
+                preset_path = preset.get('path')
+                
+                if not preset_id or not preset_version:
+                    logger.error(f"Preset missing required fields: {preset}")
+                    results['errors'].append(f"Preset missing id or version")
+                    continue
+                
+                local_version = self.local_manifest.get_preset_version(preset_id)
+                
+                if local_version != preset_version:
+                    content = await self.download_preset(preset_id)
+                    if content:
+                        # Extract subdirectory from path
+                        subdir = str(Path(preset_path).parent) if preset_path else ""
+                        
+                        if await self.apply_preset_update(preset_id, content, subdir):
+                            self.local_manifest.update_preset_version(preset_id, preset_version)
+                            results['presets_updated'] += 1
+                        else:
+                            results['errors'].append(f"Failed to apply preset: {preset_id}")
                     else:
-                        results['errors'].append(f"Failed to apply preset: {preset_id}")
-                else:
-                    results['errors'].append(f"Failed to download preset: {preset_id}")
+                        results['errors'].append(f"Failed to download preset: {preset_id}")
+            
+            except Exception as e:
+                logger.error(f"Error processing preset: {e}")
+                results['errors'].append(f"Error processing preset: {str(e)}")
         
         return results
