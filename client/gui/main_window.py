@@ -29,6 +29,7 @@ from client.version import APP_NAME, AUTHOR
 
 # Mediator-Shell Architecture Components
 from client.gui.animators.side_panel_animator import SidePanelAnimator
+from client.gui.components import toast_helpers
 from client.gui.components.control_bar import ControlBar
 from client.gui.utils.window_behavior import FramelessWindowBehavior
 from client.gui.utils.dev_tools import EventDebugFilter, DEBUG_INTERACTIVITY
@@ -225,6 +226,7 @@ class MainWindow(WindowEventMixin, QMainWindow):
         self.title_bar_window.show_advanced_requested.connect(self.show_advanced)
         self.title_bar_window.show_about_requested.connect(self.show_about)
         self.title_bar_window.check_updates_requested.connect(self.check_for_updates_manual)
+        self.title_bar_window.buy_credits_requested.connect(self.show_purchase_dialog)
         self.title_bar_window.logout_requested.connect(self.logout)
 
     
@@ -744,6 +746,9 @@ class MainWindow(WindowEventMixin, QMainWindow):
         """Manually trigger update check from title bar (checks both version and content)."""
         self.update_status("Checking for updates...")
         
+        # Show toast feedback
+        toast_helpers.show_checking_updates_toast(self)
+        
         # Check app version first
         if hasattr(self, 'version_gateway'):
             self.version_gateway.check_version()
@@ -753,6 +758,23 @@ class MainWindow(WindowEventMixin, QMainWindow):
             # Delay slightly so version check completes first
             QTimer.singleShot(1000, self.update_conductor.check_for_updates)
             
+    
+    def show_purchase_dialog(self):
+        """Show the Purchase Dialog (from Menu)"""
+        from client.gui.dialogs.purchase_dialog import PurchaseDialog
+        
+        # Using a PLACEHOLDER ID. Replace with real Store ID from Partner Center.
+        STORE_ID_ENERGY_100 = "9NBLGGH42DRG" 
+        
+        dialog = PurchaseDialog(
+            product_id=STORE_ID_ENERGY_100,
+            title="Get More Energy",
+            description="Refill your energy instantly.",
+            price="$1.99",
+            parent=self
+        )
+        dialog.exec()
+        
     def show_update_dialog(self, manifest):
         """Show dialog with available content updates."""
         dialog = UpdateDialog(manifest, self)

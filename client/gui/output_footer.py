@@ -99,6 +99,11 @@ class OutputFooter(QWidget):
         max_energy = EnergyManager.MAX_DAILY_ENERGY
         self.credit_bar.set_credits(current, max_energy)
         
+        # Connect CreditBar click to purchase dialog
+        self.credit_bar.clicked.connect(self._on_buy_energy_clicked)
+        self.credit_bar.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.credit_bar.setToolTip("Click to buy more energy")
+        
         # Spacer
         layout.addSpacing(16)
         
@@ -323,4 +328,21 @@ class OutputFooter(QWidget):
         """Handle energy balance updates from EnergyManager"""
         if hasattr(self, 'credit_bar'):
             self.credit_bar.set_credits(current, max_energy)
+
+    def _on_buy_energy_clicked(self):
+        """Open Purchase Dialog for energy refill"""
+        from client.gui.dialogs.purchase_dialog import PurchaseDialog
+        
+        # Using a PLACEHOLDER ID. Replace with real Store ID from Partner Center.
+        # Example: '9NBLGGH42DRG'
+        STORE_ID_ENERGY_100 = "9NBLGGH42DRG" 
+        
+        dialog = PurchaseDialog(
+            product_id=STORE_ID_ENERGY_100,
+            title="Get More Energy",
+            description="Refill your energy instantly to continue running heavy jobs.",
+            price="$1.99", # Fetched dynamically ideally
+            parent=self.window()
+        )
+        dialog.exec()
 

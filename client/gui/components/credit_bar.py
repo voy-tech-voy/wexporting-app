@@ -5,7 +5,7 @@ Vertical bars with sine-wave modulated Y-position.
 """
 
 from PyQt6.QtWidgets import QWidget, QSizePolicy
-from PyQt6.QtCore import Qt, QTimer, QSize, pyqtProperty, pyqtSlot, QRectF
+from PyQt6.QtCore import Qt, QTimer, QSize, pyqtProperty, pyqtSlot, QRectF, pyqtSignal
 from PyQt6.QtGui import QPainter, QColor, QBrush, QPen, QFont
 import math
 
@@ -530,6 +530,8 @@ class CreditBar(QWidget):
     Displays energy credits as a thunderbolt icon that fills up.
     Format: [Current/Max] [Thunderbolt Icon]
     """
+    clicked = pyqtSignal()
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
@@ -566,7 +568,9 @@ class CreditBar(QWidget):
         QTimer.singleShot(0, self.load_config)
 
     def mousePressEvent(self, event):
-        """Handle mouse press to gain focus"""
+        """Handle mouse press to gain focus and emit click"""
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.clicked.emit()
         self.setFocus()
         super().mousePressEvent(event)
 

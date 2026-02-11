@@ -41,6 +41,8 @@ class TitleBarWindow(QMainWindow):
     theme_toggle_requested = pyqtSignal()
     show_advanced_requested = pyqtSignal()
     show_about_requested = pyqtSignal()
+    check_updates_requested = pyqtSignal()
+    buy_credits_requested = pyqtSignal()
 
     logout_requested = pyqtSignal()
     
@@ -188,13 +190,16 @@ class TitleBarWindow(QMainWindow):
         about_action.triggered.connect(self.show_about_requested.emit)
         self._menu.addAction(about_action)
         
-
+        check_updates_action = QAction("Check for Updates", self)
+        check_updates_action.triggered.connect(self.check_updates_requested.emit)
+        self._menu.addAction(check_updates_action)
+        
+        buy_action = QAction("Buy Credits", self)
+        buy_action.triggered.connect(self.buy_credits_requested.emit)
+        self._menu.addAction(buy_action)
         
         self._menu.addSeparator()
         
-        logout_action = QAction("Log Out", self)
-        logout_action.triggered.connect(self.logout_requested.emit)
-        self._menu.addAction(logout_action)
         
         exit_action = QAction("Exit", self)
         exit_action.triggered.connect(self.close_requested.emit)
