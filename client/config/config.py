@@ -35,6 +35,15 @@ class Config:
     STORE_AUTH_LOGIN_ENDPOINT = f"{API_PREFIX}/auth/login"
     STORE_VALIDATE_RECEIPT_ENDPOINT = f"{API_PREFIX}/store/validate-receipt"
     
+    # Version Gateway Configuration (NEW)
+    APP_CONFIG_ENDPOINT = f"{API_PREFIX}/app-config"
+    MSSTORE_PRODUCT_ID = "YOUR_APP_ID"  # Replace with real MS Store Product ID
+    
+    # Content Update Configuration (NEW)
+    UPDATE_MANIFEST_ENDPOINT = f"{API_PREFIX}/updates/manifest"
+    UPDATE_DOWNLOAD_PRESET_ENDPOINT = f"{API_PREFIX}/updates/download/preset"
+    UPDATE_DOWNLOAD_ESTIMATOR_ENDPOINT = f"{API_PREFIX}/updates/download/estimator"
+    
     # Application Configuration
     APP_NAME = "ImageWave Converter"
     APP_VERSION = "1.1.0"
@@ -93,3 +102,7 @@ CONFIG_COSTS_URL = f"{API_BASE_URL}{current_config.CONFIG_COSTS_ENDPOINT}"
 # Store Authentication URLs (NEW)
 STORE_AUTH_LOGIN_URL = f"{API_BASE_URL}{current_config.STORE_AUTH_LOGIN_ENDPOINT}"
 STORE_VALIDATE_RECEIPT_URL = f"{API_BASE_URL}{current_config.STORE_VALIDATE_RECEIPT_ENDPOINT}"
+
+# Version Gateway URLs (NEW)
+APP_CONFIG_URL = f"{API_BASE_URL}{current_config.APP_CONFIG_ENDPOINT}"
+MSSTORE_PRODUCT_ID = current_config.MSSTORE_PRODUCT_ID

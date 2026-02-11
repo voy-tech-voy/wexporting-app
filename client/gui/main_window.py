@@ -37,7 +37,11 @@ from client.gui.drag_drop_area import ViewMode
 from client.utils.session_manager import SessionManager
 
 # Conductors (Mediator-Shell Pattern)
-from client.core.conductors import ModeConductor, Mode, ConversionConductor
+from client.core.conductors import (ModeConductor, Mode, ConversionConductor, 
+                                     UpdateConductor, VersionGatewayConductor)
+from client.gui.dialogs.update_dialog import UpdateDialog
+from client.gui.dialogs.version_update_dialogs import (OptionalVersionUpdateDialog, 
+                                                        MandatoryVersionUpdateScreen)
 
 
 class MainWindow(QMainWindow):
@@ -107,11 +111,11 @@ class MainWindow(QMainWindow):
         self.window_behavior = FramelessWindowBehavior(self, border_width=8)
         
         # Dev Panel Manager (centralized)
-        from client.gui.dev_panels import DevPanelManager, NoiseDevPanel
-        from client.gui.dev_theme_panel import DevThemePanel
+        from client.gui.dev_panels import DevPanelManager, NoiseDevPanel, DevThemePanel, SequenceDevPanel
         self.dev_panel_manager = DevPanelManager(self)
         self.dev_panel_manager.register_panel('noise', NoiseDevPanel)
         self.dev_panel_manager.register_panel('theme', DevThemePanel)
+        self.dev_panel_manager.register_panel('sequence', SequenceDevPanel)
         
         # Conductors (initialized after UI setup)
         self.mode_conductor = None
@@ -138,6 +142,10 @@ class MainWindow(QMainWindow):
     def eventFilter(self, source, event):
         """Global event filter to handle click-anywhere behavior"""
         if event.type() == QEvent.Type.MouseButtonPress:
+            # Check if conversion is active via conductor - don't clear while working!
+            if hasattr(self, 'conversion_conductor') and self.conversion_conductor.is_converting():
+                return super().eventFilter(source, event)
+                
             # Clear file statuses on any click anywhere in the app (unless persistence is enabled)
             from client.gui.dev_panels.noise_params import NoiseParams
             if hasattr(self, 'drag_drop_area') and not NoiseParams.persistence_enabled:
@@ -213,6 +221,7 @@ class MainWindow(QMainWindow):
         self.title_bar_window.theme_toggle_requested.connect(self.toggle_theme)
         self.title_bar_window.show_advanced_requested.connect(self.show_advanced)
         self.title_bar_window.show_about_requested.connect(self.show_about)
+        self.title_bar_window.check_updates_requested.connect(self.check_for_updates_manual)
         self.title_bar_window.logout_requested.connect(self.logout)
 
     
@@ -257,6 +266,31 @@ class MainWindow(QMainWindow):
             dialogs=self.dialogs,
             update_status_callback=self.update_status
         )
+        
+        # Initialize UpdateConductor (Content Updates)
+        self.update_conductor = UpdateConductor()
+        self.update_conductor.updates_available.connect(self.show_update_dialog)
+        self.update_conductor.no_update_found.connect(lambda: self.update_status("No content updates available."))
+        self.update_conductor.update_error.connect(lambda msg: self.update_status(f"Content update check failed: {msg}"))
+        self.update_conductor.check_already_running.connect(lambda: self.update_status("Update check already in progress..."))
+        
+        # Connect update application signals
+        self.update_conductor.update_progress.connect(self._on_update_progress)
+        self.update_conductor.update_complete.connect(self._on_update_complete)
+        self.update_conductor.update_failed.connect(self._on_update_failed)
+        
+        # Initialize VersionGatewayConductor (App Version Updates)
+        self.version_gateway = VersionGatewayConductor()
+        self.version_gateway.mandatory_update_required.connect(self.show_mandatory_update)
+        self.version_gateway.optional_update_available.connect(self.show_optional_update)
+        self.version_gateway.up_to_date.connect(lambda: self.update_status("App is up to date."))
+        self.version_gateway.check_failed.connect(lambda msg: self.update_status(f"Version check failed: {msg}"))
+        
+        # Start version check immediately on startup (critical for mandatory updates)
+        QTimer.singleShot(500, self.version_gateway.check_version)
+        
+        # Start content update check after version check completes
+        QTimer.singleShot(3000, self.update_conductor.check_for_updates)
         
         # Inject ConversionConductor into PresetOrchestrator (for lab mode preset execution)
         # This must be done after conductor is created
@@ -618,6 +652,67 @@ class MainWindow(QMainWindow):
             # Settings were saved, show confirmation
             self.dialogs.show_info("Settings Saved", "Advanced settings have been saved successfully.")
     
+    def check_for_updates_manual(self):
+        """Manually check for updates (triggered from menu)"""
+        # Show toast immediately
+        self.drag_drop_area.show_toast("Checking for updates...", duration=2000)
+        QApplication.processEvents()
+        
+        # Use QTimer to run check in next loop to allow UI to update (simple async)
+        # For true async without freezing, we'd need a thread, but fetch is usually fast.
+        # User complained about "waits until server checks". 
+        # A simple timer delay allows the toast to render first.
+        from PyQt6.QtCore import QTimer
+        QTimer.singleShot(100, self._perform_update_check)
+        
+    def _perform_update_check(self):
+        """Perform the actual update check"""
+        try:
+            from client.utils.update_checker import check_for_updates, UpdateState
+            from client.gui.dialogs.update_dialog import OptionalUpdateDialog, MandatoryUpdateScreen
+            from PyQt6.QtWidgets import QMessageBox
+            
+            # Check with shorter timeout for manual (or keep 10s if we want robustness)
+            # User wants visual feedback "immediately".
+            
+            result = check_for_updates(timeout=10)
+            
+            if result.state == UpdateState.MANDATORY_UPDATE:
+                # Show mandatory update screen
+                blocker = MandatoryUpdateScreen(result, theme_manager=self.theme_manager)
+                blocker.show()
+                # This will exit the app when user clicks Update
+                
+            elif result.state == UpdateState.OPTIONAL_UPDATE:
+                # Show optional update dialog
+                dialog = OptionalUpdateDialog(result, parent=self, theme_manager=self.theme_manager)
+                dialog.exec()
+                self.update_status("Update check complete")
+                
+            else:
+                # Already up to date - use themed dialog
+                from client.gui.dialogs.update_dialog import UpdateMessageBox
+                msg = UpdateMessageBox(
+                    "No Updates Available",
+                    "You are running the latest version of the application.",
+                    parent=self,
+                    theme_manager=self.theme_manager
+                )
+                msg.exec()
+                self.update_status("App is up to date")
+                
+        except Exception as e:
+            from client.gui.dialogs.update_dialog import UpdateMessageBox
+            msg = UpdateMessageBox(
+                "Update Check Failed",
+                f"Could not check for updates:\n{str(e)}",
+                parent=self,
+                theme_manager=self.theme_manager,
+                is_error=True
+            )
+            msg.exec()
+            self.update_status("Update check failed")
+    
     def logout(self):
         """Logout from the application and show login window."""
         # Confirm logout first (dialog stays in MainWindow for UI control)
@@ -805,6 +900,67 @@ class MainWindow(QMainWindow):
         
         super().keyPressEvent(event)
     
+    def check_for_updates_manual(self):
+        """Manually trigger update check from title bar (checks both version and content)."""
+        self.update_status("Checking for updates...")
+        
+        # Check app version first
+        if hasattr(self, 'version_gateway'):
+            self.version_gateway.check_version()
+            
+        # Then check content updates
+        if hasattr(self, 'update_conductor'):
+            # Delay slightly so version check completes first
+            QTimer.singleShot(1000, self.update_conductor.check_for_updates)
+            
+    def show_update_dialog(self, manifest):
+        """Show dialog with available content updates."""
+        dialog = UpdateDialog(manifest, self)
+        if dialog.exec():
+            # User clicked "Update Now" - trigger actual update application
+            self.update_status("Downloading updates...")
+            self.update_conductor.apply_updates(manifest)
+            
+    def _on_update_progress(self, message, percentage):
+        """Handle update progress updates."""
+        self.update_status(f"{message} ({percentage}%)")
+        
+    def _on_update_complete(self, result):
+        """Handle successful update completion."""
+        presets_updated = result.get('presets_updated', 0)
+        estimators_updated = result.get('estimators_updated', 0)
+        errors = result.get('errors', [])
+        
+        if errors:
+            error_msg = "\n".join(errors)
+            self.dialogs.show_warning(
+                "Updates Partially Applied",
+                f"Updated {presets_updated} presets and {estimators_updated} estimators.\n\nErrors:\n{error_msg}"
+            )
+        else:
+            self.dialogs.show_info(
+                "Updates Complete",
+                f"Successfully updated {presets_updated} presets and {estimators_updated} estimators!"
+            )
+        
+        self.update_status("Updates applied successfully.")
+        
+    def _on_update_failed(self, error_msg):
+        """Handle update failure."""
+        self.dialogs.show_error("Update Failed", f"Failed to apply updates:\n{error_msg}")
+        self.update_status("Update failed.")
+            
+    def show_optional_update(self, result):
+        """Show dialog for optional app version update."""
+        dialog = OptionalVersionUpdateDialog(result, self)
+        dialog.exec()
+        
+    def show_mandatory_update(self, result):
+        """Show blocking screen for mandatory app version update."""
+        # Create full-screen blocking widget
+        self.mandatory_screen = MandatoryVersionUpdateScreen(result)
+        self.mandatory_screen.showFullScreen()
+            
     def _toggle_dev_theme_panel(self):
         """Toggle the developer theme panel (F12) - Legacy until refactored"""
         if not hasattr(self, '_dev_theme_panel'):
