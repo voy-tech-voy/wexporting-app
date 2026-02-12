@@ -65,7 +65,7 @@ DARK_THEME = {
     "gallery_filter_mask_top_alpha": "255",   # Filter mask top alpha (Opaque)
     "gallery_filter_mask_bottom_alpha": "0",  # Filter mask bottom alpha (Transparent)
     "gallery_filter_debug_mask": "0",         # Show mask for debugging (0=Off, 1=On)
-    "gallery_filter_noise_opacity": "15",     # Gradient noise opacity (0-255) to prevent banding
+    "gallery_filter_noise_opacity": "5",     # Gradient noise opacity (0-255) to prevent banding
     # Filter Button Colors
     "gallery_filter_btn_active_bg": "#30D158",     # Active button background (green)
     "gallery_filter_btn_active_text": "#FFFFFF",   # Active button text
@@ -140,7 +140,7 @@ LIGHT_THEME = {
     "gallery_filter_mask_top_alpha": "255",   # Filter mask top alpha (Opaque)
     "gallery_filter_mask_bottom_alpha": "0",  # Filter mask bottom alpha (Transparent)
     "gallery_filter_debug_mask": "0",         # Show mask for debugging (0=Off, 1=On)
-    "gallery_filter_noise_opacity": "15",     # Gradient noise opacity (0-255) (Lower for light mode)
+    "gallery_filter_noise_opacity": "5",     # Gradient noise opacity (0-255) (Lower for light mode)
     # Filter Button Colors
     "gallery_filter_btn_active_bg": "#30D158",     # Active button background (green)
     "gallery_filter_btn_active_text": "#FFFFFF",   # Active button text

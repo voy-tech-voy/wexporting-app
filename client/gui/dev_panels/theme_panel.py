@@ -7,12 +7,66 @@ import os
 import re
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, 
-    QScrollArea, QColorDialog, QFrame, QLineEdit, QMessageBox, QGroupBox
+    QScrollArea, QColorDialog, QFrame, QLineEdit, QMessageBox, QGroupBox, QSpinBox
 )
 from PyQt6.QtCore import Qt, pyqtSignal, QTimer
 from PyQt6.QtGui import QColor
 
+
+class AlphaRow(QWidget):
+    """Row for numeric value with spinbox"""
+    
+    alphaChanged = pyqtSignal(str, str)  # (variable_name, value_as_string)
+    
+    def __init__(self, var_name: str, value_str: str, description: str = "", min_val: int = 0, max_val: int = 255, parent=None):
+        super().__init__(parent)
+        self.var_name = var_name
+        
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(8, 4, 8, 4)
+        layout.setSpacing(12)
+        
+        # Variable name
+        name_label = QLabel(var_name)
+        name_label.setMinimumWidth(180)
+        name_label.setStyleSheet("font-family: 'Consolas', 'Courier New', monospace; font-weight: bold; color: #F5F5F7;")
+        layout.addWidget(name_label)
+        
+        # Numeric spinbox
+        self.alpha_spin = QGroupBox() # Placeholder for type compatibility if needed, but using SpinBox direct
+        from PyQt6.QtWidgets import QSpinBox
+        self.alpha_spin = QSpinBox()
+        self.alpha_spin.setRange(min_val, max_val)
+        
+        # Handle potential hex or empty values gracefully by defaulting to max
+        try:
+            val = int(value_str)
+        except (ValueError, TypeError):
+            val = max_val
+            
+        self.alpha_spin.setValue(val)
+        self.alpha_spin.setMaximumWidth(100)
+        self.alpha_spin.setStyleSheet("""
+            QSpinBox {
+                padding: 4px 8px;
+                background-color: #2D2D2D;
+                color: white;
+                border: 1px solid #555555;
+                border-radius: 4px;
+            }
+        """)
+        self.alpha_spin.valueChanged.connect(lambda v: self.alphaChanged.emit(self.var_name, str(v)))
+        layout.addWidget(self.alpha_spin)
+        
+        # Description
+        desc_label = QLabel(description)
+        desc_label.setStyleSheet("color: #86868B; font-size: 11px;")
+        desc_label.setWordWrap(True)
+        layout.addWidget(desc_label, 1)
+
+
 from .base import BaseDevPanel
+
 
 
 class ColorPickerRow(QWidget):
@@ -203,12 +257,30 @@ class DevThemePanel(BaseDevPanel):
             ("btn_file_hover", "File button hover (white)"),
             ("titlebar_btn_bg", "Title bar button background"),
             ("titlebar_btn_hover", "Title bar button hover"),
+            
+            # Gallery Filter Colors (for tuning gradients)
+            ("gallery_filter_bg", "Filter Gradient Color (Start)"),
+            ("gallery_filter_overlay", "Filter Overlay Color"),
+            ("gallery_filter_overlay_alpha", "Filter Overlay Alpha (0-255)", "alpha"),
+            ("gallery_filter_mask_top_alpha", "Gradient Mask Top Alpha (0-255)", "alpha"),
+            ("gallery_filter_mask_bottom_alpha", "Gradient Mask Bottom Alpha (0-255)", "alpha"),
+            ("gallery_filter_noise_opacity", "Filter Noise Opacity (0-255)", "alpha"),
         ]
         
-        for var_name, description in dark_colors_list:
-            current_color = self.theme_colors['DARK_THEME'].get(var_name, "#FF00FF")
-            row = ColorPickerRow(var_name, current_color, description)
-            row.colorChanged.connect(lambda v, c, mode='dark': self._on_color_changed(mode, v, c))
+        for item in dark_colors_list:
+            var_name = item[0]
+            description = item[1]
+            item_type = item[2] if len(item) > 2 else "color"
+            
+            current_value = self.theme_colors['DARK_THEME'].get(var_name, "#FF00FF")
+            
+            if item_type == "alpha":
+                row = AlphaRow(var_name, str(current_value), description)
+                row.alphaChanged.connect(lambda v, c, mode='dark': self._on_color_changed(mode, v, c))
+            else:
+                row = ColorPickerRow(var_name, current_value, description)
+                row.colorChanged.connect(lambda v, c, mode='dark': self._on_color_changed(mode, v, c))
+                
             dark_layout.addWidget(row)
             
         dark_group.setLayout(dark_layout)
@@ -223,10 +295,20 @@ class DevThemePanel(BaseDevPanel):
         light_layout.setSpacing(2)
         
         # Add light theme color pickers
-        for var_name, description in dark_colors_list:  # Same variables for light mode
-            current_color = self.theme_colors['LIGHT_THEME'].get(var_name, "#FF00FF")
-            row = ColorPickerRow(var_name, current_color, description)
-            row.colorChanged.connect(lambda v, c, mode='light': self._on_color_changed(mode, v, c))
+        for item in dark_colors_list:  # Same variables for light mode
+            var_name = item[0]
+            description = item[1]
+            item_type = item[2] if len(item) > 2 else "color"
+            
+            current_value = self.theme_colors['LIGHT_THEME'].get(var_name, "#FF00FF")
+            
+            if item_type == "alpha":
+                row = AlphaRow(var_name, str(current_value), description)
+                row.alphaChanged.connect(lambda v, c, mode='light': self._on_color_changed(mode, v, c))
+            else:
+                row = ColorPickerRow(var_name, current_value, description)
+                row.colorChanged.connect(lambda v, c, mode='light': self._on_color_changed(mode, v, c))
+            
             light_layout.addWidget(row)
             
         light_group.setLayout(light_layout)
@@ -248,6 +330,10 @@ class DevThemePanel(BaseDevPanel):
             DARK_THEME[var_name] = color
         else:
             LIGHT_THEME[var_name] = color
+        
+        # If filter parameters changed, we should notify the gallery if possible
+        # This is a bit of a hack to reach across modules, but updates are broadcast via theme_manager anyway
+        # The specific gallery redraw trigger happens in DevGalleryColorPanel but here we rely on standard theme updates
         
         # Debounce the expensive broadcast operation
         self._update_timer.start()
