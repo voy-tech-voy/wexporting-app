@@ -147,3 +147,29 @@ def show_conversion_toast(
     
     parent._active_toast = toast
     return toast
+
+
+def show_checking_updates_toast(parent: QWidget) -> ToastNotification:
+    """
+    Show a toast indicating that updates are being checked.
+    
+    Args:
+        parent: Parent widget
+        
+    Returns:
+        The created ToastNotification instance
+    """
+    dismiss_active_toast(parent)
+    
+    toast = ToastNotification(
+        message="Checking for updates...",
+        icon_type="info",
+        duration=3000,
+        parent=parent,
+        position="bottom-right"
+    )
+    toast.dismissed.connect(lambda: setattr(parent, '_active_toast', None))
+    toast.show_toast()
+    
+    parent._active_toast = toast
+    return toast

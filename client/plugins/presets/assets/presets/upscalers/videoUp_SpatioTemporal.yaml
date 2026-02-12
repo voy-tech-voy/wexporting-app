@@ -9,9 +9,9 @@
 
 meta:
   id: "spatiotemporal_upscale_4step"
-  name: "Spatio-Temporal (4-Step)"
+  name: "Video\nAI Upscale"
   category: "upscale"
-  description: "Professional video upscaling with temporal smoothing. Eliminates jitter and shimmering."
+  description: "Generative upscaling using lightweight AI models. Enhances resolution and smooths motion. \nnote: This is computation heavy and may take some time."
   version: "1.0"
 
 style:

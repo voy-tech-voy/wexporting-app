@@ -57,10 +57,12 @@ class DragDropArea(QWidget):
         super().__init__()
         self.file_list = []
         self.theme_manager = None  # Will be set by parent
+        self._is_converting = False # State flag to gate status clearing
         self.setAcceptDrops(True)  # Enable drag/drop on the main widget
         self._current_processing_index = -1  # Track which file is being processed
         self._pending_files = None  # Files waiting for preset selection
         self._current_view_mode = ViewMode.FILES  # Default view mode
+        self._group_sequences = True # Default state for sequence grouping
         self.setup_ui()
     
     def set_file_progress(self, file_index, progress):
@@ -85,25 +87,92 @@ class DragDropArea(QWidget):
 
     def set_file_status(self, file_index: int, status: str):
         """Set visual status for a file item. status: 'success'|'skipped'|'failed'|'stopped'"""
+        # Validate index against master file list
+        if not (0 <= file_index < len(self.file_list)):
+            return
+
+        file_path = self.file_list[file_index]
+        
+        # 1. Check Sequence View Mode
+        if self.current_view_mode == ViewMode.FILES and self._group_sequences:
+            # Find the widget containing this file
+            for i in range(self.file_list_widget.count()):
+                item = self.file_list_widget.item(i)
+                widget = self.file_list_widget.itemWidget(item)
+                
+                if widget and getattr(widget, 'is_sequence', False):
+                    if hasattr(widget, 'sequence_files') and file_path in widget.sequence_files:
+                        # Found sequence!
+                        if status == 'success':
+                            # Set intermediate status to trigger paintEvent but NOT full completion logic yet
+                            widget.set_status('processing') 
+                            widget.mark_file_complete(file_path)
+                        elif status in ['failed', 'skipped', 'stopped']:
+                            # For now, just mark as complete so progress continues? 
+                            # Or maybe mark as failed? 
+                            # Let's count it as complete for progress bar purposes, 
+                            # but if it fails, the bar might need a mixed color?
+                            # Simple approach: Mark complete so bar fills.
+                            widget.mark_file_complete(file_path)
+                            
+                        return
+                    
+                # Also check single items in sequence view (they might not be is_sequence=True)
+                # But if they are single, file_index mapping might be tricky if we don't scan.
+                # Actually, simpler: just scan all widgets.
+                elif widget and widget.file_path == file_path:
+                     widget.set_status(status)
+                     if status == 'success':
+                         item.setData(Qt.ItemDataRole.UserRole + 1, True)
+                     return
+
+        # 2. Standard View (or Fallback)
+        # If NOT in sequence mode, file_index should match row index (mostly)
+        # BUT safely, we should probably find by path or trust index if counts match
         if 0 <= file_index < self.file_list_widget.count():
-            item = self.file_list_widget.item(file_index)
-            # Store completion state in item data
-            if status == 'success':
-                item.setData(Qt.ItemDataRole.UserRole + 1, True)
-            
-            # Update widget status
-            widget = self.file_list_widget.itemWidget(item)
-            if widget and hasattr(widget, 'set_status'):
-                widget.set_status(status)
+             # Basic 1:1 mapping (Process: legacy logic relied on this)
+             # But to be safe with new DragDropArea refactor, let's double check path?
+             # For now, stick to index if counts match, else scan.
+             if len(self.file_list) == self.file_list_widget.count():
+                item = self.file_list_widget.item(file_index)
+                if status == 'success':
+                    item.setData(Qt.ItemDataRole.UserRole + 1, True)
+                
+                widget = self.file_list_widget.itemWidget(item)
+                if widget and hasattr(widget, 'set_status'):
+                    widget.set_status(status)
+             else:
+                 # Counts mismatch (maybe filtering?), scan for path
+                 for i in range(self.file_list_widget.count()):
+                     item = self.file_list_widget.item(i)
+                     widget = self.file_list_widget.itemWidget(item)
+                     if widget and widget.file_path == file_path:
+                         widget.set_status(status)
+                         if status == 'success':
+                             item.setData(Qt.ItemDataRole.UserRole + 1, True)
+                         return
 
     def clear_all_statuses(self):
         """Clear visual status from all files"""
+        if self._is_converting:
+            return
+            
         for i in range(self.file_list_widget.count()):
             item = self.file_list_widget.item(i)
             widget = self.file_list_widget.itemWidget(item)
-            if widget and hasattr(widget, 'clear_status'):
-                widget.clear_status()
+            if widget:
+                # Clear status AND progress (critical for sequences)
+                if hasattr(widget, 'clear_progress'):
+                    widget.clear_progress()
+                elif hasattr(widget, 'clear_status'):
+                    widget.clear_status()
+                
+            # Clear item data
+            item.setData(Qt.ItemDataRole.UserRole + 1, None)
 
+    def set_converting(self, is_converting: bool):
+        """Set conversion state to gate status clearing"""
+        self._is_converting = is_converting
     # NOTE: set_preset_active removed - preset_status_btn is now in MainWindow's control bar
     # State updates go through the preset_applied signal handled by MainWindow.on_preset_applied
     
@@ -216,6 +285,93 @@ class DragDropArea(QWidget):
         """Forward go to lab request via signal."""
         print(f"[DragDropArea] Go to Lab requested with {len(lab_settings)} settings")
         self.go_to_lab_requested.emit(lab_settings)
+        
+    def toggle_sequence_view(self, checked):
+        """Toggle between flat and sequence view"""
+        self._group_sequences = checked
+        self.refresh_file_list()
+
+    def refresh_file_list(self):
+        """Rebuild list widget based on current files and view mode"""
+        self.file_list_widget.clear()
+        
+        if self._group_sequences:
+            from client.utils.sequence_detector import SequenceDetector
+            sequences, singles = SequenceDetector.detect(self.file_list)
+            
+            # Add sequences
+            for seq in sequences:
+                display_name = f"{seq['name']} ({seq['count']} files)"
+                first_file = seq['preview_file']
+                
+                item = QListWidgetItem()
+                item.setToolTip(f"Sequence: {seq['name']}\nFiles: {seq['count']}\nRange: {seq['range'][0]}-{seq['range'][1]}")
+                
+                item_widget = FileListItemWidget(display_name, first_file, self) # Use preview file for thumbnail
+                item_widget.set_sequence_mode(seq['count'], seq['files']) # Enable stacked display
+                
+                # Apply style
+                is_dark = self.theme_manager and self.theme_manager.current_theme == 'dark'
+                item_widget.update_button_style(is_dark)
+                
+                # Logic for removal
+                self._connect_item_signals(item, item_widget, is_sequence=True, sequence_files=seq['files'])
+                
+                item.setSizeHint(item_widget.sizeHint())
+                self.file_list_widget.addItem(item)
+                self.file_list_widget.setItemWidget(item, item_widget)
+            
+            # Add singles
+            for file_path in singles:
+                self._add_single_file_item(file_path)
+                
+        else:
+            # Flat list
+            for file_path in self.file_list:
+                self._add_single_file_item(file_path)
+        
+        self.update_placeholder_text()
+
+    def _add_single_file_item(self, file_path):
+        """Helper to add a single file item"""
+        file_name = os.path.basename(file_path)
+        file_size = file_type_utils.get_file_size(file_path)
+        item_text = f"{file_name} ({file_size})"
+        
+        item = QListWidgetItem()
+        item.setToolTip(f"Full path: {file_path}\nSize: {file_size}")
+        
+        item_widget = FileListItemWidget(item_text, file_path, self)
+        is_dark = self.theme_manager and self.theme_manager.current_theme == 'dark'
+        item_widget.update_button_style(is_dark)
+        
+        self._connect_item_signals(item, item_widget)
+        
+        item.setSizeHint(item_widget.sizeHint())
+        self.file_list_widget.addItem(item)
+        self.file_list_widget.setItemWidget(item, item_widget)
+        
+    def _connect_item_signals(self, item, item_widget, is_sequence=False, sequence_files=None):
+        """Connect signals for list items"""
+        def create_remove_handler(widget, is_seq, seq_files):
+            def handler():
+                # Remove logic
+                if is_seq and seq_files:
+                    # Remove all files in sequence from main list
+                    for f in seq_files:
+                        if f in self.file_list:
+                            self.file_list.remove(f)
+                else:
+                    # Single file removal
+                    if widget.file_path in self.file_list:
+                         self.file_list.remove(widget.file_path)
+                
+                # Full refresh to update list
+                self.refresh_file_list()
+            return handler
+        
+        item_widget.remove_clicked.connect(create_remove_handler(item_widget, is_sequence, sequence_files))
+        item_widget.status_clicked.connect(self.clear_all_statuses)
     
     # =========================================================================
     # SMART CONTAINER API (Mediator-Shell Pattern)
@@ -299,6 +455,10 @@ class DragDropArea(QWidget):
 
     def dragEnterEvent(self, event: QDragEnterEvent):
         """Handle drag enter - accept files for processing"""
+        if self._is_converting:
+            event.ignore()
+            return
+            
         if event.mimeData().hasUrls():
             event.acceptProposedAction()
         else:
@@ -310,6 +470,10 @@ class DragDropArea(QWidget):
         
     def dropEvent(self, event: QDropEvent):
         """Handle dropped files - add them to the list immediately"""
+        if self._is_converting:
+            event.ignore()
+            return
+
         if event.mimeData().hasUrls():
             files = []
             folders = []
@@ -439,50 +603,32 @@ class DragDropArea(QWidget):
         """Add files to the conversion list"""
         added_files = []
         unsupported_count = 0
+        files_actually_added = False
         
         for file_path in files:
             if file_path not in self.file_list:
+                # Skip cryptomatte files (FFmpeg can't decode them properly)
+                file_name = Path(file_path).name.lower()
+                if 'cryptomatte' in file_name:
+                    unsupported_count += 1
+                    continue
+                    
                 # Check if file type is supported
                 file_ext = Path(file_path).suffix.lower()
                 if self.is_supported_file(file_ext):
                     self.file_list.append(file_path)
                     added_files.append(file_path)
+                    files_actually_added = True
                     
-                    # Add to list widget with file info
-                    file_name = os.path.basename(file_path)
-                    file_size = file_type_utils.get_file_size(file_path)
-                    item_text = f"{file_name} ({file_size})"
-                    
-                    # Create custom widget for the item
-                    item = QListWidgetItem()
-                    item.setToolTip(f"Full path: {file_path}\nSize: {file_size}")
-                    
-                    # Create custom widget with remove button and thumbnail
-                    item_widget = FileListItemWidget(item_text, file_path, self)
-                    is_dark = self.theme_manager and self.theme_manager.current_theme == 'dark'
-                    item_widget.update_button_style(is_dark)
-                    
-                    # Connect remove button - use closure to capture the widget
-                    def create_remove_handler(widget):
-                        def handler():
-                            # Find the index by iterating through list
-                            for i in range(self.file_list_widget.count()):
-                                if self.file_list_widget.itemWidget(self.file_list_widget.item(i)) == widget:
-                                    self.remove_file_by_index(i)
-                                    break
-                        return handler
-                    
-                    item_widget.remove_clicked.connect(create_remove_handler(item_widget))
-                    
-                    # Global clear when clicking an item
-                    item_widget.status_clicked.connect(self.clear_all_statuses)
-                    
-                    # Set size and add to list
-                    item.setSizeHint(item_widget.sizeHint())
-                    self.file_list_widget.addItem(item)
-                    self.file_list_widget.setItemWidget(item, item_widget)
+                    # Only add directly if NOT in sequence mode
+                    if not self._group_sequences:
+                        self._add_single_file_item(file_path)
                 else:
                     unsupported_count += 1
+        
+        # If in sequence mode, full refresh is safer
+        if files_actually_added and self._group_sequences:
+            self.refresh_file_list()
         
         # Show single consolidated toast if there were unsupported files
         if unsupported_count > 0:
@@ -608,18 +754,31 @@ class DragDropArea(QWidget):
         if event.key() in (Qt.Key.Key_Delete, Qt.Key.Key_Backspace):
             selected_items = self.file_list_widget.selectedItems()
             if selected_items:
-                # Remove items in reverse order to maintain correct indices
-                for item in reversed(selected_items):
-                    if not item.text().startswith("[FILE]"):  # Don't remove placeholder
-                        row = self.file_list_widget.row(item)
-                        file_path = self.file_list[row]
-                        
-                        # Remove from both lists
-                        self.file_list.remove(file_path)
-                        self.file_list_widget.takeItem(row)
+                # Remove items in reverse order to maintain visual consistency during removal?
+                # Actually, if we rebuild list, order doesn't matter much but efficient to remove from widget.
+                # But we are modifying self.file_list.
                 
-                # Update placeholder if empty
-                self.update_placeholder_text()
+                files_removed = False
+                
+                for item in selected_items:
+                    if item.data(Qt.ItemDataRole.UserRole) == "PLACEHOLDER":
+                        continue
+                        
+                    widget = self.file_list_widget.itemWidget(item)
+                    if widget:
+                        # Check if sequence
+                        if getattr(widget, 'is_sequence', False) and hasattr(widget, 'sequence_files'):
+                            for f in widget.sequence_files:
+                                if f in self.file_list:
+                                    self.file_list.remove(f)
+                                    files_removed = True
+                        elif hasattr(widget, 'file_path') and widget.file_path:
+                            if widget.file_path in self.file_list:
+                                self.file_list.remove(widget.file_path)
+                                files_removed = True
+                
+                if files_removed:
+                    self.refresh_file_list()
         else:
             # Call the original key press event handler for other keys
             QListWidget.keyPressEvent(self.file_list_widget, event)
@@ -628,7 +787,9 @@ class DragDropArea(QWidget):
         """Show context menu for file operations"""
         file_context_menu.show_file_context_menu(
             self, self.file_list_widget, position, self.theme_manager,
-            self.remove_file_item, self._show_in_explorer_wrapper
+            self.remove_file_item, self._show_in_explorer_wrapper,
+            sequences_enabled=self._group_sequences,
+            on_toggle_sequences=self.toggle_sequence_view
         )
     
     def _show_in_explorer_wrapper(self, item):
@@ -641,8 +802,19 @@ class DragDropArea(QWidget):
             
 
 
-    def get_files(self):
-        """Return the list of selected files"""
-        return self.file_list.copy()
+    def get_files(self, grouped=False):
+        """
+        Return the list of files to be converted.
+        
+        Args:
+            grouped: If True, returns a combined list where sequences are 
+                    represented as dicts and singles as strings.
+        """
+        if not grouped:
+            return self.file_list.copy()
+            
+        from client.utils.sequence_detector import SequenceDetector
+        sequences, singles = SequenceDetector.detect(self.file_list)
+        return sequences + singles
 
 

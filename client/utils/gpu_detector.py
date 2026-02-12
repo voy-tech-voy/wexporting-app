@@ -48,7 +48,6 @@ ENCODER_DEFINITIONS = {
     "av1_amf": EncoderInfo("av1_amf", EncoderType.AMD, "av1", 2),
     "av1_qsv": EncoderInfo("av1_qsv", EncoderType.INTEL, "av1", 3),
     "libsvtav1": EncoderInfo("libsvtav1", EncoderType.CPU, "av1", 10),
-    "libaom-av1": EncoderInfo("libaom-av1", EncoderType.CPU, "av1", 11),
     
     # VP9
     "vp9_qsv": EncoderInfo("vp9_qsv", EncoderType.INTEL, "vp9", 3),

@@ -73,13 +73,22 @@ else:
 
 # Check for local override file
 try:
-    import local_config
+    from . import local_config
     if hasattr(local_config, 'API_BASE_URL'):
         current_config.API_BASE_URL = local_config.API_BASE_URL
     if hasattr(local_config, 'DEVELOPMENT_MODE') and local_config.DEVELOPMENT_MODE:
         current_config.DEBUG = True
         print("Using local development server override")
+    
+    # Load Premium Override
+    if hasattr(local_config, 'PREMIUM_OVERRIDE'):
+        current_config.PREMIUM_OVERRIDE = local_config.PREMIUM_OVERRIDE
+        print(f"Using local Premium Override: {current_config.PREMIUM_OVERRIDE}")
+    else:
+        current_config.PREMIUM_OVERRIDE = None
+        
 except ImportError:
+    current_config.PREMIUM_OVERRIDE = None
     pass  # No local config file
 
 # Export commonly used values
@@ -106,3 +115,6 @@ STORE_VALIDATE_RECEIPT_URL = f"{API_BASE_URL}{current_config.STORE_VALIDATE_RECE
 # Version Gateway URLs (NEW)
 APP_CONFIG_URL = f"{API_BASE_URL}{current_config.APP_CONFIG_ENDPOINT}"
 MSSTORE_PRODUCT_ID = current_config.MSSTORE_PRODUCT_ID
+
+# Development Overrides
+PREMIUM_OVERRIDE = current_config.PREMIUM_OVERRIDE

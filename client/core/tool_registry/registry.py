@@ -75,6 +75,18 @@ class ToolRegistry:
         """List all registered tool IDs."""
         return list(self._descriptors.keys())
     
+    def get_bundled_path(self, tool_id: str) -> Optional[str]:
+        """
+        Get the path to the bundled executable for a tool, if it exists.
+        Does NOT check if it's the currently active path.
+        """
+        descriptor = self._descriptors.get(tool_id)
+        if not descriptor or not descriptor.is_bundled:
+            return None
+            
+        from .bundled import resolve_bundled_tool_path
+        return resolve_bundled_tool_path(descriptor.binary_name, descriptor.bundle_subpath)
+    
     # =========================================================================
     # Resolution and Validation
     # =========================================================================

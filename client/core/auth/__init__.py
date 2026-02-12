@@ -29,5 +29,33 @@ def get_store_auth_provider() -> IStoreAuthProvider:
     else:
         raise RuntimeError(f"Unsupported platform: {sys.platform}")
 
+_provider_instance = None
+
+
+def get_store_auth_provider() -> IStoreAuthProvider:
+    """
+    Factory function to get the appropriate store authentication provider
+    based on the current platform. Returns a singleton instance.
+    
+    Returns:
+        IStoreAuthProvider: Platform-specific implementation
+        
+    Raises:
+        RuntimeError: If platform is not supported
+    """
+    global _provider_instance
+    
+    if _provider_instance is None:
+        if sys.platform == "win32":
+            from .ms_store_provider import MSStoreProvider
+            _provider_instance = MSStoreProvider()
+        elif sys.platform == "darwin":  # macOS/iOS
+            from .apple_store_provider import AppleStoreProvider
+            _provider_instance = AppleStoreProvider()
+        else:
+            raise RuntimeError(f"Unsupported platform: {sys.platform}")
+            
+    return _provider_instance
+
 
 __all__ = ['IStoreAuthProvider', 'get_store_auth_provider']

@@ -389,28 +389,52 @@ def validate_store_receipt():
         store_user_id = _extract_user_id_from_receipt(receipt_data, platform)
         
         # Determine if premium based on product type
-        is_premium = validation_result['product_type'] == 'lifetime'
+        product_type = validation_result['product_type']  # lifetime | energy_pack | day_pass
+        is_lifetime = product_type == 'lifetime'
+        is_day_pass = product_type == 'day_pass'
         energy_to_add = validation_result.get('energy_amount', 0)
         
         # Get or create user profile
         user_profile = license_manager.get_or_create_user_profile(store_user_id, platform)
         
         # Update user profile
-        if is_premium:
+        if is_lifetime:
             user_profile['is_premium'] = True
+            
+        if is_day_pass:
+            # Set expiry to 24 hours from now
+            from datetime import datetime, timedelta
+            expiry = datetime.utcnow() + timedelta(days=1)
+            # If already has expiry, extend it? No, simpler to just set from now for Day Pass.
+            # Or strict 24h from purchase?
+            user_profile['premium_expiry'] = expiry.isoformat()
+            
         if energy_to_add > 0:
+            # Add to BOTH total balance and purchased pool (Dual Pool Strategy)
             user_profile['energy_balance'] = user_profile.get('energy_balance', 0) + energy_to_add
+            user_profile['purchased_energy'] = user_profile.get('purchased_energy', 0) + energy_to_add
         
         license_manager.save_user_profile(store_user_id, user_profile)
         
-        # Create JWT token
-        jwt_token = create_jwt_token(store_user_id, platform, is_premium)
+        # Determine actual premium status for JWT
+        # Premium if: Lifetime OR (Expiry exists AND Expiry > Now)
+        effective_is_premium = user_profile.get('is_premium', False)
         
-        logger.info(f"Receipt validated for user {store_user_id[:8]}... (platform: {platform}, premium: {is_premium})")
+        if not effective_is_premium:
+            expiry_str = user_profile.get('premium_expiry')
+            if expiry_str:
+                from datetime import datetime
+                if datetime.fromisoformat(expiry_str) > datetime.utcnow():
+                    effective_is_premium = True
+        
+        # Create JWT token
+        jwt_token = create_jwt_token(store_user_id, platform, effective_is_premium)
+        
+        logger.info(f"Receipt validated for user {store_user_id[:8]}... (platform: {platform}, premium: {effective_is_premium})")
         
         return jsonify({
             'success': True,
-            'is_premium': is_premium,
+            'is_premium': effective_is_premium,
             'energy_balance': user_profile.get('energy_balance', Config.DAILY_FREE_ENERGY),
             'jwt_token': jwt_token
         }), 200
@@ -564,9 +588,18 @@ def energy_reserve():
                 'required': amount
             }), 402  # Payment Required
         
-        # Deduct energy
+        # Deduct energy (Dual Pool Logic)
         new_balance = current_balance - amount
         user_profile['energy_balance'] = new_balance
+        
+        # If we dipped below purchased amount, clamp purchased pool
+        # Example: Total 90 (50 Free + 40 Paid). Spend 60. New Total 30.
+        # Paid was 40. Now must be 30. (Used 50 Free + 10 Paid)
+        current_purchased = user_profile.get('purchased_energy', 0)
+        if new_balance < current_purchased:
+             user_profile['purchased_energy'] = new_balance
+             
+        # Save profile
         license_manager.save_user_profile(user_id, user_profile)
         
         # Generate signature

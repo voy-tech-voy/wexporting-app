@@ -1,6 +1,10 @@
 """
 ImgApp Version Management Module
 Handles automatic version tracking, building, and bump management.
+
+SECURITY NOTE: In production builds (frozen/packaged), version.json is read-only
+to prevent users from tampering with the app version. Version bumping only works
+in development mode.
 """
 
 import json
@@ -41,7 +45,20 @@ class VersionManager:
         }
     
     def _save_version_data(self):
-        """Save version data to version.json file."""
+        """
+        Save version data to version.json file.
+        
+        SECURITY: In production builds (frozen/packaged), this is a no-op
+        to prevent users from tampering with the app version.
+        """
+        import sys
+        
+        # Only allow saving in development mode
+        if getattr(sys, 'frozen', False):
+            # Running as compiled executable - version.json is read-only
+            print("Version file is read-only in production builds")
+            return
+        
         try:
             with open(self.version_file, 'w') as f:
                 json.dump(self.version_data, f, indent=2)

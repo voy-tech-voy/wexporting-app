@@ -14,7 +14,7 @@ def validate_ffmpeg_codecs(ffmpeg_path: str, timeout: int = 5) -> Tuple[bool, st
     Validate if FFmpeg has all required codecs for the application.
     
     Required codecs:
-    - Video: libx264, libx265, libvpx-vp9, libaom-av1
+    - Video: libx264, libx265, libvpx-vp9, libsvtav1
     - Audio: aac, libopus
     
     Args:
@@ -28,7 +28,7 @@ def validate_ffmpeg_codecs(ffmpeg_path: str, timeout: int = 5) -> Tuple[bool, st
         'libx264': 'video',
         'libx265': 'video',
         'libvpx-vp9': 'video',
-        'libaom-av1': 'video',
+        'libsvtav1': 'video',
         'aac': 'audio',
         'libopus': 'audio'
     }

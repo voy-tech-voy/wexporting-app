@@ -147,6 +147,23 @@ class ConversionProgressManager(QObject):
         self.skipped_files: List[str] = []
         self._last_result: Optional[CalculationResult] = None
     
+    def _get_file_path(self, item) -> str:
+        """
+        Extract file path from an item (handles both strings and sequence dicts).
+        
+        Args:
+            item: Either a file path string or a sequence dictionary
+            
+        Returns:
+            File path as string
+        """
+        if isinstance(item, dict):
+            # This is a sequence - return the preview file
+            return item.get('preview_file', '')
+        else:
+            # This is a regular file path
+            return item
+    
     def calculate(
         self,
         file_list: List[str],
@@ -335,12 +352,14 @@ class ConversionProgressManager(QObject):
         valid_files = []
         skipped_files = []
         
-        for file_path in file_list:
+       
+        for item in file_list:
+            file_path = self._get_file_path(item)
             ext = os.path.splitext(file_path)[1].lower()
             if ext in valid_formats:
-                valid_files.append(file_path)
+                valid_files.append(item)
             else:
-                skipped_files.append(file_path)
+                skipped_files.append(item)
         
         valid_count = len(valid_files)
         
@@ -424,12 +443,14 @@ class ConversionProgressManager(QObject):
         valid_files = []
         skipped_files = []
         
-        for file_path in file_list:
+       
+        for item in file_list:
+            file_path = self._get_file_path(item)
             ext = os.path.splitext(file_path)[1].lower()
             if ext in valid_formats:
-                valid_files.append(file_path)
+                valid_files.append(item)
             else:
-                skipped_files.append(file_path)
+                skipped_files.append(item)
         
         valid_count = len(valid_files)
         

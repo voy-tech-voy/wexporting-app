@@ -21,7 +21,7 @@ style:
 
 constraints:
   accepted_types: ["image"]
-  accepted_extensions: [".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tiff"]
+  accepted_extensions: [".exr", ".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tiff"]
   min_duration: 0.0
 
 parameters:

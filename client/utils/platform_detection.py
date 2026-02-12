@@ -298,6 +298,49 @@ def get_cached_platform() -> AppPlatform:
     return _cached_platform
 
 
+def open_store_url(url: str) -> bool:
+    """
+    Open a store URL (MS Store, App Store, etc.) using platform-specific method.
+    
+    Args:
+        url: Store URL (e.g., "ms-windows-store://pdp/?productid=...")
+        
+    Returns:
+        True if successful, False otherwise
+    """
+    import sys
+    import subprocess
+    import os
+    
+    try:
+        if sys.platform == 'win32':
+            # Windows: Use os.startfile or subprocess
+            try:
+                os.startfile(url)
+                logger.info(f"Opened store URL: {url}")
+                return True
+            except Exception as e:
+                logger.warning(f"os.startfile failed, trying subprocess: {e}")
+                subprocess.run(['start', url], shell=True, check=False)
+                return True
+                
+        elif sys.platform == 'darwin':
+            # macOS: Use 'open' command
+            subprocess.run(['open', url], check=False)
+            logger.info(f"Opened store URL: {url}")
+            return True
+            
+        else:
+            # Linux/other: Try xdg-open
+            subprocess.run(['xdg-open', url], check=False)
+            logger.info(f"Opened store URL: {url}")
+            return True
+            
+    except Exception as e:
+        logger.error(f"Failed to open store URL '{url}': {e}")
+        return False
+
+
 # Convenience exports
 __all__ = [
     'AppPlatform',
@@ -310,4 +353,5 @@ __all__ = [
     'should_use_store_license',
     'get_msstore_package_info',
     'MSStoreLicenseChecker',
+    'open_store_url',
 ]

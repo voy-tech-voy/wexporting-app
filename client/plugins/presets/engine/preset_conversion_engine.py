@@ -39,6 +39,9 @@ class PresetConversionEngine(QThread):
     file_progress_updated = pyqtSignal(int, float)        # (file_index, 0.0-1.0)
     status_updated = pyqtSignal(str)                      # Status messages
     file_completed = pyqtSignal(str, str)                 # (source_path, output_path)
+    file_failed = pyqtSignal(str)                         # (source_path)
+    file_skipped = pyqtSignal(str)                        # (source_path)
+    file_stopped = pyqtSignal(str)                        # (source_path)
     conversion_completed = pyqtSignal(int, int, int, int) # (successful, failed, skipped, stopped)
     
     def __init__(self, files: List[str], params: Dict[str, Any], orchestrator: 'PresetOrchestrator'):
@@ -91,9 +94,13 @@ class PresetConversionEngine(QThread):
         
         print(f"[PresetEngine] Starting conversion of {total_files} files")
         
-        for i, input_path in enumerate(self.files):
+        for i, input_item in enumerate(self.files):
+            # input_item can be a str (file path) or a dict (sequence info)
+            input_path = input_item if isinstance(input_item, str) else input_item.get('preview_file', '')
+            
             if self.should_stop:
                 print(f"[PresetEngine] Conversion stopped by user")
+                self.file_stopped.emit(input_path)  # Emit stopped signal
                 break
             
             # Update file progress (reset to 0 for new file)
@@ -103,17 +110,19 @@ class PresetConversionEngine(QThread):
             progress_pct = int((i / total_files) * 100)
             self.progress_updated.emit(progress_pct)
             
-            # Convert file
+            # Convert file/item
             try:
-                success = self._convert_file(input_path, i, total_files)
+                success = self._convert_file(input_item, i, total_files)
                 if success:
                     self.successful_conversions += 1
                 else:
                     self.failed_conversions += 1
+                    self.file_failed.emit(input_path)  # Emit failed signal
             except Exception as e:
                 print(f"[PresetEngine] Error converting {input_path}: {e}")
                 self.failed_conversions += 1
                 self.status_updated.emit(f"Error: {str(e)}")
+                self.file_failed.emit(input_path)  # Emit failed signal
         
         # Calculate stopped count
         stopped_count = total_files - (self.successful_conversions + self.failed_conversions + self.skipped_files)
@@ -128,18 +137,29 @@ class PresetConversionEngine(QThread):
         
         print(f"[PresetEngine] Conversion complete: {self.successful_conversions} success, {self.failed_conversions} failed, {stopped_count} stopped")
     
-    def _convert_file(self, input_path: str, file_index: int, total_files: int) -> bool:
+    def _convert_file(self, input_item: Any, file_index: int, total_files: int) -> bool:
         """
-        Convert a single file using the preset.
+        Convert a single file or sequence using the preset.
         
         Args:
-            input_path: Path to input file
-            file_index: Index of current file (for progress)
-            total_files: Total number of files
+            input_item: Path to input file (str) or sequence info (dict)
+            file_index: Index of current item (for progress)
+            total_files: Total number of items
             
         Returns:
             True if successful, False otherwise
         """
+        # Handle sequence vs single file
+        is_sequence = isinstance(input_item, dict)
+        if is_sequence:
+            input_path = input_item.get('preview_file', '')
+            input_name = input_item.get('name', 'Sequence')
+            sequence_files = input_item.get('files', [])
+        else:
+            input_path = input_item
+            input_name = Path(input_path).name
+            sequence_files = []
+            
         input_p = Path(input_path)
         
         # Determine output directory from params
@@ -165,7 +185,7 @@ class PresetConversionEngine(QThread):
             return False
         
         # Analyze media for smart presets
-        self.status_updated.emit(f"Analyzing: {input_p.name}")
+        self.status_updated.emit(f"Analyzing: {input_name}")
         meta = self.orchestrator.analyze_file(str(input_path))
         
         # Get parameter values
@@ -205,11 +225,14 @@ class PresetConversionEngine(QThread):
             'meta': meta,
             'gpu_encoder': h264_encoder,
             'gpu_type': encoder_type.value,
+            'is_sequence': is_sequence,
+            'sequence_files': sequence_files,
+            'sequence_count': len(sequence_files),
             **param_values,
         }
         
         # Execute pipeline steps
-        self.status_updated.emit(f"Converting: {input_p.name}")
+        self.status_updated.emit(f"Converting: {input_name}")
         
         if not preset.pipeline:
             self.status_updated.emit(f"No pipeline steps for preset: {preset.name}")

@@ -10,8 +10,8 @@
 
 meta:
   id: "ai_upscale_realesrgan_multi"
-  name: "AI Upscale (Real-ESRGAN Multi-Scale)"
-  category: "utils"
+  name: "Image AI Upscale"
+  category: "upscale"
   description: "True AI upscaling using Real-ESRGAN. Supports x2, x3, and x4 enlargement."
   version: "2.0"
 
@@ -22,7 +22,7 @@ style:
 
 constraints:
   accepted_types: ["image"]
-  accepted_extensions: [".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tiff"]
+  accepted_extensions: [".exr", ".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tiff"]
   min_duration: 0.0
 
 parameters:

@@ -82,18 +82,15 @@ VIDEO_CODECS = {
     ),
     'av1': CodecConfig(
         name='AV1',
-        ffmpeg_codec='libaom-av1',
-        container='webm',
-        crf_min=25,
-        crf_max=50,
-        crf_default=35,
-        preset='',
+        ffmpeg_codec='libsvtav1',
+        container='mp4',
+        crf_min=10,
+        crf_max=63,
+        crf_default=30,
+        preset='8',
         pixel_format='yuv420p',
-        audio_codec=None,
-        extra_args={
-            'cpu-used': '4',  # Speed vs quality tradeoff (0=slowest, 8=fastest)
-            'row-mt': '1'     # Multi-threading
-        }
+        audio_codec='aac',
+        extra_args={}
     )
 }
 

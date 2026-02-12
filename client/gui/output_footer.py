@@ -94,10 +94,18 @@ class OutputFooter(QWidget):
         self.energy_manager = EnergyManager.instance()
         self.energy_manager.energy_changed.connect(self._on_energy_changed)
         
+        # Connect to SessionManager for premium status
+        from client.core.session_manager import SessionManager
+        self.session_manager = SessionManager.instance()
+        self.session_manager.premium_status_changed.connect(self._on_premium_status_changed)
+        
         # Initialize with current values
         current = self.energy_manager.get_balance()
         max_energy = EnergyManager.MAX_DAILY_ENERGY
         self.credit_bar.set_credits(current, max_energy)
+        
+        # Set initial visibility based on premium status
+        self._update_credit_bar_visibility()
         
         # Connect CreditBar click to purchase dialog
         self.credit_bar.clicked.connect(self._on_buy_energy_clicked)
@@ -328,21 +336,24 @@ class OutputFooter(QWidget):
         """Handle energy balance updates from EnergyManager"""
         if hasattr(self, 'credit_bar'):
             self.credit_bar.set_credits(current, max_energy)
+    
+    def _on_premium_status_changed(self, is_premium: bool):
+        """Handle premium status changes from SessionManager"""
+        self._update_credit_bar_visibility()
+    
+    def _update_credit_bar_visibility(self):
+        """Update credit bar visibility based on premium status"""
+        if hasattr(self, 'credit_bar') and hasattr(self, 'session_manager'):
+            is_premium = self.session_manager.is_premium
+            self.credit_bar.setVisible(not is_premium)
+            from client.config.config import Config
+            if Config.DEVELOPMENT_MODE:
+                print(f"[OutputFooter] Credit bar visibility: {not is_premium} (Premium: {is_premium})")
 
     def _on_buy_energy_clicked(self):
         """Open Purchase Dialog for energy refill"""
-        from client.gui.dialogs.purchase_dialog import PurchaseDialog
-        
-        # Using a PLACEHOLDER ID. Replace with real Store ID from Partner Center.
-        # Example: '9NBLGGH42DRG'
-        STORE_ID_ENERGY_100 = "9NBLGGH42DRG" 
-        
-        dialog = PurchaseDialog(
-            product_id=STORE_ID_ENERGY_100,
-            title="Get More Energy",
-            description="Refill your energy instantly to continue running heavy jobs.",
-            price="$1.99", # Fetched dynamically ideally
-            parent=self.window()
-        )
-        dialog.exec()
+        # Route through MainWindow to ensure consistent behavior
+        main_window = self.window()
+        if hasattr(main_window, 'show_purchase_dialog'):
+            main_window.show_purchase_dialog()
 

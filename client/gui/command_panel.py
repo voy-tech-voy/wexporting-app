@@ -610,12 +610,12 @@ class CommandPanel(QWidget):
         return self._loop_tab
 
     def resizeEvent(self, event):
-        """Debug resize event."""
+        """Handle resize events."""
+        # Removed debug print to reduce main thread overhead during animations
         super().resizeEvent(event)
-        print(f"[CommandPanel] Resize: {event.size().width()}x{event.size().height()} (Min: {self.minimumWidth()}x{self.minimumHeight()})")
 
     def minimumSizeHint(self):
-        """Debug minimum size hint."""
+        """Return the minimum size hint for the widget."""
+        # Removed debug print to reduce main thread overhead
         size = super().minimumSizeHint()
-        print(f"[CommandPanel] MinSizeHint: {size.width()}x{size.height()}")
         return size

@@ -1,0 +1,58 @@
+{
+    "description": "Purchase options for the application",
+    "version": "1.0",
+    "options": [
+        {
+            "id": "credits_100",
+            "name": "100 Credits",
+            "description": "Additional 100 credits for conversions",
+            "cost": "$0.99",
+            "color": "blue",
+            "button_label": "Buy 100 Credits",
+            "product_id": "9NBLGGH42DRG",
+            "type": "consumable",
+            "style": {
+                "outline_active": "#3B82F6",
+                "btn_bg_ghost": "rgba(59, 130, 246, 0.3)",
+                "btn_bg_active": "rgba(59, 130, 246, 1.0)",
+                "btn_text_ghost": "#B0B0B0",
+                "btn_text_active": "#FFFFFF"
+            }
+        },
+        {
+            "id": "credits_500",
+            "name": "500 Credits",
+            "description": "Get 500 credits with 20% bonus",
+            "cost": "$3.99",
+            "color": "blue",
+            "button_label": "Buy 500 Credits",
+            "product_id": "9NBLGGH42DRH",
+            "type": "consumable",
+            "style": {
+                "outline_active": "#3B82F6",
+                "btn_bg_ghost": "rgba(59, 130, 246, 0.3)",
+                "btn_bg_active": "rgba(59, 130, 246, 1.0)",
+                "btn_text_ghost": "#B0B0B0",
+                "btn_text_active": "#FFFFFF"
+            }
+        },
+        {
+            "id": "premium_lifetime",
+            "name": "Premium Lifetime",
+            "description": "Unlimited conversions forever",
+            "cost": "$15.00",
+            "color": "green",
+            "button_label": "Buy Premium",
+            "product_id": "9NBLGGH42DRI",
+            "type": "durable",
+            "style": {
+                "outline_active": "#22C55E",
+                "btn_bg_ghost": "rgba(34, 197, 94, 0.3)",
+                "btn_bg_active": "rgba(34, 197, 94, 1.0)",
+                "btn_text_ghost": "#B0B0B0",
+                "btn_text_active": "#FFFFFF",
+                "price_color": "#22C55E"
+            }
+        }
+    ]
+}

@@ -20,7 +20,7 @@ style:
 
 constraints:
   accepted_types: ["image", "video"]
-  accepted_extensions: [".jpg", ".jpeg", ".png", ".webp", ".bmp", ".mp4", ".mov", ".mkv", ".avi", ".webm"]
+  accepted_extensions: [".exr", ".jpg", ".jpeg", ".png", ".webp", ".bmp", ".mp4", ".mov", ".mkv", ".avi", ".webm"]
   min_duration: 0.0
 
 parameters:

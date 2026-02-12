@@ -8,8 +8,8 @@ The application uses a **Hybrid Update System** that combines two distinct mecha
 
 | System | **Version Gateway** | **Content Updates** |
 | :--- | :--- | :--- |
-| **Target** | App Binary (`.exe`, `.app`) | Content (`.yaml`, `.py`, `.json`) |
-| **Scope** | Core features, UI, dependencies | Presets, Estimators, Config |
+| **Target** | App Binary (`.exe`, `.app`) | Content (`.yaml`, `.json`) |
+| **Scope** | Core features, UI, dependencies | Presets, Config |
 | **Mechanism** | Store Redirect (Deep Link) | Direct Download (HTTPS) |
 | **Frequency** | Low (Weeks/Months) | High (Days/Weeks) |
 | **Compliance** | Full Store Compliance | Allowed (Dynamic Content) |
@@ -53,7 +53,7 @@ sequenceDiagram
 
 ## 2. Content Updates (Dynamic Assets)
 
-This system handles "hot" updates to presets and AI estimators. This allows the app to adapt to changing social media specs (e.g., new TikTok dimensions) without waiting for a full store review cycle.
+This system handles "hot" updates to presets. This allows the app to adapt to changing social media specs (e.g., new TikTok dimensions) without waiting for a full store review cycle.
 
 ### Architecture
 ```mermaid
@@ -63,7 +63,7 @@ sequenceDiagram
     participant Server as API /updates
     
     App->>Server: Get Manifest
-    Server-->>App: { presets: [...], estimators: [...] }
+    Server-->>App: { presets: [...] }
     
     loop For each item
         App->>App: Compare local version vs remote
@@ -83,7 +83,7 @@ sequenceDiagram
 - **Server**: `/api/v1/updates/manifest`, `/api/v1/updates/download/*`
 - **Client**: `client/core/conductors/update_conductor.py`
 - **Worker**: `UpdateApplyWorker` (Async QThread)
-- **UI**: `UpdateDialog` (Shows list of new presets/estimators)
+- **UI**: `UpdateDialog` (Shows list of new presets)
 
 ---
 

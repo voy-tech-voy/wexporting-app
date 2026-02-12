@@ -746,7 +746,21 @@ class CreditBar(QWidget):
         # Draw Empty Background
         painter.setPen(Qt.PenStyle.NoPen)
         empty_c = QColor(self._color_empty)
-        empty_c.setAlphaF(self._empty_transparency)
+        
+        # Adjust transparency for dark mode visibility
+        # Check if color is dark (simple check)
+        is_dark_bg = empty_c.lightness() < 128
+        final_empty_alpha = self._empty_transparency
+        
+        if is_dark_bg:
+            # Brighten it up significantly in dark mode
+            # Use a minimum alpha of 0.6 if it was lower
+            final_empty_alpha = max(0.6, self._empty_transparency)
+            # Lift the brightness if it's too dark
+            if empty_c.value() < 60:
+                empty_c = empty_c.lighter(150)
+        
+        empty_c.setAlphaF(final_empty_alpha)
         painter.setBrush(QBrush(empty_c))
         painter.drawPath(path)
         

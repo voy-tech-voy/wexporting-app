@@ -223,7 +223,7 @@ class CustomPresetGenerator:
             "MP4 (H.264)": "libx264",
             "MP4 (H.265/HEVC)": "libx265",
             "WebM (VP9)": "libvpx-vp9",
-            "WebM (AV1)": "libaom-av1",
+            "WebM (AV1)": "libsvtav1",
             "ProRes": "prores_ks",
             "DNxHD": "dnxhd",
             # Add more mappings as needed

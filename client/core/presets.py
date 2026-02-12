@@ -138,25 +138,25 @@ RATIO_MAPS = {
 LOOP_PRESETS = {
     'Hero 720p': {
         'format_type': 'webm',
-        'vcodec': 'libaom-av1',
+        'vcodec': 'libsvtav1',
         'crf': '35',
         'b:v': '0',
         'an': True,
-        'tile-columns': '1',
         'scale': '1280:720',
+        'preset': '8',
         'row': 'Hero',
         'tooltip_title': '[FAST] Core Web Vitals Optimized',
         'tooltip_body': 'Specifically tuned for website headers. Uses AV1/VP9 for ultra-low file sizes and strips audio to ensure it autoplays instantly in all browsers without slowing down your PageSpeed score.'
     },
     'Hero 1920p': {
         'format_type': 'webm',
-        'vcodec': 'libaom-av1',
+        'vcodec': 'libsvtav1',
         'crf': '35',
         'b:v': '0',
         'an': True,
-        'tile-columns': '1',
         'scale': '1920:1080',
         'allow_upscaling': True,
+        'preset': '8',
         'row': 'Hero',
         'tooltip_title': '[FAST] Core Web Vitals Optimized (FHD)',
         'tooltip_body': 'Specifically tuned for website headers. Uses AV1/VP9 for ultra-low file sizes and strips audio to ensure it autoplays instantly in all browsers without slowing down your PageSpeed score.'

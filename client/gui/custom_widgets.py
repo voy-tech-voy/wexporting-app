@@ -1266,21 +1266,24 @@ class CustomComboBox(QComboBox):
         self.setMinimumWidth(200)
         self.is_dark = False
         
-        # Create a custom label for the arrow area
+        # Create chevron arrow label overlay (matches CustomTargetSizeSpinBox style)
         from PyQt6.QtWidgets import QLabel
         from PyQt6.QtCore import Qt
         from PyQt6.QtGui import QFont
-        self.arrow_label = QLabel("˅", self)
+        
+        self.arrow_label = QLabel("˅", self)  # Down chevron Unicode character
         self.arrow_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         
-        # Create font with horizontal stretch (match CustomTargetSizeSpinBox)
+        # Match CustomTargetSizeSpinBox arrow font styling
         arrow_font = QFont()
         arrow_font.setPointSize(11)
-        arrow_font.setStretch(200)  # 200% width stretch (match CustomTargetSizeSpinBox)
+        arrow_font.setStretch(200)  # 200% width stretch for wider chevron
+        arrow_font.setWeight(QFont.Weight.DemiBold)  # Semi-bold weight
         self.arrow_label.setFont(arrow_font)
         
+        # Initial color (will be updated by theme)
         self.arrow_label.setStyleSheet("background: transparent; color: #CCCCCC;")
-        self.arrow_label.raise_()
+        self.arrow_label.raise_()  # Ensure it's on top
         
         # Connect to ThemeManager
         from client.gui.theme_manager import ThemeManager
@@ -1294,17 +1297,23 @@ class CustomComboBox(QComboBox):
         """Update styling based on theme"""
         self.is_dark = is_dark
         self._apply_custom_style(is_dark)
-        # Update arrow label color
+        
+        # Update arrow label color to match theme
         arrow_color = "#AAAAAA" if is_dark else "#888888"
         self.arrow_label.setStyleSheet(f"background: transparent; color: {arrow_color};")
     
     def resizeEvent(self, event):
-        """Position the arrow label when widget is resized"""
+        """Position the arrow label overlay when widget is resized"""
         super().resizeEvent(event)
-        # Position the label in the right 24px area with vertical centering
+        # Position in the right dropdown area (24px width)
         dropdown_width = 24
-        # Add 3px top/bottom margin to prevent overlap with border
-        self.arrow_label.setGeometry(self.width() - dropdown_width, 3, dropdown_width, self.height() - 6)
+        # Add small margin to prevent overlap with border
+        self.arrow_label.setGeometry(
+            self.width() - dropdown_width, 
+            3, 
+            dropdown_width, 
+            self.height() - 6
+        )
     
     def _apply_custom_style(self, is_dark):
         """Apply custom styling with proper width ratios"""
@@ -1351,23 +1360,9 @@ class CustomComboBox(QComboBox):
             }}
             QComboBox::down-arrow {{
                 image: none;
-                width: 20px;
-                height: 20px;
+                width: 0px;
+                height: 0px;
                 border: none;
-                background-color: {dropdown_bg};
-                color: {arrow_color};
-                font-size: 16px;
-                font-weight: bold;
-            }}
-            QComboBox::down-arrow:on {{
-                image: none;
-                width: 20px;
-                height: 20px;
-                border: none;
-                background-color: {dropdown_bg};
-                color: {arrow_color};
-                font-size: 16px;
-                font-weight: bold;
             }}
             QComboBox QAbstractItemView {{
                 background-color: {menu_bg};

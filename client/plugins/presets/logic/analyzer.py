@@ -159,7 +159,7 @@ class MediaAnalyzer:
     def _get_defaults(self) -> Dict[str, Any]:
         """Get default metadata values when analysis fails."""
         return {
-            "fps": 30.0,
+            "fps": 24.0,
             "width": 1920,
             "height": 1080,
             "duration": 0.0,

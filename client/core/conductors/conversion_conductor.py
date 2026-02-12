@@ -67,6 +67,22 @@ class ConversionConductor(QObject):
         """Clear the active preset (called when switching modes)."""
         self._active_preset = None
     
+    def is_converting(self) -> bool:
+        """Check if any conversion is currently active."""
+        if self.conversion_engine and self.conversion_engine.isRunning():
+            return True
+            
+        # Check preset orchestrator's engine
+        try:
+            if hasattr(self.drag_drop_area, '_preset_orchestrator'):
+                orch = self.drag_drop_area._preset_orchestrator
+                if hasattr(orch, '_conversion_engine') and orch._conversion_engine and orch._conversion_engine.isRunning():
+                    return True
+        except:
+            pass
+            
+        return False
+
     def start_conversion(self, params):
         """
         Start the conversion process.
@@ -94,6 +110,10 @@ class ConversionConductor(QObject):
         # Update UI state
         self.output_footer.set_converting(True)
         
+        # Reset file statuses and progress tracking
+        self.drag_drop_area.clear_all_statuses()
+        self.drag_drop_area.set_converting(True)
+        
         # Check if we should use TargetSizeConversionEngine (max_size mode with any estimator version)
         use_target_size_engine = False
         size_mode = params.get('video_size_mode') or params.get('image_size_mode') or params.get('gif_size_mode')
@@ -119,6 +139,10 @@ class ConversionConductor(QObject):
             from client.core.manual_mode import ManualModeConversionEngine
             self.conversion_engine = ManualModeConversionEngine(files, params, self.progress_manager)
             print(f"[ConversionConductor] Using ManualModeConversionEngine")
+        
+        # Disconnect old engine signals if engine exists (prevents duplicate connections)
+        if hasattr(self, 'conversion_engine') and self.conversion_engine:
+            self._disconnect_engine_signals(self.conversion_engine)
         
         # Connect engine signals
         self.conversion_engine.progress_updated.connect(self.set_progress)
@@ -152,7 +176,9 @@ class ConversionConductor(QObject):
         Collects parameters from UI components and routes the request to the orchestrator,
         which handles all business logic.
         """
-        files = self.drag_drop_area.get_files()
+        is_sequence_aware = self._is_sequence_aware_preset(self._active_preset)
+        files = self.drag_drop_area.get_files(grouped=is_sequence_aware)
+        
         if not files:
             self.dialogs.show_warning("No Files", "Please add files for conversion first.")
             return
@@ -177,6 +203,10 @@ class ConversionConductor(QObject):
         # Update UI state (show converting)
         self.output_footer.set_converting(True)
         self.output_footer.reset_progress()
+        
+        # Reset file statuses and progress tracking
+        self.drag_drop_area.clear_all_statuses()
+        self.drag_drop_area.set_converting(True)
         
         preset_name = self._active_preset.name if self._active_preset else "Unknown"
         self.update_status(f"Converting with preset: {preset_name}")
@@ -418,11 +448,58 @@ class ConversionConductor(QObject):
         # Show unified conversion summary toast (replacing dialog)
         self.drag_drop_area.show_conversion_toast(successful, failed, skipped, stopped)
     
+    def _is_sequence_aware_preset(self, preset) -> bool:
+        """
+        Check if a preset is designed to handle an entire sequence as one input.
+        
+        Examples: Image Sequence to Video, Timelapse merges, etc.
+        """
+        if not preset:
+            return False
+            
+        # Check by ID or category
+        preset_id = preset.raw_yaml.get('meta', {}).get('id', '').lower()
+        if 'sequence_to' in preset_id or 'merge_sequence' in preset_id:
+            return True
+            
+        category = preset.raw_yaml.get('meta', {}).get('category', '').lower()
+        if category == 'utility' and 'sequence' in preset.name.lower():
+            return True
+            
+        return False
+        
+    def _disconnect_engine_signals(self, engine):
+        """Safely disconnect all signals from an engine to prevent duplicates."""
+        if not engine:
+            return
+            
+        try:
+            # Disconnect common signals
+            engine.progress_updated.disconnect()
+            engine.file_progress_updated.disconnect()
+            engine.status_updated.disconnect()
+            engine.file_completed.disconnect()
+            engine.file_skipped.disconnect()
+            engine.file_failed.disconnect()
+            engine.file_stopped.disconnect()
+            
+            # Disconnect completion signals
+            if hasattr(engine, 'conversion_completed'):
+                engine.conversion_completed.disconnect()
+            if hasattr(engine, 'conversion_finished'):
+                engine.conversion_finished.disconnect()
+        except TypeError:
+            # Signal was not connected, ignore
+            pass
+        
     def _reset_conversion_ui(self):
         """Reset UI elements after conversion."""
         # Reset footer state
         self.output_footer.set_converting(False)
         self.output_footer.reset_progress()
+        
+        # Unlock status clearing in DragDropArea
+        self.drag_drop_area.set_converting(False)
         
         self._completed_files_count = 0
     
@@ -440,7 +517,8 @@ class ConversionConductor(QObject):
         energy_mgr = EnergyManager.instance()
         
         # Premium users bypass
-        if energy_mgr.is_premium:
+        from client.core.session_manager import SessionManager
+        if SessionManager.instance().is_premium:
             return True
         
         # Use ProgressManager to get total outputs (includes all variants)
@@ -457,7 +535,7 @@ class ConversionConductor(QObject):
         total_cost = total_outputs * per_output_cost
         
         # Request energy (job-based: server for large, local for small)
-        # Note: JWT token is set via EnergyManager.set_store_auth()
+        # Note: JWT token is accessed via SessionManager.instance().jwt_token
         
         if not energy_mgr.request_job_energy(total_cost, conversion_type, params):
             # Insufficient energy
@@ -476,7 +554,9 @@ class ConversionConductor(QObject):
         
         energy_mgr = EnergyManager.instance()
         
-        if energy_mgr.is_premium:
+        # Premium users bypass
+        from client.core.session_manager import SessionManager
+        if SessionManager.instance().is_premium:
             return True
         
         # Use ProgressManager to get total outputs (presets don't have variants currently, but future-proof)
@@ -497,7 +577,8 @@ class ConversionConductor(QObject):
             preset_params = {
                 'preset_id': self._active_preset.id,
                 'preset_category': self._active_preset.category,
-                'credit_cost': self._active_preset.credit_cost
+                'credit_cost': self._active_preset.credit_cost,
+                'is_user_preset': self._active_preset.is_user_preset
             }
             
         # Calculate single output cost
@@ -516,9 +597,17 @@ class ConversionConductor(QObject):
     
     def _detect_conversion_type(self, params):
         """Detect conversion type from parameters."""
-        if params.get('video_codec'):
+        # First check explicit 'type' param (most reliable)
+        explicit_type = params.get('type')
+        if explicit_type in ('video', 'loop', 'image'):
+            return explicit_type
+        
+        # Fallback: infer from other params
+        # VideoTab sends 'codec' (e.g., "MP4 (H.264)")
+        if params.get('codec') or params.get('video_codec'):
             return 'video'
-        elif params.get('gif_fps') or params.get('webm_fps'):
+        # LoopTab sends 'loop_format' (e.g., "GIF" or "WebM (AV1)")
+        elif params.get('loop_format') or params.get('gif_fps') or params.get('webm_quality'):
             return 'loop'
         else:
             return 'image'

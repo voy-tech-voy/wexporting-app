@@ -41,6 +41,40 @@ class CommandBuilder:
         """
         self._registry = registry
         self._jinja_env = Environment(undefined=StrictUndefined)
+        
+        # Add custom filters
+        self._jinja_env.filters['regex_replace'] = self._regex_replace_filter
+        self._jinja_env.filters['to_ffmpeg_pattern'] = self._to_ffmpeg_pattern_filter
+        
+    def _regex_replace_filter(self, s, pattern, replacement):
+        import re
+        return re.sub(pattern, replacement, s)
+        
+    def _to_ffmpeg_pattern_filter(self, path):
+        """
+        Convert a filename like 'img_001.png' to an FFmpeg pattern like 'img_%03d.png'.
+        Finds the LAST numeric block in the filename.
+        """
+        import re
+        import os
+        
+        dirname = os.path.dirname(path)
+        basename = os.path.basename(path)
+        
+        # Find all numeric blocks
+        matches = list(re.finditer(r'\d+', basename))
+        if not matches:
+            return path
+            
+        # Target the last numeric block
+        last_match = matches[-1]
+        start, end = last_match.span()
+        padding = end - start
+        
+        # Replace with %0Nd
+        pattern_name = basename[:start] + f"%0{padding}d" + basename[end:]
+        
+        return os.path.join(dirname, pattern_name).replace('\\', '/')
     
     def build_command(self, step: PipelineStep, context: Dict[str, Any]) -> str:
         """

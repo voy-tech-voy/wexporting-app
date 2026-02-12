@@ -1,0 +1,1017 @@
+{
+  "b7c41dc9-9b3e-4f28-bb61-4a411b9256f7": {
+    "store_user_id": "b7c41dc9-9b3e-4f28-bb61-4a411b9256f7",
+    "platform": "msstore",
+    "energy_balance": 20,
+    "purchased_energy": 0,
+    "is_premium": false,
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2025-07-14T19:27:36.347531",
+    "profile_type": "free_tier"
+  },
+  "54ef074c-0a2a-45a7-b243-a08e8457a475": {
+    "store_user_id": "54ef074c-0a2a-45a7-b243-a08e8457a475",
+    "platform": "msstore",
+    "energy_balance": 6,
+    "purchased_energy": 0,
+    "is_premium": false,
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2025-12-01T19:27:36.347531",
+    "profile_type": "free_tier"
+  },
+  "d92a7b1e-1ffa-492e-a108-01a490122efb": {
+    "store_user_id": "d92a7b1e-1ffa-492e-a108-01a490122efb",
+    "platform": "msstore",
+    "energy_balance": 19,
+    "purchased_energy": 0,
+    "is_premium": false,
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2025-05-22T19:27:36.347531",
+    "profile_type": "free_tier"
+  },
+  "742a5c20-ad9c-4ad4-8007-4578e3204de3": {
+    "store_user_id": "742a5c20-ad9c-4ad4-8007-4578e3204de3",
+    "platform": "msstore",
+    "energy_balance": 34,
+    "purchased_energy": 0,
+    "is_premium": false,
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2025-09-04T19:27:36.347531",
+    "profile_type": "free_tier"
+  },
+  "37e570de-bd26-47ee-8c7a-fca869161743": {
+    "store_user_id": "37e570de-bd26-47ee-8c7a-fca869161743",
+    "platform": "msstore",
+    "energy_balance": 43,
+    "purchased_energy": 0,
+    "is_premium": false,
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2025-08-06T19:27:36.347531",
+    "profile_type": "free_tier"
+  },
+  "fc71d993-28c3-4143-9db1-e32b4a90c145": {
+    "store_user_id": "fc71d993-28c3-4143-9db1-e32b4a90c145",
+    "platform": "msstore",
+    "energy_balance": 44,
+    "purchased_energy": 0,
+    "is_premium": false,
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2025-08-29T19:27:36.347531",
+    "profile_type": "free_tier"
+  },
+  "9ec81ae7-58fe-4271-9f7b-47eb7f7a50f2": {
+    "store_user_id": "9ec81ae7-58fe-4271-9f7b-47eb7f7a50f2",
+    "platform": "msstore",
+    "energy_balance": 1,
+    "purchased_energy": 0,
+    "is_premium": false,
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2025-02-21T19:27:36.347531",
+    "profile_type": "free_tier"
+  },
+  "2d69823c-c8d9-4c7b-a889-bb40ed5db19e": {
+    "store_user_id": "2d69823c-c8d9-4c7b-a889-bb40ed5db19e",
+    "platform": "msstore",
+    "energy_balance": 34,
+    "purchased_energy": 0,
+    "is_premium": false,
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2025-08-13T19:27:36.347531",
+    "profile_type": "free_tier"
+  },
+  "3f92b446-8b69-45a7-b5b0-6cfc19d81685": {
+    "store_user_id": "3f92b446-8b69-45a7-b5b0-6cfc19d81685",
+    "platform": "msstore",
+    "energy_balance": 27,
+    "purchased_energy": 0,
+    "is_premium": false,
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2025-09-26T19:27:36.347531",
+    "profile_type": "free_tier"
+  },
+  "8059ea6f-e3d1-4b90-b82f-e347d22a9316": {
+    "store_user_id": "8059ea6f-e3d1-4b90-b82f-e347d22a9316",
+    "platform": "msstore",
+    "energy_balance": 3,
+    "purchased_energy": 0,
+    "is_premium": false,
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2025-11-05T19:27:36.347531",
+    "profile_type": "free_tier"
+  },
+  "e6332230-199e-49bf-b70e-85b2c242bb9a": {
+    "store_user_id": "e6332230-199e-49bf-b70e-85b2c242bb9a",
+    "platform": "msstore",
+    "energy_balance": 26,
+    "purchased_energy": 0,
+    "is_premium": false,
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2025-09-26T19:27:36.347531",
+    "profile_type": "free_tier"
+  },
+  "f6e32e4c-8afd-473d-ac76-cac3841c8096": {
+    "store_user_id": "f6e32e4c-8afd-473d-ac76-cac3841c8096",
+    "platform": "msstore",
+    "energy_balance": 50,
+    "purchased_energy": 0,
+    "is_premium": false,
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2026-01-11T19:27:36.347531",
+    "profile_type": "free_tier"
+  },
+  "db60da42-2df6-45f2-90e5-69c2451fbfd9": {
+    "store_user_id": "db60da42-2df6-45f2-90e5-69c2451fbfd9",
+    "platform": "msstore",
+    "energy_balance": 20,
+    "purchased_energy": 0,
+    "is_premium": false,
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2025-07-22T19:27:36.347531",
+    "profile_type": "free_tier"
+  },
+  "f88e6c34-626c-49a6-b0eb-fc454bca6d3f": {
+    "store_user_id": "f88e6c34-626c-49a6-b0eb-fc454bca6d3f",
+    "platform": "msstore",
+    "energy_balance": 15,
+    "purchased_energy": 0,
+    "is_premium": false,
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2025-10-02T19:27:36.347531",
+    "profile_type": "free_tier"
+  },
+  "97698b45-0041-4868-8721-11f7af656cbb": {
+    "store_user_id": "97698b45-0041-4868-8721-11f7af656cbb",
+    "platform": "msstore",
+    "energy_balance": 9,
+    "purchased_energy": 0,
+    "is_premium": false,
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2025-09-26T19:27:36.347531",
+    "profile_type": "free_tier"
+  },
+  "c0509b3b-d9a8-4965-bbc9-198639b0e39e": {
+    "store_user_id": "c0509b3b-d9a8-4965-bbc9-198639b0e39e",
+    "platform": "msstore",
+    "energy_balance": 16,
+    "purchased_energy": 0,
+    "is_premium": false,
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2025-06-01T19:27:36.347531",
+    "profile_type": "free_tier"
+  },
+  "bd5403f7-cd3b-4493-a5be-1de3116d3b8d": {
+    "store_user_id": "bd5403f7-cd3b-4493-a5be-1de3116d3b8d",
+    "platform": "msstore",
+    "energy_balance": 44,
+    "purchased_energy": 0,
+    "is_premium": false,
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2025-12-05T19:27:36.347531",
+    "profile_type": "free_tier"
+  },
+  "96f661a6-9637-476b-9524-930e69e6032d": {
+    "store_user_id": "96f661a6-9637-476b-9524-930e69e6032d",
+    "platform": "msstore",
+    "energy_balance": 38,
+    "purchased_energy": 0,
+    "is_premium": false,
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2025-10-20T19:27:36.347531",
+    "profile_type": "free_tier"
+  },
+  "89e7961b-a972-480e-ada2-eecc1c347301": {
+    "store_user_id": "89e7961b-a972-480e-ada2-eecc1c347301",
+    "platform": "msstore",
+    "energy_balance": 41,
+    "purchased_energy": 0,
+    "is_premium": false,
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2026-02-01T19:27:36.347531",
+    "profile_type": "free_tier"
+  },
+  "ca7cc39d-98ba-4c2e-bfcd-a31e28735896": {
+    "store_user_id": "ca7cc39d-98ba-4c2e-bfcd-a31e28735896",
+    "platform": "msstore",
+    "energy_balance": 9,
+    "purchased_energy": 0,
+    "is_premium": false,
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2025-03-22T19:27:36.347531",
+    "profile_type": "free_tier"
+  },
+  "6795e473-1504-4a4b-9123-674de722b6c6": {
+    "store_user_id": "6795e473-1504-4a4b-9123-674de722b6c6",
+    "platform": "msstore",
+    "energy_balance": 48,
+    "purchased_energy": 0,
+    "is_premium": false,
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2025-12-27T19:27:36.347531",
+    "profile_type": "free_tier"
+  },
+  "545cfd47-d955-4e38-9181-726562993377": {
+    "store_user_id": "545cfd47-d955-4e38-9181-726562993377",
+    "platform": "msstore",
+    "energy_balance": 47,
+    "purchased_energy": 0,
+    "is_premium": false,
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2025-12-06T19:27:36.347531",
+    "profile_type": "free_tier"
+  },
+  "0c4b35c8-7dca-4d99-8dd1-8164351871cd": {
+    "store_user_id": "0c4b35c8-7dca-4d99-8dd1-8164351871cd",
+    "platform": "msstore",
+    "energy_balance": 0,
+    "purchased_energy": 0,
+    "is_premium": false,
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2025-07-29T19:27:36.347531",
+    "profile_type": "free_tier"
+  },
+  "6328d0b5-33b1-4110-9f35-d4e1bb951e10": {
+    "store_user_id": "6328d0b5-33b1-4110-9f35-d4e1bb951e10",
+    "platform": "msstore",
+    "energy_balance": 27,
+    "purchased_energy": 0,
+    "is_premium": false,
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2025-08-10T19:27:36.347531",
+    "profile_type": "free_tier"
+  },
+  "bd905297-484f-49ca-9d67-1b266e1d2cb6": {
+    "store_user_id": "bd905297-484f-49ca-9d67-1b266e1d2cb6",
+    "platform": "msstore",
+    "energy_balance": 23,
+    "purchased_energy": 0,
+    "is_premium": false,
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2025-03-15T19:27:36.347531",
+    "profile_type": "free_tier"
+  },
+  "5e562ac5-3851-4e03-be57-a9c3a8d06c84": {
+    "store_user_id": "5e562ac5-3851-4e03-be57-a9c3a8d06c84",
+    "platform": "msstore",
+    "energy_balance": 28,
+    "purchased_energy": 0,
+    "is_premium": false,
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2025-09-11T19:27:36.347531",
+    "profile_type": "free_tier"
+  },
+  "ea2eaa6e-6d96-406b-b7ba-31116022d7a1": {
+    "store_user_id": "ea2eaa6e-6d96-406b-b7ba-31116022d7a1",
+    "platform": "msstore",
+    "energy_balance": 13,
+    "purchased_energy": 0,
+    "is_premium": false,
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2025-03-23T19:27:36.347531",
+    "profile_type": "free_tier"
+  },
+  "92c5d666-0749-4401-b8fc-342074f93d3d": {
+    "store_user_id": "92c5d666-0749-4401-b8fc-342074f93d3d",
+    "platform": "msstore",
+    "energy_balance": 7,
+    "purchased_energy": 0,
+    "is_premium": false,
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2025-11-16T19:27:36.347531",
+    "profile_type": "free_tier"
+  },
+  "bd809268-4af1-4114-8e64-55fb7929ea1b": {
+    "store_user_id": "bd809268-4af1-4114-8e64-55fb7929ea1b",
+    "platform": "msstore",
+    "energy_balance": 19,
+    "purchased_energy": 0,
+    "is_premium": false,
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2026-01-31T19:27:36.347531",
+    "profile_type": "free_tier"
+  },
+  "30cb8fa7-f986-47d9-a479-28cf2e33e5d6": {
+    "store_user_id": "30cb8fa7-f986-47d9-a479-28cf2e33e5d6",
+    "platform": "msstore",
+    "energy_balance": 34,
+    "purchased_energy": 0,
+    "is_premium": false,
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2025-03-30T19:27:36.347531",
+    "profile_type": "free_tier"
+  },
+  "f2405428-62b0-4e3f-b4bc-5ee6c840bd41": {
+    "store_user_id": "f2405428-62b0-4e3f-b4bc-5ee6c840bd41",
+    "platform": "msstore",
+    "energy_balance": 25,
+    "purchased_energy": 0,
+    "is_premium": false,
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2025-08-20T19:27:36.347531",
+    "profile_type": "free_tier"
+  },
+  "55a3ca43-ae88-4b86-909e-66b35903d42e": {
+    "store_user_id": "55a3ca43-ae88-4b86-909e-66b35903d42e",
+    "platform": "msstore",
+    "energy_balance": 50,
+    "purchased_energy": 0,
+    "is_premium": false,
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2025-07-18T19:27:36.347531",
+    "profile_type": "free_tier"
+  },
+  "5f185a61-d0e5-4a0d-ba79-26c13d80032d": {
+    "store_user_id": "5f185a61-d0e5-4a0d-ba79-26c13d80032d",
+    "platform": "msstore",
+    "energy_balance": 12,
+    "purchased_energy": 0,
+    "is_premium": false,
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2026-01-27T19:27:36.347531",
+    "profile_type": "free_tier"
+  },
+  "c9cc0644-b3a4-41e1-ad1f-21e33dd478ce": {
+    "store_user_id": "c9cc0644-b3a4-41e1-ad1f-21e33dd478ce",
+    "platform": "msstore",
+    "energy_balance": 9,
+    "purchased_energy": 0,
+    "is_premium": false,
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2025-12-15T19:27:36.347531",
+    "profile_type": "free_tier"
+  },
+  "998f50ce-365e-46c4-bfaa-6a93206eefa9": {
+    "store_user_id": "998f50ce-365e-46c4-bfaa-6a93206eefa9",
+    "platform": "msstore",
+    "energy_balance": 25,
+    "purchased_energy": 0,
+    "is_premium": false,
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2025-06-19T19:27:36.347531",
+    "profile_type": "free_tier"
+  },
+  "027f51dc-69c5-4836-9b44-fd68e5fa4379": {
+    "store_user_id": "027f51dc-69c5-4836-9b44-fd68e5fa4379",
+    "platform": "msstore",
+    "energy_balance": 5,
+    "purchased_energy": 0,
+    "is_premium": false,
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2025-10-21T19:27:36.347531",
+    "profile_type": "free_tier"
+  },
+  "fa1decb0-f007-4092-b1e8-76a4b9ec5c53": {
+    "store_user_id": "fa1decb0-f007-4092-b1e8-76a4b9ec5c53",
+    "platform": "msstore",
+    "energy_balance": 23,
+    "purchased_energy": 0,
+    "is_premium": false,
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2025-05-23T19:27:36.347531",
+    "profile_type": "free_tier"
+  },
+  "4ecd9f39-1e26-4410-b0e8-5a36291a1fe0": {
+    "store_user_id": "4ecd9f39-1e26-4410-b0e8-5a36291a1fe0",
+    "platform": "msstore",
+    "energy_balance": 30,
+    "purchased_energy": 0,
+    "is_premium": false,
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2026-01-14T19:27:36.347531",
+    "profile_type": "free_tier"
+  },
+  "b2034915-d67c-4457-8452-bb616f092582": {
+    "store_user_id": "b2034915-d67c-4457-8452-bb616f092582",
+    "platform": "msstore",
+    "energy_balance": 27,
+    "purchased_energy": 0,
+    "is_premium": false,
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2025-08-15T19:27:36.347531",
+    "profile_type": "free_tier"
+  },
+  "33ffb27a-d587-4a39-a473-34db7b1b0147": {
+    "store_user_id": "33ffb27a-d587-4a39-a473-34db7b1b0147",
+    "platform": "msstore",
+    "energy_balance": 43,
+    "purchased_energy": 0,
+    "is_premium": false,
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2025-06-18T19:27:36.347531",
+    "profile_type": "free_tier"
+  },
+  "20399771-715c-4137-85b4-1a718b0260c7": {
+    "store_user_id": "20399771-715c-4137-85b4-1a718b0260c7",
+    "platform": "msstore",
+    "energy_balance": 999,
+    "purchased_energy": 0,
+    "is_premium": true,
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2024-06-27T19:27:36.347531",
+    "profile_type": "premium_lifetime"
+  },
+  "d5571515-9a01-4da5-9fb9-18f363243b7b": {
+    "store_user_id": "d5571515-9a01-4da5-9fb9-18f363243b7b",
+    "platform": "msstore",
+    "energy_balance": 999,
+    "purchased_energy": 0,
+    "is_premium": true,
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2025-02-12T19:27:36.347531",
+    "profile_type": "premium_lifetime"
+  },
+  "562857fa-3bb8-4397-a422-af0529fe06d7": {
+    "store_user_id": "562857fa-3bb8-4397-a422-af0529fe06d7",
+    "platform": "msstore",
+    "energy_balance": 999,
+    "purchased_energy": 0,
+    "is_premium": true,
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2025-09-23T19:27:36.347531",
+    "profile_type": "premium_lifetime"
+  },
+  "88309b2b-a870-42c9-9a17-697f5d823f41": {
+    "store_user_id": "88309b2b-a870-42c9-9a17-697f5d823f41",
+    "platform": "msstore",
+    "energy_balance": 999,
+    "purchased_energy": 0,
+    "is_premium": true,
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2025-03-17T19:27:36.347531",
+    "profile_type": "premium_lifetime"
+  },
+  "6b32be82-f6a3-4895-8c57-575db6f512a9": {
+    "store_user_id": "6b32be82-f6a3-4895-8c57-575db6f512a9",
+    "platform": "msstore",
+    "energy_balance": 999,
+    "purchased_energy": 0,
+    "is_premium": true,
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2025-04-14T19:27:36.347531",
+    "profile_type": "premium_lifetime"
+  },
+  "a2bcdff9-53f1-4cb7-adcc-05a95c889496": {
+    "store_user_id": "a2bcdff9-53f1-4cb7-adcc-05a95c889496",
+    "platform": "msstore",
+    "energy_balance": 999,
+    "purchased_energy": 0,
+    "is_premium": true,
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2025-11-19T19:27:36.347531",
+    "profile_type": "premium_lifetime"
+  },
+  "90e0ccc8-573d-4a1e-bd34-e560ae03c82e": {
+    "store_user_id": "90e0ccc8-573d-4a1e-bd34-e560ae03c82e",
+    "platform": "msstore",
+    "energy_balance": 999,
+    "purchased_energy": 0,
+    "is_premium": true,
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2025-04-13T19:27:36.347531",
+    "profile_type": "premium_lifetime"
+  },
+  "567c8a39-1d1c-47a5-9c9f-97fbff08d05e": {
+    "store_user_id": "567c8a39-1d1c-47a5-9c9f-97fbff08d05e",
+    "platform": "msstore",
+    "energy_balance": 999,
+    "purchased_energy": 0,
+    "is_premium": true,
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2024-11-24T19:27:36.347531",
+    "profile_type": "premium_lifetime"
+  },
+  "71c894aa-63cf-4d06-924f-11b2828cfc3a": {
+    "store_user_id": "71c894aa-63cf-4d06-924f-11b2828cfc3a",
+    "platform": "msstore",
+    "energy_balance": 999,
+    "purchased_energy": 0,
+    "is_premium": true,
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2024-05-31T19:27:36.347531",
+    "profile_type": "premium_lifetime"
+  },
+  "5dc7c1af-cef0-46e6-82e7-2a005b0b7475": {
+    "store_user_id": "5dc7c1af-cef0-46e6-82e7-2a005b0b7475",
+    "platform": "msstore",
+    "energy_balance": 999,
+    "purchased_energy": 0,
+    "is_premium": true,
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2024-06-17T19:27:36.347531",
+    "profile_type": "premium_lifetime"
+  },
+  "ddb35208-6a77-4eed-a119-ed97f44a8789": {
+    "store_user_id": "ddb35208-6a77-4eed-a119-ed97f44a8789",
+    "platform": "msstore",
+    "energy_balance": 999,
+    "purchased_energy": 0,
+    "is_premium": true,
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2024-04-14T19:27:36.347531",
+    "profile_type": "premium_lifetime"
+  },
+  "3b6d074d-c035-44a4-b4d6-def752aa20b6": {
+    "store_user_id": "3b6d074d-c035-44a4-b4d6-def752aa20b6",
+    "platform": "msstore",
+    "energy_balance": 999,
+    "purchased_energy": 0,
+    "is_premium": true,
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2025-01-29T19:27:36.347531",
+    "profile_type": "premium_lifetime"
+  },
+  "cb1170ac-8e27-4ffa-869d-8c529f452c75": {
+    "store_user_id": "cb1170ac-8e27-4ffa-869d-8c529f452c75",
+    "platform": "msstore",
+    "energy_balance": 999,
+    "purchased_energy": 0,
+    "is_premium": true,
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2024-10-12T19:27:36.347531",
+    "profile_type": "premium_lifetime"
+  },
+  "c23e7d7f-ec70-477f-8c1f-4b6402b4c020": {
+    "store_user_id": "c23e7d7f-ec70-477f-8c1f-4b6402b4c020",
+    "platform": "msstore",
+    "energy_balance": 999,
+    "purchased_energy": 0,
+    "is_premium": true,
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2025-05-03T19:27:36.347531",
+    "profile_type": "premium_lifetime"
+  },
+  "e418cce2-8a27-4b87-85f2-5554a2051142": {
+    "store_user_id": "e418cce2-8a27-4b87-85f2-5554a2051142",
+    "platform": "msstore",
+    "energy_balance": 999,
+    "purchased_energy": 0,
+    "is_premium": true,
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2025-12-08T19:27:36.347531",
+    "profile_type": "premium_lifetime"
+  },
+  "ead24cd1-ecea-4761-b551-e750be0beb70": {
+    "store_user_id": "ead24cd1-ecea-4761-b551-e750be0beb70",
+    "platform": "msstore",
+    "energy_balance": 83,
+    "purchased_energy": 50,
+    "is_premium": false,
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2025-10-10T19:27:36.347531",
+    "profile_type": "purchased_credits"
+  },
+  "fc38b97d-1888-4489-89c8-cf14db8ebd7a": {
+    "store_user_id": "fc38b97d-1888-4489-89c8-cf14db8ebd7a",
+    "platform": "msstore",
+    "energy_balance": 514,
+    "purchased_energy": 500,
+    "is_premium": false,
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2025-12-19T19:27:36.347531",
+    "profile_type": "purchased_credits"
+  },
+  "16bf0817-65e3-4345-b095-37717217ee3c": {
+    "store_user_id": "16bf0817-65e3-4345-b095-37717217ee3c",
+    "platform": "msstore",
+    "energy_balance": 60,
+    "purchased_energy": 50,
+    "is_premium": false,
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2025-09-30T19:27:36.347531",
+    "profile_type": "purchased_credits"
+  },
+  "2e4d371e-abf0-416d-a55c-39d4d0992ad6": {
+    "store_user_id": "2e4d371e-abf0-416d-a55c-39d4d0992ad6",
+    "platform": "msstore",
+    "energy_balance": 531,
+    "purchased_energy": 500,
+    "is_premium": false,
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2025-12-29T19:27:36.347531",
+    "profile_type": "purchased_credits"
+  },
+  "2b7262a5-c4ef-4176-8ded-6e2e07e3fc41": {
+    "store_user_id": "2b7262a5-c4ef-4176-8ded-6e2e07e3fc41",
+    "platform": "msstore",
+    "energy_balance": 1008,
+    "purchased_energy": 1000,
+    "is_premium": false,
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2025-10-26T19:27:36.347531",
+    "profile_type": "purchased_credits"
+  },
+  "ee3c2a6f-52d1-4864-9025-9ebe6321c580": {
+    "store_user_id": "ee3c2a6f-52d1-4864-9025-9ebe6321c580",
+    "platform": "msstore",
+    "energy_balance": 140,
+    "purchased_energy": 100,
+    "is_premium": false,
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2025-10-24T19:27:36.347531",
+    "profile_type": "purchased_credits"
+  },
+  "34f866dc-5b38-4133-aa55-ed30ecb43787": {
+    "store_user_id": "34f866dc-5b38-4133-aa55-ed30ecb43787",
+    "platform": "msstore",
+    "energy_balance": 547,
+    "purchased_energy": 500,
+    "is_premium": false,
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2025-11-12T19:27:36.347531",
+    "profile_type": "purchased_credits"
+  },
+  "ad8bd232-98a5-4617-892d-678755f5aafe": {
+    "store_user_id": "ad8bd232-98a5-4617-892d-678755f5aafe",
+    "platform": "msstore",
+    "energy_balance": 128,
+    "purchased_energy": 100,
+    "is_premium": false,
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2026-01-01T19:27:36.347531",
+    "profile_type": "purchased_credits"
+  },
+  "88d30339-1f64-4d04-ae16-11db0a003a85": {
+    "store_user_id": "88d30339-1f64-4d04-ae16-11db0a003a85",
+    "platform": "msstore",
+    "energy_balance": 1028,
+    "purchased_energy": 1000,
+    "is_premium": false,
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2026-02-05T19:27:36.347531",
+    "profile_type": "purchased_credits"
+  },
+  "b4105739-5106-4d6f-8ba8-e8e63a10f21b": {
+    "store_user_id": "b4105739-5106-4d6f-8ba8-e8e63a10f21b",
+    "platform": "msstore",
+    "energy_balance": 541,
+    "purchased_energy": 500,
+    "is_premium": false,
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2026-01-06T19:27:36.347531",
+    "profile_type": "purchased_credits"
+  },
+  "2bc5188a-5dd8-41c4-872e-afbf3d1159ea": {
+    "store_user_id": "2bc5188a-5dd8-41c4-872e-afbf3d1159ea",
+    "platform": "msstore",
+    "energy_balance": 1000,
+    "purchased_energy": 1000,
+    "is_premium": false,
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2026-01-19T19:27:36.347531",
+    "profile_type": "purchased_credits"
+  },
+  "2318a5ef-9151-4db1-b06e-38022cbb19cb": {
+    "store_user_id": "2318a5ef-9151-4db1-b06e-38022cbb19cb",
+    "platform": "msstore",
+    "energy_balance": 81,
+    "purchased_energy": 50,
+    "is_premium": false,
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2025-09-14T19:27:36.347531",
+    "profile_type": "purchased_credits"
+  },
+  "e5472f06-11c7-49fa-9d21-f12ae6de9f78": {
+    "store_user_id": "e5472f06-11c7-49fa-9d21-f12ae6de9f78",
+    "platform": "msstore",
+    "energy_balance": 1050,
+    "purchased_energy": 1000,
+    "is_premium": false,
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2025-10-30T19:27:36.347531",
+    "profile_type": "purchased_credits"
+  },
+  "3b9ec32b-7b89-467f-914e-45f38f179aa3": {
+    "store_user_id": "3b9ec32b-7b89-467f-914e-45f38f179aa3",
+    "platform": "msstore",
+    "energy_balance": 236,
+    "purchased_energy": 200,
+    "is_premium": false,
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2026-01-15T19:27:36.347531",
+    "profile_type": "purchased_credits"
+  },
+  "91b7626b-b368-41b9-8109-5112feaf84a9": {
+    "store_user_id": "91b7626b-b368-41b9-8109-5112feaf84a9",
+    "platform": "msstore",
+    "energy_balance": 59,
+    "purchased_energy": 50,
+    "is_premium": false,
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2025-11-23T19:27:36.347531",
+    "profile_type": "purchased_credits"
+  },
+  "95cbb229-0dc4-4208-995d-9b988da1713e": {
+    "store_user_id": "95cbb229-0dc4-4208-995d-9b988da1713e",
+    "platform": "msstore",
+    "energy_balance": 1038,
+    "purchased_energy": 1000,
+    "is_premium": false,
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2025-11-23T19:27:36.347531",
+    "profile_type": "purchased_credits"
+  },
+  "46048d1b-0f0b-4a2a-a7df-955a9c575608": {
+    "store_user_id": "46048d1b-0f0b-4a2a-a7df-955a9c575608",
+    "platform": "msstore",
+    "energy_balance": 232,
+    "purchased_energy": 200,
+    "is_premium": false,
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2025-11-30T19:27:36.347531",
+    "profile_type": "purchased_credits"
+  },
+  "93327e64-c547-485e-a522-d2c4202ad6d0": {
+    "store_user_id": "93327e64-c547-485e-a522-d2c4202ad6d0",
+    "platform": "msstore",
+    "energy_balance": 117,
+    "purchased_energy": 100,
+    "is_premium": false,
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2025-09-15T19:27:36.347531",
+    "profile_type": "purchased_credits"
+  },
+  "e1a5b6da-a55b-4cab-9aac-d376d0690edf": {
+    "store_user_id": "e1a5b6da-a55b-4cab-9aac-d376d0690edf",
+    "platform": "msstore",
+    "energy_balance": 106,
+    "purchased_energy": 100,
+    "is_premium": false,
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2025-09-20T19:27:36.347531",
+    "profile_type": "purchased_credits"
+  },
+  "745e6c72-7e75-4853-9a06-a8e5c662f0f3": {
+    "store_user_id": "745e6c72-7e75-4853-9a06-a8e5c662f0f3",
+    "platform": "msstore",
+    "energy_balance": 1009,
+    "purchased_energy": 1000,
+    "is_premium": false,
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2025-08-30T19:27:36.347531",
+    "profile_type": "purchased_credits"
+  },
+  "10671406-48e8-4ef1-a2bc-860bc15a6b76": {
+    "store_user_id": "10671406-48e8-4ef1-a2bc-860bc15a6b76",
+    "platform": "msstore",
+    "energy_balance": 1011,
+    "purchased_energy": 1000,
+    "is_premium": false,
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2026-01-13T19:27:36.347531",
+    "profile_type": "purchased_credits"
+  },
+  "681f954b-c845-4709-8684-872e7641bb4e": {
+    "store_user_id": "681f954b-c845-4709-8684-872e7641bb4e",
+    "platform": "msstore",
+    "energy_balance": 548,
+    "purchased_energy": 500,
+    "is_premium": false,
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2026-01-30T19:27:36.347531",
+    "profile_type": "purchased_credits"
+  },
+  "8e0d99c5-8052-46be-8685-4884de0cf2c7": {
+    "store_user_id": "8e0d99c5-8052-46be-8685-4884de0cf2c7",
+    "platform": "msstore",
+    "energy_balance": 532,
+    "purchased_energy": 500,
+    "is_premium": false,
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2025-11-09T19:27:36.347531",
+    "profile_type": "purchased_credits"
+  },
+  "8bd784fa-ec5b-431f-9238-ed6505e01d76": {
+    "store_user_id": "8bd784fa-ec5b-431f-9238-ed6505e01d76",
+    "platform": "msstore",
+    "energy_balance": 1040,
+    "purchased_energy": 1000,
+    "is_premium": false,
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2026-02-07T19:27:36.347531",
+    "profile_type": "purchased_credits"
+  },
+  "94c4cb33-d785-44be-8211-413cfbc2fb8a": {
+    "store_user_id": "94c4cb33-d785-44be-8211-413cfbc2fb8a",
+    "platform": "msstore",
+    "energy_balance": 520,
+    "purchased_energy": 500,
+    "is_premium": false,
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2025-09-24T19:27:36.347531",
+    "profile_type": "purchased_credits"
+  },
+  "d9f4b1b7-c4b6-426d-8c0a-79c46812e7a4": {
+    "store_user_id": "d9f4b1b7-c4b6-426d-8c0a-79c46812e7a4",
+    "platform": "msstore",
+    "energy_balance": 21,
+    "purchased_energy": 0,
+    "is_premium": false,
+    "premium_expiry": "2026-02-12T01:27:36.347531",
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2026-02-02T19:27:36.347531",
+    "profile_type": "active_day_pass"
+  },
+  "a16fee6b-bb3f-4852-87f4-355e9435d4d5": {
+    "store_user_id": "a16fee6b-bb3f-4852-87f4-355e9435d4d5",
+    "platform": "msstore",
+    "energy_balance": 49,
+    "purchased_energy": 0,
+    "is_premium": false,
+    "premium_expiry": "2026-02-12T08:27:36.347531",
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2025-12-04T19:27:36.347531",
+    "profile_type": "active_day_pass"
+  },
+  "15f1898f-a4ab-494b-be7b-de68314e7974": {
+    "store_user_id": "15f1898f-a4ab-494b-be7b-de68314e7974",
+    "platform": "msstore",
+    "energy_balance": 38,
+    "purchased_energy": 0,
+    "is_premium": false,
+    "premium_expiry": "2026-02-12T01:27:36.347531",
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2026-01-08T19:27:36.347531",
+    "profile_type": "active_day_pass"
+  },
+  "5857674b-d47a-4a7a-8faf-50fc6c4c762b": {
+    "store_user_id": "5857674b-d47a-4a7a-8faf-50fc6c4c762b",
+    "platform": "msstore",
+    "energy_balance": 41,
+    "purchased_energy": 0,
+    "is_premium": false,
+    "premium_expiry": "2026-02-12T10:27:36.347531",
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2025-11-18T19:27:36.347531",
+    "profile_type": "active_day_pass"
+  },
+  "01b40736-fa8f-4aba-90c8-2d8a1f2efd7c": {
+    "store_user_id": "01b40736-fa8f-4aba-90c8-2d8a1f2efd7c",
+    "platform": "msstore",
+    "energy_balance": 39,
+    "purchased_energy": 0,
+    "is_premium": false,
+    "premium_expiry": "2026-02-12T13:27:36.347531",
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2026-01-11T19:27:36.347531",
+    "profile_type": "active_day_pass"
+  },
+  "bf69bb49-23b7-4521-ac91-e61d5affcc39": {
+    "store_user_id": "bf69bb49-23b7-4521-ac91-e61d5affcc39",
+    "platform": "msstore",
+    "energy_balance": 46,
+    "purchased_energy": 0,
+    "is_premium": false,
+    "premium_expiry": "2026-02-12T18:27:36.347531",
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2026-01-18T19:27:36.347531",
+    "profile_type": "active_day_pass"
+  },
+  "7be21421-e8e4-4294-bbee-194f793c70fa": {
+    "store_user_id": "7be21421-e8e4-4294-bbee-194f793c70fa",
+    "platform": "msstore",
+    "energy_balance": 11,
+    "purchased_energy": 0,
+    "is_premium": false,
+    "premium_expiry": "2026-02-12T06:27:36.347531",
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2026-02-06T19:27:36.347531",
+    "profile_type": "active_day_pass"
+  },
+  "25c98796-f5f0-495d-bf05-d46067711fc1": {
+    "store_user_id": "25c98796-f5f0-495d-bf05-d46067711fc1",
+    "platform": "msstore",
+    "energy_balance": 35,
+    "purchased_energy": 0,
+    "is_premium": false,
+    "premium_expiry": "2026-02-12T18:27:36.347531",
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2025-11-21T19:27:36.347531",
+    "profile_type": "active_day_pass"
+  },
+  "27d6d50e-eb81-4334-8fd8-6d80eee49ace": {
+    "store_user_id": "27d6d50e-eb81-4334-8fd8-6d80eee49ace",
+    "platform": "msstore",
+    "energy_balance": 13,
+    "purchased_energy": 0,
+    "is_premium": false,
+    "premium_expiry": "2026-02-12T16:27:36.347531",
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2026-01-05T19:27:36.347531",
+    "profile_type": "active_day_pass"
+  },
+  "850bf1e8-ed5c-42c0-93e6-27708365263c": {
+    "store_user_id": "850bf1e8-ed5c-42c0-93e6-27708365263c",
+    "platform": "msstore",
+    "energy_balance": 27,
+    "purchased_energy": 0,
+    "is_premium": false,
+    "premium_expiry": "2026-02-12T17:27:36.347531",
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2025-11-26T19:27:36.347531",
+    "profile_type": "active_day_pass"
+  },
+  "4cfec319-5b69-47b4-a64d-e3fe2928ce5d": {
+    "store_user_id": "4cfec319-5b69-47b4-a64d-e3fe2928ce5d",
+    "platform": "msstore",
+    "energy_balance": 39,
+    "purchased_energy": 0,
+    "is_premium": false,
+    "premium_expiry": "2026-01-29T19:27:36.347531",
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2025-09-10T19:27:36.347531",
+    "profile_type": "expired_day_pass"
+  },
+  "b3a16e86-ccb0-4380-a55d-63546df43195": {
+    "store_user_id": "b3a16e86-ccb0-4380-a55d-63546df43195",
+    "platform": "msstore",
+    "energy_balance": 49,
+    "purchased_energy": 0,
+    "is_premium": false,
+    "premium_expiry": "2026-01-31T19:27:36.347531",
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2025-11-27T19:27:36.347531",
+    "profile_type": "expired_day_pass"
+  },
+  "25cbf9f4-55a5-487c-9e6a-e01fc256b468": {
+    "store_user_id": "25cbf9f4-55a5-487c-9e6a-e01fc256b468",
+    "platform": "msstore",
+    "energy_balance": 2,
+    "purchased_energy": 0,
+    "is_premium": false,
+    "premium_expiry": "2026-02-01T19:27:36.347531",
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2025-09-08T19:27:36.347531",
+    "profile_type": "expired_day_pass"
+  },
+  "280fc9a1-e8a5-444a-bd5e-553670c5147b": {
+    "store_user_id": "280fc9a1-e8a5-444a-bd5e-553670c5147b",
+    "platform": "msstore",
+    "energy_balance": 5,
+    "purchased_energy": 0,
+    "is_premium": false,
+    "premium_expiry": "2026-02-01T19:27:36.347531",
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2025-10-06T19:27:36.347531",
+    "profile_type": "expired_day_pass"
+  },
+  "9b619280-269a-49f2-8c51-6fc8f39c04ad": {
+    "store_user_id": "9b619280-269a-49f2-8c51-6fc8f39c04ad",
+    "platform": "msstore",
+    "energy_balance": 17,
+    "purchased_energy": 0,
+    "is_premium": false,
+    "premium_expiry": "2026-02-03T19:27:36.347531",
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2025-12-30T19:27:36.347531",
+    "profile_type": "expired_day_pass"
+  },
+  "62b44015-9b44-435d-a463-6cb82741ec7a": {
+    "store_user_id": "62b44015-9b44-435d-a463-6cb82741ec7a",
+    "platform": "msstore",
+    "energy_balance": 999,
+    "purchased_energy": 100,
+    "is_premium": true,
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2025-08-21T19:27:36.347531",
+    "profile_type": "mixed_premium_credits"
+  },
+  "63f7eb51-ddd8-4b52-84f5-ab6f9e6f18c5": {
+    "store_user_id": "63f7eb51-ddd8-4b52-84f5-ab6f9e6f18c5",
+    "platform": "msstore",
+    "energy_balance": 999,
+    "purchased_energy": 1000,
+    "is_premium": true,
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2024-12-25T19:27:36.347531",
+    "profile_type": "mixed_premium_credits"
+  },
+  "4a7bd01a-616d-442d-a30c-04b528c94184": {
+    "store_user_id": "4a7bd01a-616d-442d-a30c-04b528c94184",
+    "platform": "msstore",
+    "energy_balance": 999,
+    "purchased_energy": 1000,
+    "is_premium": true,
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2025-05-23T19:27:36.347531",
+    "profile_type": "mixed_premium_credits"
+  },
+  "e67c00b2-550d-4021-bd59-24a679356c06": {
+    "store_user_id": "e67c00b2-550d-4021-bd59-24a679356c06",
+    "platform": "msstore",
+    "energy_balance": 999,
+    "purchased_energy": 500,
+    "is_premium": true,
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2024-10-12T19:27:36.347531",
+    "profile_type": "mixed_premium_credits"
+  },
+  "0a204a2b-29bf-4064-9048-e35b1f79b25a": {
+    "store_user_id": "0a204a2b-29bf-4064-9048-e35b1f79b25a",
+    "platform": "msstore",
+    "energy_balance": 999,
+    "purchased_energy": 100,
+    "is_premium": true,
+    "last_energy_refresh": "2026-02-11T19:27:36.347531",
+    "created_at": "2025-08-25T19:27:36.347531",
+    "profile_type": "mixed_premium_credits"
+  }
+}

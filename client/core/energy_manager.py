@@ -80,9 +80,9 @@ class EnergyManager(QObject):
         self.last_refresh = date.today().isoformat()
         self.unsynced_usage = 0  # Track local usage not yet reported to server
         self.server_signature = None  # Server's cryptographic signature
-        self.is_premium = False  # Set via Store authentication
-        self.store_user_id = None  # Store-specific user ID (from IStoreAuthProvider)
-        self.jwt_token = None  # JWT token from server
+        
+        # Session state is now managed by SessionManager
+        # Access via SessionManager.instance().is_premium, .jwt_token, etc.
         
         # Load credit configurations
         self._lab_credits = {}
@@ -273,7 +273,8 @@ class EnergyManager(QObject):
         Returns: True if approved, False if insufficient
         """
         # Premium users bypass
-        if self.is_premium:
+        from client.core.session_manager import SessionManager
+        if SessionManager.instance().is_premium:
             return True
             
         # Small job: deduct locally
@@ -281,13 +282,16 @@ class EnergyManager(QObject):
             return self.consume(cost)
         
         # Large job: reserve with server using JWT
-        if not self.jwt_token:
+        from client.core.session_manager import SessionManager
+        jwt_token = SessionManager.instance().jwt_token
+        
+        if not jwt_token:
             print("[EnergyManager] No JWT token - falling back to local balance check for large job")
             # Fall back to local check (no server validation)
             return self.consume(cost)
         
         # Configure API client with JWT
-        self.api_client.set_jwt_token(self.jwt_token)
+        self.api_client.set_jwt_token(jwt_token)
         
         # Trigger reservation (async via signal)
         self.api_client.reserve_energy(cost)
@@ -322,8 +326,10 @@ class EnergyManager(QObject):
         
         # 1. YAML Override (Highest Priority)
         # Passed via params from ConversionConductor -> PresetDefinition.credit_cost
+        # SECURITY FIX: Ignore credit_cost for user presets to prevent tampering
         if params.get('credit_cost') is not None:
-            return int(params['credit_cost'])
+            if not params.get('is_user_preset', False):
+                return int(params['credit_cost'])
             
         # 2. Specific Preset Override (Config JSON)
         specific_presets = self._preset_credits.get('specific_presets', {})
@@ -368,22 +374,33 @@ class EnergyManager(QObject):
         elif conversion_type == 'video':
             # Video: lookup by codec
             codec_raw = params.get('codec', params.get('video_codec', 'MP4 (H.264)'))
-            codec = codec_raw.lower()
+            # Normalize: remove periods and convert to lowercase
+            # "MP4 (H.264)" -> "mp4 (h264)", "MP4 (H.265)" -> "mp4 (h265)"
+            codec = codec_raw.lower().replace('.', '')
             codecs = mode_config.get('codecs', {})
-            # Match codec key (h264, hevc, av1, vp9)
+            
+            # Match codec with priority order (more specific first)
+            # Check h265/hevc before h264 to avoid false matches
             codec_cost = None
-            for key in codecs.keys():
-                if key in codec:
-                    codec_cost = codecs[key]
-                    break
+            if 'h265' in codec or 'hevc' in codec:
+                codec_cost = codecs.get('h265') or codecs.get('hevc')
+            elif 'h264' in codec:
+                codec_cost = codecs.get('h264')
+            elif 'av1' in codec:
+                codec_cost = codecs.get('av1')
+            elif 'vp9' in codec:
+                codec_cost = codecs.get('vp9')
+            
             cost = codec_cost if codec_cost is not None else mode_config.get('default_codec_cost', 3)
         elif conversion_type == 'loop':
             # Loop: lookup by format (GIF or WebM with codec)
-            format_name = params.get('format', 'GIF').lower()
+            # LoopTab sends 'loop_format', but fallback to 'format' for compatibility
+            format_name = params.get('loop_format', params.get('format', 'GIF')).lower()
             formats = mode_config.get('formats', {})
             
             # Check if WebM with specific codec
             if 'webm' in format_name:
+                # LoopTab sets codec = loop_format (e.g., "WebM (AV1)" or "WebM (VP9)")
                 codec_raw = params.get('codec', params.get('webm_codec', ''))
                 codec = codec_raw.lower()
                 if 'av1' in codec:
@@ -477,18 +494,16 @@ class EnergyManager(QObject):
     
     def set_store_auth(self, store_user_id: str, jwt_token: str, is_premium: bool):
         """
-        Set Store authentication credentials.
-        
-        Called after successful Store login via IStoreAuthProvider.
-        
-        Args:
-            store_user_id: Platform-specific user ID (MS SubjectID or Apple SubjectID)
-            jwt_token: JWT token from server after Store validation
-            is_premium: Premium status from server
+        DEPRECATED: Use SessionManager.instance().start_session() instead.
+        Kept for backward compatibility.
         """
-        self.store_user_id = store_user_id
-        self.jwt_token = jwt_token
-        self.is_premium = is_premium
+        from client.core.session_manager import SessionManager
+        session = SessionManager.instance()
+        session.start_session(
+            store_user_id=store_user_id,
+            jwt_token=jwt_token,
+            is_premium=is_premium
+        )
         
         # Sync with server to get current balance
         if not is_premium:
@@ -501,12 +516,15 @@ class EnergyManager(QObject):
         This replaces the old email/license_key authentication.
         Called on app launch after Store login.
         """
-        if not self.jwt_token:
+        from client.core.session_manager import SessionManager
+        jwt_token = SessionManager.instance().jwt_token
+        
+        if not jwt_token:
             print("[EnergyManager] Cannot sync: No JWT token")
             return
         
         # Configure API client with JWT token
-        self.api_client.set_jwt_token(self.jwt_token)
+        self.api_client.set_jwt_token(jwt_token)
         
         # Trigger sync (response handled by _on_sync_completed signal)
         self.api_client.sync_balance()
@@ -548,8 +566,9 @@ class EnergyManager(QObject):
             print(f"[EnergyManager] Usage report failed: {error}")
     
     def set_premium_status(self, is_premium):
-        """Set whether user is premium (called after login)"""
-        self.is_premium = is_premium
+        """DEPRECATED: Use SessionManager.instance()._set_premium_status() instead."""
+        from client.core.session_manager import SessionManager
+        SessionManager.instance()._set_premium_status(is_premium)
     
     # ===== Signal Handlers =====
     
@@ -558,7 +577,12 @@ class EnergyManager(QObject):
         if success:
             self.balance = data.get('balance', self.MAX_DAILY_ENERGY)
             self.server_signature = data.get('signature')
-            self.is_premium = data.get('user_tier') == 'premium'
+            
+            # Update premium status from server
+            from client.core.session_manager import SessionManager
+            is_premium = data.get('user_tier') == 'premium'
+            SessionManager.instance()._set_premium_status(is_premium)
+            
             self.unsynced_usage = 0
             self.save()
             self.energy_changed.emit(self.balance, self.MAX_DAILY_ENERGY)
@@ -590,16 +614,20 @@ class EnergyManager(QObject):
         Called every 60 seconds by batch timer.
         Only reports if there's unsynced usage and user is not premium.
         """
+        from client.core.session_manager import SessionManager
+        session = SessionManager.instance()
+        
         # Skip if premium or no unsynced usage
-        if self.is_premium or self.unsynced_usage <= 0:
+        if session.is_premium or self.unsynced_usage <= 0:
             return
         
         # Skip if no JWT token
-        if not self.jwt_token:
+        jwt_token = session.jwt_token
+        if not jwt_token:
             return
         
         # Configure API client and report usage
-        self.api_client.set_jwt_token(self.jwt_token)
+        self.api_client.set_jwt_token(jwt_token)
         self.api_client.report_usage(self.unsynced_usage, self.server_signature)
         
         print(f"[EnergyManager] Batch sync: reporting {self.unsynced_usage} energy usage")

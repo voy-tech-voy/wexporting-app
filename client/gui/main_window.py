@@ -116,11 +116,12 @@ class MainWindow(WindowEventMixin, QMainWindow):
         self.window_behavior = FramelessWindowBehavior(self, border_width=8)
         
         # Dev Panel Manager (centralized)
-        from client.gui.dev_panels import DevPanelManager, NoiseDevPanel, DevThemePanel, SequenceDevPanel
+        from client.gui.dev_panels import DevPanelManager, NoiseDevPanel, DevThemePanel, SequenceDevPanel, PurchaseDevPanel
         self.dev_panel_manager = DevPanelManager(self)
         self.dev_panel_manager.register_panel('noise', NoiseDevPanel)
         self.dev_panel_manager.register_panel('theme', DevThemePanel)
         self.dev_panel_manager.register_panel('sequence', SequenceDevPanel)
+        self.dev_panel_manager.register_panel('purchase', PurchaseDevPanel)
         
         # Conductors (initialized after UI setup)
         self.mode_conductor = None
@@ -763,17 +764,9 @@ class MainWindow(WindowEventMixin, QMainWindow):
         """Show the Purchase Dialog (from Menu)"""
         from client.gui.dialogs.purchase_dialog import PurchaseDialog
         
-        # Using a PLACEHOLDER ID. Replace with real Store ID from Partner Center.
-        STORE_ID_ENERGY_100 = "9NBLGGH42DRG" 
-        
-        dialog = PurchaseDialog(
-            product_id=STORE_ID_ENERGY_100,
-            title="Get More Energy",
-            description="Refill your energy instantly.",
-            price="$1.99",
-            parent=self
-        )
-        dialog.exec()
+        # Open Purchase Dialog (handles its own dimming overlay)
+        dialog = PurchaseDialog(parent=self)
+        return dialog.exec()
         
     def show_update_dialog(self, manifest):
         """Show dialog with available content updates."""

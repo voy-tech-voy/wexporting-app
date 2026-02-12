@@ -1261,6 +1261,7 @@ class LicenseManager:
             'store_user_id': store_user_id,
             'platform': platform,
             'energy_balance': Config.DAILY_FREE_ENERGY,
+            'purchased_energy': 0,  # Track purchased energy separately
             'is_premium': False,
             'last_energy_refresh': datetime.utcnow().isoformat(),
             'created_at': datetime.utcnow().isoformat()
@@ -1308,10 +1309,13 @@ class LicenseManager:
             today = date.today()
             
             if last_refresh < today:
-                # Reset energy
-                profile['energy_balance'] = Config.DAILY_FREE_ENERGY
+                # Reset energy: Set to Daily Free + Purchased Remaining
+                # This ensures we don't wipe out purchased energy
+                current_purchased = profile.get('purchased_energy', 0)
+                profile['energy_balance'] = Config.DAILY_FREE_ENERGY + current_purchased
+                
                 profile['last_energy_refresh'] = datetime.utcnow().isoformat()
                 self.save_user_profile(store_user_id, profile)
-                logger.info(f"Daily energy reset for user {store_user_id[:8]}...")
+                logger.info(f"Daily energy reset for user {store_user_id[:8]}... (Free: {Config.DAILY_FREE_ENERGY} + Purchased: {current_purchased})")
         except Exception as e:
             logger.error(f"Failed to check daily reset: {e}")

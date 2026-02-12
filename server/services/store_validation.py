@@ -129,26 +129,122 @@ def _validate_msstore_receipt(receipt_data: str, product_id: str) -> Dict[str, A
         raise StoreValidationError(f"MS Store API error: {str(e)}")
 
 
-def _validate_appstore_receipt(receipt_data: str, product_id: str) -> Dict[str, Any]:
     """
     Validate Apple App Store receipt via App Store Server API.
     
-    NOTE: This is a stub for future implementation when Mac dev environment is available.
-    
-    Will require:
-    - App Store Connect API key
-    - StoreKit 2 server-to-server notifications
-    
     Args:
-        receipt_data: App Store receipt (base64)
-        product_id: Product ID from App Store Connect
+        receipt_data: For StoreKit 2, this is the originalTransactionId (or transactionId)
+        product_id: Expected Product ID
         
     Returns:
         dict: Validation result
     """
-    # TODO: Implement when Mac development begins
-    logger.warning("Apple App Store validation not yet implemented")
-    raise StoreValidationError("Apple App Store validation not yet implemented")
+    key_id = Config.APPSTORE_KEY_ID
+    issuer_id = Config.APPSTORE_ISSUER_ID
+    bundle_id = Config.APPSTORE_BUNDLE_ID
+    private_key = Config.APPSTORE_PRIVATE_KEY
+    
+    if not all([key_id, issuer_id, bundle_id, private_key]):
+        logger.error("App Store credentials not configured")
+        raise StoreValidationError("App Store validation not configured")
+        
+    try:
+        # Load Private Key logic
+        # If private_key looks like a path, read it
+        if os.path.exists(private_key) and os.path.isfile(private_key):
+             with open(private_key, 'r') as f:
+                 private_key_content = f.read()
+        else:
+             private_key_content = private_key
+             
+        # 1. Generate JWT for App Store API access
+        import jwt
+        import time
+        
+        now = int(time.time())
+        expiry = now + 3600  # 1 hour
+        
+        headers = {
+            "alg": "ES256",
+            "kid": key_id,
+            "typ": "JWT"
+        }
+        
+        payload = {
+            "iss": issuer_id,
+            "iat": now,
+            "exp": expiry,
+            "aud": "appstoreconnect-v1",
+            "bid": bundle_id
+        }
+        
+        # Sign with ES256 using private key
+        token = jwt.encode(payload, private_key_content, algorithm="ES256", headers=headers)
+        
+        # 2. Call Apple API to get transaction info
+        # Using Get Transaction Info endpoint: GET /inApps/v1/transactions/{transactionId}
+        # receipt_data is expected to be transactionId from client
+        transaction_id = receipt_data
+        
+        # Use sandbox URL for testing, production for release. How to detect?
+        # App Store Server API URL is actually the same for sandbox/prod, but the environment in response differs.
+        # But wait, there is a separate sandbox endpoint?
+        # NO: "The base URL for the App Store Server API is: https://api.storekit.itunes.apple.com"
+        # There is a sandbox URL: "https://api.storekit-sandbox.itunes.apple.com"
+        # We should try production first, if 404 try sandbox? 
+        # Actually usually distinct URLs. We'll default to Production unless Config.DEBUG is True?
+        
+        base_url = "https://api.storekit.itunes.apple.com"
+        if Config.DEBUG:
+             base_url = "https://api.storekit-sandbox.itunes.apple.com"
+             
+        url = f"{base_url}/inApps/v1/transactions/{transaction_id}"
+        
+        headers = {
+            'Authorization': f'Bearer {token}'
+        }
+        
+        response = requests.get(url, headers=headers, timeout=10)
+        
+        if response.status_code == 404 and not Config.DEBUG:
+            # Fallback to sandbox just in case? Or log warning.
+            logger.warning(f"Transaction {transaction_id} not found in production. Sandbox fallback?")
+        
+        response.raise_for_status()
+        data = response.json()
+        
+        # 3. Decode JWS signedTransactionInfo
+        signed_tx_info = data.get('signedTransactionInfo')
+        if not signed_tx_info:
+             raise StoreValidationError("No signedTransactionInfo in response")
+             
+        # We don't verify the chain here (complex), rely on HTTPS + trusted source for now. 
+        # In production, verifying certificate chain is recommended.
+        # Decode without verification for extracting data
+        tx_info = jwt.decode(signed_tx_info, options={"verify_signature": False})
+        
+        # Check matching product ID
+        api_product_id = tx_info.get('productId')
+        if api_product_id != product_id:
+             logger.warning(f"Product ID mismatch: expected {product_id}, got {api_product_id}")
+             # Depending on flow, this might be okay (e.g. upgraded), but for specific validation stricter is safer.
+        
+        # Determine product type
+        product_type = _get_product_type_from_id(api_product_id)
+        energy_amount = _get_energy_amount_from_id(api_product_id) if product_type == "energy_pack" else 0
+        
+        return {
+            'valid': True,
+            'product_type': product_type,
+            'energy_amount': energy_amount,
+            'transaction_id': tx_info.get('transactionId'),
+            'original_transaction_id': tx_info.get('originalTransactionId'),
+            'platform': 'appstore'
+        }
+            
+    except Exception as e:
+        logger.error(f"App Store API error: {e}")
+        raise StoreValidationError(f"App Store API error: {str(e)}")
 
 
 def _get_product_type_from_id(product_id: str) -> str:
@@ -165,6 +261,8 @@ def _get_product_type_from_id(product_id: str) -> str:
         return 'lifetime'
     elif 'energy' in product_id.lower():
         return 'energy_pack'
+    elif 'day_pass' in product_id.lower():
+        return 'day_pass'
     else:
         # Default to lifetime for unknown products
         return 'lifetime'

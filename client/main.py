@@ -16,6 +16,10 @@ from client.utils.font_manager import AppFonts
 from client.version import get_version, APP_NAME
 from client.core.tool_manager import init_bundled_tools
 
+# Setup logger for main module
+import logging
+logger = logging.getLogger(__name__)
+
 # Import MessageManager for centralized message handling
 try:
     from client.utils.message_manager import get_message_manager
@@ -411,6 +415,7 @@ def main():
         # --------------------------------------------------------------------
         from client.core.auth import get_store_auth_provider, IStoreAuthProvider
         from client.core.energy_manager import EnergyManager
+        from client.core.session_manager import SessionManager
         
         # Initialize Store Provider (MS Store on Windows, Apple on macOS)
         try:
@@ -418,32 +423,45 @@ def main():
             print(f"[AUTH] Using provider: {auth_provider.__class__.__name__}")
             
             # Attempt silent login
-            # Note: On Windows this uses the OS account. On failure, it might prompt.
-            if auth_provider.login():
+            auth_result = auth_provider.login()
+            
+            if auth_result and auth_result.success:
                 print("[AUTH] Store login successful")
-                
-                # Get credentials
-                user_id = auth_provider.get_store_user_id()
-                token = auth_provider.get_credentials().get('token')
-                
-                # Check for premium status (receipt validation)
-                # For now, we assume free tier unless receipt found
-                # TODO: Implement full receipt validation
-                is_premium = False 
-                
-                # Configure Energy Manager
+            else:
+                print("[AUTH] Store login failed or unavailable")
+            
+            # Ensure SessionManager is initialized (may have been started inside provider.login())
+            session = SessionManager.instance()
+            
+            # Apply developer override if configured (DEV MODE ONLY)
+            from client.config.config import Config, PREMIUM_OVERRIDE
+            if Config.DEVELOPMENT_MODE and PREMIUM_OVERRIDE is not None:
+                session._set_premium_status(PREMIUM_OVERRIDE)
+                if Config.DEVELOPMENT_MODE:
+                    print(f"[AUTH] DEV Override: Premium = {PREMIUM_OVERRIDE}")
+            
+            # If session was never started (e.g. Store APIs unavailable), start a dev session
+            if not session.is_authenticated:
+                # In dev mode, apply override; in production, default to Free
+                default_premium = PREMIUM_OVERRIDE if (Config.DEVELOPMENT_MODE and PREMIUM_OVERRIDE is not None) else False
+                session.start_session(
+                    store_user_id="dev-user",
+                    jwt_token="",
+                    is_premium=default_premium
+                )
+                if Config.DEVELOPMENT_MODE:
+                    print("[AUTH] Started dev session (no Store APIs)")
+            
+            if Config.DEVELOPMENT_MODE:
+                print(f"[AUTH] Session active. Premium: {session.is_premium}")
+            
+            # Configure Energy Manager sync
+            if session.jwt_token:
                 energy_mgr = EnergyManager.instance()
-                energy_mgr.set_store_auth(user_id, token, is_premium)
-                
-                # Trigger initial sync (async)
                 energy_mgr.sync_with_server_jwt()
                 
-                if CRASH_REPORTING_AVAILABLE:
-                    log_info(f"Store auth successful. User: {user_id}", "startup")
-            else:
-                print("[AUTH] Store login failed or cancelled")
-                if CRASH_REPORTING_AVAILABLE:
-                    log_info("Store login failed", "startup")
+            if CRASH_REPORTING_AVAILABLE:
+                log_info(f"Store auth successful. User: {session.store_user_id}", "startup")
                     
         except Exception as e:
             print(f"[AUTH] Error during store authentication: {e}")
@@ -459,6 +477,45 @@ def main():
         # Use extracted initialization function
         # is_trial is now managed by EnergyManager state, so we pass False here
         window = initialize_main_window(is_trial=False, skip_splash=dev_mode)
+        
+        # --------------------------------------------------------------------
+        # Version Gateway Pattern - Check for Updates
+        # --------------------------------------------------------------------
+        try:
+            from client.utils.update_checker import check_for_updates, UpdateState
+            
+            logger.info("Checking for app updates...")
+            update_result = check_for_updates(timeout=5)
+            
+            if update_result.state == UpdateState.MANDATORY_UPDATE:
+                # Show blocking screen - app never reaches main window
+                logger.warning(f"Mandatory update required: {update_result.latest_version}")
+                from client.gui.dialogs.update_dialog import MandatoryUpdateScreen
+                from client.gui.theme_manager import ThemeManager
+                blocker = MandatoryUpdateScreen(update_result, theme_manager=ThemeManager.instance())
+                blocker.show()
+                sys.exit(app.exec())
+                
+            elif update_result.state == UpdateState.OPTIONAL_UPDATE:
+                # Show dismissible dialog
+                logger.info(f"Optional update available: {update_result.latest_version}")
+                from client.gui.dialogs.update_dialog import OptionalUpdateDialog
+                from client.gui.theme_manager import ThemeManager
+                dialog = OptionalUpdateDialog(update_result, parent=window, theme_manager=ThemeManager.instance())
+                dialog.exec()
+                # Falls through to window.show() regardless of user choice
+                
+            else:
+                # UP_TO_DATE - continue normally
+                logger.info("App is up to date")
+                
+        except Exception as e:
+            # Update check failed - fail silently and continue
+            logger.warning(f"Update check failed: {e}")
+            if CRASH_REPORTING_AVAILABLE:
+                log_error(e, "update_check")
+        # --------------------------------------------------------------------
+        
         window.show()
         
         if CRASH_REPORTING_AVAILABLE:

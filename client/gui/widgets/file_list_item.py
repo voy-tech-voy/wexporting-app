@@ -7,12 +7,13 @@ Extracted from custom_widgets.py for better organization.
 import os
 import subprocess
 import tempfile
-from PyQt6.QtCore import Qt, pyqtSignal, QSize
+from PyQt6.QtCore import Qt, pyqtSignal, QSize, QRectF
 from PyQt6.QtWidgets import QWidget, QHBoxLayout, QLabel, QPushButton
 from PyQt6.QtGui import QPixmap, QCursor, QPainter, QLinearGradient, QColor, QPainterPath, QBrush, QPen
 
 from client.gui.theme import Theme
 from client.gui.dev_panels.noise_params import NoiseParams
+from typing import List
 
 
 class FileListItemWidget(QWidget):
@@ -42,7 +43,7 @@ class FileListItemWidget(QWidget):
         self.setStyleSheet("FileListItemWidget { background-color: transparent; }")
         
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(8, 8, 8, 8)
+        layout.setContentsMargins(4, 4, 4, 4) # Reduced margins to fit 48px thumb in 56px height
         layout.setSpacing(10)
         
         # Thumbnail label (48x48 square)
@@ -56,7 +57,7 @@ class FileListItemWidget(QWidget):
         if file_path:
             self.load_thumbnail(file_path)
         
-        layout.addWidget(self.thumbnail_label)
+        layout.addWidget(self.thumbnail_label, 0, Qt.AlignmentFlag.AlignVCenter)
         
         # Text label
         self.text_label = QLabel(text)
@@ -87,10 +88,40 @@ class FileListItemWidget(QWidget):
         self._status = None
         self.update()
 
+    def clear_progress(self):
+        """Reset sequence progress state"""
+        if hasattr(self, 'completed_files'):
+            self.completed_files.clear()
+        self.clear_status()
+
+
     def set_completed(self):
         """Mark item as completed (Legacy compatibility)"""
         self.set_status('success')
         self._is_completed = True
+
+    def mark_file_complete(self, file_path: str):
+        """Mark a single file in a sequence as complete"""
+        if not getattr(self, 'is_sequence', False):
+            self.set_status('success')
+            return
+
+        if not hasattr(self, 'completed_files'):
+            self.completed_files = set()
+            
+        self.completed_files.add(file_path)
+        
+        # Ensure we have a status so paintEvent runs (show 'processing' green bar)
+        if self._status is None:
+            self._status = 'processing'
+        
+        # If all files done, mark fully complete
+        if len(self.completed_files) >= self.sequence_count:
+            self.set_status('success')
+        else:
+            # Trigger repaint to show progress
+            self.update()
+        
         
     def mousePressEvent(self, event):
         """Clear status on click (notify parent)"""
@@ -162,14 +193,105 @@ class FileListItemWidget(QWidget):
             )
             
         return FileListItemWidget._noise_texture
+    
+    def set_sequence_mode(self, count: int, file_paths: List[str]):
+        """Enable sequence mode with stacked thumbnails"""
+        self.is_sequence = True
+        self.sequence_count = count
+        self.sequence_files = file_paths
+        self.completed_files = set() # Track completed files for granular progress
+        
+        # Load thumbnails for first few items (max 4)
+        self.sequence_pixmaps = []
+        limit = min(4, len(file_paths))
+        
+        # Use existing load logic but return pixmap instead of setting label
+        for i in range(limit):
+            pix = self._load_single_thumbnail(file_paths[i])
+            if pix:
+                self.sequence_pixmaps.append(pix)
+        
+        # Keep thumbnail_label visible (it shows the first file normally)
+        # The paintEvent will draw 3 empty squares behind it
+        self.update()
+
+    def _load_single_thumbnail(self, path):
+        """Load a single thumbnail pixmap"""
+        try:
+            from pathlib import Path
+            file_ext = Path(path).suffix.lower()
+            
+            if file_ext in ['.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.tif', '.webp', '.gif']:
+                pix = QPixmap(path)
+                if not pix.isNull():
+                    return pix
+            elif file_ext in ['.mp4', '.avi', '.mov', '.mkv', '.flv', '.webm', '.m4v']:
+                # Reuse existing extraction logic if possible, or simplified
+                # For now, let's try to use the method if it exists, or skip
+                if hasattr(self, 'extract_video_thumbnail'):
+                    return self.extract_video_thumbnail(path)
+            return None
+        except:
+            return None
+
+    
+
 
     def paintEvent(self, event):
-        """Paint status gradient if active"""
+        """Paint sequence stack if enabled, otherwise just status overlay"""
         super().paintEvent(event)
         
-        if self._status:
+        # 1. Paint Sequence Stack (3 Empty Squares Behind)
+        if getattr(self, 'is_sequence', False):
+            from client.gui.dev_panels.sequence_params import SequenceParams
+            
             painter = QPainter(self)
             painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+            
+            # Base parameters (matching single item thumbnail)
+            base_x = 4
+            base_w = 48
+            base_h = 48
+            center_y = self.height() / 2
+            
+            # Draw empty rounded squares BEHIND the main thumbnail based on params
+            # We iterate backwards so the largest index (furthest back) is drawn first
+            for i in range(SequenceParams.stack_count, 0, -1):
+                # Calculate offset and scale
+                offset_x = i * SequenceParams.offset_x
+                offset_y = i * SequenceParams.offset_y
+                scale = 1.0 - (i * SequenceParams.scale_step)
+                
+                # Size
+                w = base_w * scale
+                h = base_h * scale
+                
+                # Position (shifted right/down based on offsets)
+                x = base_x + offset_x
+                y = (center_y - (h / 2)) + offset_y
+                
+                # Draw rounded rectangle (empty square)
+                rect = QRectF(x, y, w, h)
+                
+                # Background color (matching thumbnail background)
+                bg_color = QColor("#1a1a1a")  # Dark theme default
+                border_color = QColor("#444")
+                
+                # Fill background
+                painter.setBrush(QBrush(bg_color))
+                painter.setPen(QPen(border_color, 1))
+                
+                # Draw rounded rect (4px radius to match thumbnail)
+                painter.drawRoundedRect(rect, 4, 4)
+
+
+        
+        # 2. Paint Status Gradient (Existing Logic)
+        if self._status:
+            # Reuse painter if already created for sequence, otherwise create new one
+            if not getattr(self, 'is_sequence', False):
+                painter = QPainter(self)
+                painter.setRenderHint(QPainter.RenderHint.Antialiasing)
             
             # Determine color based on status
             color_hex = Theme.success() # Default green
@@ -185,6 +307,14 @@ class FileListItemWidget(QWidget):
             # 1. Base Gradient: Color -> Transparent (dynamic from dev panel)
             gradient = QLinearGradient(0, 0, self.width(), 0)
             
+            # Calculate progress width for sequences
+            progress_ratio = 1.0
+            if getattr(self, 'is_sequence', False) and hasattr(self, 'completed_files'):
+                # If status is NOT 'success' (completed), show partial progress
+                # If status IS 'success', show full (ratio 1.0)
+                if self._status != 'success': 
+                    progress_ratio = len(self.completed_files) / max(1, self.sequence_count)
+            
             c1 = QColor(base_color)
             c1.setAlpha(NoiseParams.gradient_start_alpha)
             
@@ -194,12 +324,23 @@ class FileListItemWidget(QWidget):
             c2 = QColor(base_color)
             c2.setAlpha(0)
             
+            # Adjust gradient stops??? No, gradient is the "style". 
+            # We want to CLIP the gradient to the progress width.
+            
             gradient.setColorAt(0.0, c1)
             gradient.setColorAt(NoiseParams.gradient_mid_position, c_mid)
             gradient.setColorAt(1.0, c2)
             
             path = QPainterPath()
             path.addRoundedRect(0, 0, self.width(), self.height(), Theme.RADIUS_MD, Theme.RADIUS_MD)
+            
+            # Clip to progress if sequence and not fully done
+            if progress_ratio < 1.0:
+                # Create a clip path that is the intersection of rounded rect AND progress rect
+                progress_rect = QRectF(0, 0, self.width() * progress_ratio, self.height())
+                progress_path = QPainterPath()
+                progress_path.addRect(progress_rect)
+                path = path.intersected(progress_path)
             
             # Fill base gradient
             painter.fillPath(path, QBrush(gradient))
@@ -235,6 +376,11 @@ class FileListItemWidget(QWidget):
                 
                 # Overlay masked noise
                 painter.drawPixmap(0, 0, noise_pix)
+        
+        # 3. Paint Background (if hovered) - already handled by stylesheet in update_background_style?
+        # No, stylesheet handles it.
+        pass
+
     
     def update_theme(self, is_dark):
         """Update widget colors based on theme"""
@@ -261,7 +407,9 @@ class FileListItemWidget(QWidget):
             # Highlight style
             Theme.set_dark_mode(self._is_dark)
             bg_color = Theme.color_with_alpha('surface_element', 0.5) if self._is_dark else "rgba(0, 0, 0, 0.05)"
-            radius = Theme.RADIUS_MD
+            # radius = Theme.RADIUS_MD # Variable not always avail?
+            # Hardcode 6px for now or use Theme constant
+            radius = 6
             
             self.setStyleSheet(f"""
                 FileListItemWidget {{
@@ -278,7 +426,7 @@ class FileListItemWidget(QWidget):
     
     def minimumSizeHint(self):
         """Return the minimum recommended size"""
-        return QSize(0, 50)
+        return QSize(0, 56)
         
     def eventFilter(self, obj, event):
         if obj == self:

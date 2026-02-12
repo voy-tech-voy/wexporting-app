@@ -138,15 +138,21 @@ class UpdateConductor(QObject):
         Start checking for updates in background.
         Does nothing if check is already running.
         """
-        if self.check_worker and self.check_worker.isRunning():
-            logger.info("Update check already in progress")
-            self.check_already_running.emit()
-            return
+        if self.check_worker:
+            try:
+                if self.check_worker.isRunning():
+                    logger.info("Update check already in progress")
+                    self.check_already_running.emit()
+                    return
+            except RuntimeError:
+                logger.warning("UpdateWorker C++ object was deleted")
+                self.check_worker = None
 
         logger.info("Starting update check...")
         self.check_worker = UpdateWorker(self.server_url, self.jwt_token)
         self.check_worker.check_complete.connect(self._handle_check_result)
         self.check_worker.finished.connect(self.check_worker.deleteLater)
+        self.check_worker.finished.connect(self._cleanup_check_worker)
         self.check_worker.start()
         
     def apply_updates(self, manifest):
@@ -157,16 +163,30 @@ class UpdateConductor(QObject):
         Args:
             manifest: UpdateManifest object with updates to apply
         """
-        if self.apply_worker and self.apply_worker.isRunning():
-            logger.warning("Update application already in progress")
-            return
+        if self.apply_worker:
+            try:
+                if self.apply_worker.isRunning():
+                    logger.warning("Update application already in progress")
+                    return
+            except RuntimeError:
+                logger.warning("UpdateApplyWorker C++ object was deleted")
+                self.apply_worker = None
             
         logger.info("Starting update application...")
         self.apply_worker = UpdateApplyWorker(self.server_url, self.jwt_token, manifest)
         self.apply_worker.apply_complete.connect(self._handle_apply_result)
         self.apply_worker.progress_update.connect(self.update_progress.emit)
         self.apply_worker.finished.connect(self.apply_worker.deleteLater)
+        self.apply_worker.finished.connect(self._cleanup_apply_worker)
         self.apply_worker.start()
+        
+    def _cleanup_check_worker(self):
+        """Clean up check worker reference when finished."""
+        self.check_worker = None
+    
+    def _cleanup_apply_worker(self):
+        """Clean up apply worker reference when finished."""
+        self.apply_worker = None
         
     def _handle_check_result(self, success, result):
         """Handle result from check worker thread."""

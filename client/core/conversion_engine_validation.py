@@ -102,7 +102,7 @@ def validate_ffmpeg_codecs(ffmpeg_path, timeout=5):
     Validate if ffmpeg has all required codecs for the application
     
     Required encoders:
-    - Video: libx264, libx265, libvpx-vp9, libaom-av1
+    - Video: libx264, libx265, libvpx-vp9, libsvtav1
     - Audio: aac, libopus
     
     Args:
@@ -116,7 +116,7 @@ def validate_ffmpeg_codecs(ffmpeg_path, timeout=5):
         'libx264': 'video',
         'libx265': 'video',
         'libvpx-vp9': 'video',
-        'libaom-av1': 'video',
+        'libsvtav1': 'video',
         'aac': 'audio',
         'libopus': 'audio'
     }
@@ -255,7 +255,7 @@ def validate_system_ffmpeg(timeout=5):
     
     # No valid ffmpeg found
     print("DEBUG: No FFmpeg installation met all requirements")
-    return False, "No FFmpeg in PATH has all required codecs (libx264, libx265, libvpx-vp9, libaom-av1, aac, libopus)", "", ""
+    return False, "No FFmpeg in PATH has all required codecs (libx264, libx265, libvpx-vp9, libsvtav1, aac, libopus)", "", ""
 
 def get_all_valid_ffmpeg_paths(timeout=5):
     """

@@ -64,16 +64,27 @@ class VersionGatewayConductor(QObject):
         Args:
             timeout: HTTP request timeout in seconds
         """
-        if self.worker and self.worker.isRunning():
-            logger.info("Version check already in progress")
-            return
+        if self.worker:
+            try:
+                if self.worker.isRunning():
+                    logger.info("Version check already in progress")
+                    return
+            except RuntimeError:
+                # Handle case where C++ object is deleted but Python ref exists
+                logger.warning("VersionCheckWorker C++ object was deleted")
+                self.worker = None
             
         logger.info("Starting version check...")
         self.worker = VersionCheckWorker(timeout=timeout)
         self.worker.check_complete.connect(self._handle_result)
         self.worker.finished.connect(self.worker.deleteLater)
+        self.worker.finished.connect(self._cleanup_worker)
         self.worker.start()
         
+    def _cleanup_worker(self):
+        """Clean up worker reference when finished."""
+        self.worker = None
+
     def _handle_result(self, result: UpdateCheckResult):
         """Handle version check result from worker."""
         self.last_result = result

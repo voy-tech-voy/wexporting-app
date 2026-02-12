@@ -38,6 +38,17 @@ class Config:
     VERIFY_MSSTORE_WEBHOOK = os.environ.get('VERIFY_MSSTORE_WEBHOOK', 'true').lower() == 'true'
     
     # ========================================================================
+    # APPLE APP STORE CONFIGURATION
+    # ========================================================================
+    # App Store Connect API Headers
+    APPSTORE_KEY_ID = os.environ.get('APPSTORE_KEY_ID')          # 10-char Key ID
+    APPSTORE_ISSUER_ID = os.environ.get('APPSTORE_ISSUER_ID')    # UUID Issuer ID
+    APPSTORE_BUNDLE_ID = os.environ.get('APPSTORE_BUNDLE_ID')    # App Bundle ID
+    
+    # Private Key (One-line string or path to .p8 file)
+    APPSTORE_PRIVATE_KEY = os.environ.get('APPSTORE_PRIVATE_KEY')
+
+    # ========================================================================
     # ADMIN & SECURITY
     # ========================================================================
     ADMIN_API_KEY = os.environ.get('ADMIN_API_KEY')  # Set in PythonAnywhere

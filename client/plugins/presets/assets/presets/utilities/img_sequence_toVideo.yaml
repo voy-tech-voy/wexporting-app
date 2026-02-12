@@ -1,0 +1,84 @@
+# ============================================================================
+# IMAGE SEQUENCE TO VIDEO (Pro-Master)
+# ============================================================================
+# Converts a sequence of images (PNG, JPG, TIFF) into a 4K/HD video.
+# Use Case: Timelapses, 3D Renders, and VFX sequences.
+# ============================================================================
+
+meta:
+  id: "image_sequence_to_mp4"
+  name: "Image Sequence\nto Video"
+  category: "utility"
+  description: "Merges a sequence of numbered images into a video. Image sequences visible in the file list will be stitched into a video."
+  version: "1.1"
+  output_extension: ".mp4"
+
+style:
+  accent_color: "#A855F7"         # Creative Purple
+  icon: "text:stitch images"
+  glow_strength: "strong"
+
+constraints:
+  accepted_types: ["image"]
+  accepted_extensions: [".exr", ".png", ".jpg", ".jpeg", ".tiff", ".bmp", ".webp"]
+  min_duration: 0.0
+
+# --- THE USER INTERFACE ---
+parameters:
+  - id: "framerate"
+    type: "segmented_pill"
+    label: "Sequence Framerate (FPS)"
+    options: ["Auto", "24", "25", "30", "60"]
+    default: "Auto"
+    tooltip: "Auto: Uses 24fps default unless metadata exists (e.g. EXR). Set explicitly for PNG/JPG sequences."
+
+  - id: "quality"
+    type: "slider"
+    label: "visual_quality"
+    default: 16
+    min_value: 5
+    max_value: 28
+    tooltip: "Lower is better. 5: Visually Lossless (Same as Source) | 16: Pro Master | 23: Web Balanced."
+
+# --- THE EXECUTION LOGIC ---
+pipeline:
+  - tool: "ffmpeg"
+    description: "Stitching images into video stream"
+    
+    filename_suffix: "_assembled_{{ framerate | lower }}fps"
+
+    command_template: |
+      {{ tool_exe }} -y 
+      
+      {# --- INPUT LOGIC --- #}
+      {% set final_fps = meta.fps if framerate == 'Auto' else framerate %}
+      
+      {# Important: -framerate MUST come before the -i for sequences #}
+      -framerate {{ final_fps }} 
+      
+      {% if is_sequence %}
+        {# Use custom to_ffmpeg_pattern filter to convert first file to pattern #}
+        -i "{{ input_path | to_ffmpeg_pattern }}"
+      {% else %}
+        -i "{{ input_path }}"
+      {% endif %}
+
+      {# --- NATIVE RESOLUTION & COMPATIBILITY --- #}
+      {# Ensure even dimensions (required for yuv420p) by padding if necessary #}
+      -vf "pad=ceil(iw/2)*2:ceil(ih/2)*2,format=yuv420p"
+
+      {# --- ENCODING SETTINGS --- #}
+      -c:v libx264 
+      -preset slow 
+      -crf {{ quality }} 
+      
+      {# High compatibility and professional profile #}
+      -pix_fmt yuv420p 
+      -profile:v high 
+      -level:v 4.1 
+      
+      {# Keyframe interval: 2 seconds #}
+      -g {{ (final_fps | float * 2.0) | int }}
+      
+      -movflags +faststart
+      "{{ output_path_no_ext }}.mp4"

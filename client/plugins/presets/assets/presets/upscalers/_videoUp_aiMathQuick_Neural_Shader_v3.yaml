@@ -10,9 +10,9 @@
 
 meta:
   id: "video_neural_shader_upscale"
-  name: "Video quick Neural Upscale (FSRCNNX) _v3"
-  category: "utils"
-  description: "One-pass FSRCNNX AI via GPU Shader. True Neural Reconstruction."
+  name: "Quick Video\nAI Upscale"
+  category: "upscale"
+  description: "Non-generative, pretrained model. Delivers instant, razor-sharp edge reconstruction and superior clarity."
   version: "3.0"
 
 style:

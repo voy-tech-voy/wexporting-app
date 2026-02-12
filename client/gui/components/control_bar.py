@@ -129,7 +129,7 @@ class ControlBar(QWidget):
     
     def highlight_preset(self):
         """Visual highlight for preset mode active."""
-        self.set_preset_active(True)
+        # Don't automatically set button to active - only activate when preset is selected
         self.set_lab_solid(False)
         self.set_lab_icon("client/assets/icons/lab_icon.svg")
     

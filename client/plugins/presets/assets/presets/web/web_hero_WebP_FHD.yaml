@@ -19,7 +19,7 @@ style:
 
 constraints:
   accepted_types: ["image"]
-  accepted_extensions: [".jpg", ".jpeg", ".png", ".tiff", ".bmp", ".webp"]
+  accepted_extensions: [".exr", ".jpg", ".jpeg", ".png", ".tiff", ".bmp", ".webp"]
 
 parameters:
   # --- GEOMETRY CONTROL ---

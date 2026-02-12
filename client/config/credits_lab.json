@@ -3,14 +3,12 @@
     "version": "2.0",
     "modes": {
         "image": {
-            "target_size_cost": 1,
+            "target_size_cost": 3,
             "formats": {
                 "webp": 2,
                 "jpg": 1,
                 "jpeg": 1,
                 "png": 1,
-                "tiff": 1,
-                "bmp": 1,
                 "avif": 3
             },
             "default_format_cost": 1,
@@ -63,8 +61,7 @@
             "formats": {
                 "gif": 5,
                 "webm_av1": 7,
-                "webm_vp9": 6,
-                "webm": 6
+                "webm_vp9": 6
             },
             "default_format_cost": 5,
             "operations": {
