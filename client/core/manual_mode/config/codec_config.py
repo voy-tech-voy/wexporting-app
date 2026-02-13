@@ -127,7 +127,11 @@ IMAGE_QUALITY_CONFIG = {
 
 def get_video_codec_config(codec_name: str) -> Optional[CodecConfig]:
     """
-    Get codec configuration by name
+    Get codec configuration by name.
+    
+    Dynamically resolves the best available encoder (GPU or CPU) using
+    the GPUDetector, so builds without libx264/libx265 can still work
+    via hardware encoders (nvenc, qsv, amf).
     
     Args:
         codec_name: Codec identifier (e.g., 'h264', 'vp9')
@@ -135,7 +139,87 @@ def get_video_codec_config(codec_name: str) -> Optional[CodecConfig]:
     Returns:
         CodecConfig instance or None if not found
     """
-    return VIDEO_CODECS.get(codec_name.lower())
+    config = VIDEO_CODECS.get(codec_name.lower())
+    if config is None:
+        return None
+    
+    # Map codec_config keys to GPUDetector UI selections
+    ui_selection_map = {
+        'h264': 'MP4 (H.264)',
+        'h265': 'MP4 (H.265)',
+        'vp9': 'WebM (VP9)',
+        'av1': 'MP4 (AV1)',
+    }
+    
+    ui_sel = ui_selection_map.get(codec_name.lower())
+    if not ui_sel:
+        return config
+    
+    try:
+        from client.core.tool_registry import get_ffmpeg_path
+        from client.utils.gpu_detector import get_gpu_detector
+        
+        ffmpeg_path = get_ffmpeg_path()
+        detector = get_gpu_detector(ffmpeg_path)
+        best_encoder, encoder_type = detector.get_best_encoder(ui_sel, prefer_gpu=True)
+        
+        # If the resolved encoder differs from the static default, create
+        # a modified config with the correct encoder and stripped extra_args.
+        if best_encoder != config.ffmpeg_codec:
+            from dataclasses import replace
+            
+            # Hardware encoders don't understand software-specific args
+            # like 'x265-params', 'x264-params', etc.
+            clean_extra = {}
+            software_only_keys = {'x265-params', 'x264-params', 'x264opts', 'x265opts'}
+            for k, v in config.extra_args.items():
+                if k not in software_only_keys:
+                    clean_extra[k] = v
+            
+            # Hardware encoders use different quality params
+            # They don't support CRF in the same way - use qp instead
+            from client.utils.gpu_detector import EncoderType
+            if encoder_type != EncoderType.CPU:
+                # Map software presets to hardware presets
+                hw_preset = config.preset
+                
+                # NVENC uses p1-p7 presets (p1=fastest, p7=slowest)
+                if best_encoder.endswith('_nvenc'):
+                    preset_map = {
+                        'ultrafast': 'p1',
+                        'superfast': 'p1',
+                        'veryfast': 'p2',
+                        'faster': 'p3',
+                        'fast': 'p3',
+                        'medium': 'p4',
+                        'slow': 'p6',
+                        'slower': 'p7',
+                        'veryslow': 'p7',
+                    }
+                    hw_preset = preset_map.get(hw_preset, 'p4')  # Default to p4 (balanced)
+                # QSV and AMF: clear preset, they use different systems
+                elif best_encoder.endswith('_qsv') or best_encoder.endswith('_amf'):
+                    hw_preset = ''
+                
+                config = replace(
+                    config,
+                    ffmpeg_codec=best_encoder,
+                    extra_args=clean_extra,
+                    preset=hw_preset,
+                )
+            else:
+                config = replace(
+                    config,
+                    ffmpeg_codec=best_encoder,
+                    extra_args=clean_extra,
+                )
+            
+            print(f"[CodecConfig] Resolved {codec_name} -> {best_encoder} ({encoder_type.value})")
+    except Exception as e:
+        # If GPU detection fails, fall back to the static config
+        print(f"[CodecConfig] GPU detection failed, using default: {e}")
+    
+    return config
 
 
 def get_image_quality_config(format_name: str) -> dict:

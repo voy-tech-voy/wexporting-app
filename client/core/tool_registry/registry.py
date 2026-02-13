@@ -168,12 +168,20 @@ class ToolRegistry:
         # Basic validation: run version command
         try:
             creationflags = subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
+            # Set cwd and PATH to the tool's directory so DLL-based builds
+            # (e.g., non-static FFmpeg with avcodec-62.dll etc.) can find
+            # their companion DLLs during subprocess execution.
+            tool_dir = os.path.dirname(os.path.abspath(path))
+            env = os.environ.copy()
+            env['PATH'] = tool_dir + os.pathsep + env.get('PATH', '')
             result = subprocess.run(
                 [path] + descriptor.version_args,
                 capture_output=True,
                 text=True,
                 timeout=5,
-                creationflags=creationflags
+                creationflags=creationflags,
+                cwd=tool_dir,
+                env=env,
             )
             
             # Some tools (like waifu2x) return non-zero for help output
@@ -225,12 +233,18 @@ class ToolRegistry:
         # Version check
         try:
             creationflags = subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
+            # Set cwd and PATH for DLL-based builds
+            tool_dir = os.path.dirname(os.path.abspath(path))
+            env = os.environ.copy()
+            env['PATH'] = tool_dir + os.pathsep + env.get('PATH', '')
             result = subprocess.run(
                 [path] + descriptor.version_args,
                 capture_output=True,
                 text=True,
                 timeout=5,
-                creationflags=creationflags
+                creationflags=creationflags,
+                cwd=tool_dir,
+                env=env,
             )
             
             if result.returncode != 0:
@@ -333,6 +347,13 @@ class ToolRegistry:
     # =========================================================================
     
     def _apply_to_environment(self, tool_id: str, path: str) -> None:
-        """Set environment variable for a tool."""
+        """Set environment variable for a tool and ensure DLLs are findable."""
         descriptor = self._descriptors[tool_id]
         os.environ[descriptor.env_var_name] = path
+        # Add the tool's directory to PATH so DLL-based builds
+        # (e.g., non-static FFmpeg with avcodec-62.dll) can find
+        # their companion DLLs in ALL subprocess invocations.
+        tool_dir = os.path.dirname(os.path.abspath(path))
+        current_path = os.environ.get('PATH', '')
+        if tool_dir not in current_path.split(os.pathsep):
+            os.environ['PATH'] = tool_dir + os.pathsep + current_path

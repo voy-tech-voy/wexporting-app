@@ -323,6 +323,8 @@ class AdvancedSettingsWindow(QDialog):
         # 1. Save FFmpeg Settings
         if self.radio_ffmpeg_bundled.isChecked():
             path = self.ffmpeg_input.text().strip()
+            # Sanitize input: remove potentially dangerous shell characters
+            path = ''.join(c for c in path if c not in '&;|><')
             if path:
                 is_valid, error, _ = validate_ffmpeg_executable(path)
                 if not is_valid:

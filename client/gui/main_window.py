@@ -450,6 +450,8 @@ class MainWindow(WindowEventMixin, QMainWindow):
         self.drag_drop_area.files_added.connect(self.on_files_added)
         self.drag_drop_area.preset_applied.connect(self.on_preset_applied)
         self.drag_drop_area.go_to_lab_requested.connect(self._on_restore_lab_settings)
+        # Trigger purchase dialog when insufficient credits toast is dismissed
+        self.drag_drop_area.insufficient_credits_dismissed.connect(self.show_purchase_dialog)
         
         # Connect drag-drop area status updates to main window
         self.drag_drop_area.update_status = self.update_status

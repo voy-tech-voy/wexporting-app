@@ -12,8 +12,8 @@ PRODUCTION_DEFAULTS = {
         'avif': 'v2',
     },
     'video': {
-        'mp4_h264': 'v4',
-        'mp4_h265': 'v4',
+        'mp4_h264': 'v5',
+        'mp4_h265': 'v5',
         'webm_vp9': 'v3',
         'webm_av1': 'v6',
     },

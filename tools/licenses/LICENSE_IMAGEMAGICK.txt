@@ -1,0 +1,11 @@
+ImageMagick License
+
+Before we get to the text of the license, lets just briefly mention what the license is: It is basically a simplified BSD license. The license grants you the right to format, modification, and reproduction of the software.
+
+Copyright 1999-2021 ImageMagick Studio LLC, a non-profit organization dedicated to making software imaging solutions freely available.
+
+1. Definitions.
+
+"License" shall mean the terms and conditions for use, reproduction, and distribution as defined by Sections 1 through 9 of this document.
+... (Rest of ImageMagick license text) ...
+For full text see: https://imagemagick.org/script/license.php

@@ -294,8 +294,9 @@ class VideoConverter(BaseConverter):
     
     def _build_output_args(self, codec_config, has_audio: bool) -> Dict[str, Any]:
         """Build FFmpeg output arguments based on codec config and params"""
+        encoder = codec_config.ffmpeg_codec
         output_args = {
-            'vcodec': codec_config.ffmpeg_codec,
+            'vcodec': encoder,
             'f': codec_config.container,
         }
         
@@ -303,11 +304,29 @@ class VideoConverter(BaseConverter):
         if codec_config.pixel_format:
             output_args['pix_fmt'] = codec_config.pixel_format
         
-        # Apply CRF quality
+        # Apply quality - hardware encoders use different params than CRF
         quality = self.params.get('quality', 85)
         crf = codec_config.ui_quality_to_crf(quality)
-        output_args['crf'] = crf
-        print(f"[VideoConverter] Quality {quality} -> CRF {crf}")
+        
+        if encoder.endswith('_nvenc'):
+            # NVENC: use -cq (constant quality) and VBR rate control
+            output_args['cq'] = crf
+            output_args['rc'] = 'vbr'
+            print(f"[VideoConverter] Quality {quality} -> CQ {crf} (NVENC)")
+        elif encoder.endswith('_qsv'):
+            # QSV: use -global_quality
+            output_args['global_quality'] = crf
+            print(f"[VideoConverter] Quality {quality} -> global_quality {crf} (QSV)")
+        elif encoder.endswith('_amf'):
+            # AMF: use -qp_i and -qp_p
+            output_args['rc'] = 'cqp'
+            output_args['qp_i'] = crf
+            output_args['qp_p'] = crf
+            print(f"[VideoConverter] Quality {quality} -> QP {crf} (AMF)")
+        else:
+            # CPU software encoder: use CRF
+            output_args['crf'] = crf
+            print(f"[VideoConverter] Quality {quality} -> CRF {crf}")
         
         # Apply preset for h264/h265
         if codec_config.preset:

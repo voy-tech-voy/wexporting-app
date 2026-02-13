@@ -36,18 +36,21 @@ ENCODER_DEFINITIONS = {
     "h264_amf": EncoderInfo("h264_amf", EncoderType.AMD, "h264", 2),
     "h264_qsv": EncoderInfo("h264_qsv", EncoderType.INTEL, "h264", 3),
     "libx264": EncoderInfo("libx264", EncoderType.CPU, "h264", 10),
+    "libopenh264": EncoderInfo("libopenh264", EncoderType.CPU, "h264", 11),  # BSD fallback
     
     # HEVC / H.265
     "hevc_nvenc": EncoderInfo("hevc_nvenc", EncoderType.NVIDIA, "hevc", 1),
     "hevc_amf": EncoderInfo("hevc_amf", EncoderType.AMD, "hevc", 2),
     "hevc_qsv": EncoderInfo("hevc_qsv", EncoderType.INTEL, "hevc", 3),
     "libx265": EncoderInfo("libx265", EncoderType.CPU, "hevc", 10),
+    "libkvazaar": EncoderInfo("libkvazaar", EncoderType.CPU, "hevc", 11),  # LGPL fallback
     
     # AV1
     "av1_nvenc": EncoderInfo("av1_nvenc", EncoderType.NVIDIA, "av1", 1),
     "av1_amf": EncoderInfo("av1_amf", EncoderType.AMD, "av1", 2),
     "av1_qsv": EncoderInfo("av1_qsv", EncoderType.INTEL, "av1", 3),
     "libsvtav1": EncoderInfo("libsvtav1", EncoderType.CPU, "av1", 10),
+    "libaom-av1": EncoderInfo("libaom-av1", EncoderType.CPU, "av1", 11),  # Reference encoder
     
     # VP9
     "vp9_qsv": EncoderInfo("vp9_qsv", EncoderType.INTEL, "vp9", 3),
@@ -182,15 +185,16 @@ class GPUDetector:
                     return (encoder_info.name, EncoderType.CPU)
                     
         # Ultimate fallback based on codec
+        # Prefer LGPL-compatible fallbacks (libopenh264, libkvazaar)
         fallbacks = {
-            "h264": "libx264",
-            "hevc": "libx265", 
+            "h264": "libopenh264",
+            "hevc": "libkvazaar", 
             "av1": "libsvtav1",
             "vp9": "libvpx-vp9",
         }
         self._gpu_active = False
         self._current_encoder_type = EncoderType.CPU
-        return (fallbacks.get(codec, "libx264"), EncoderType.CPU)
+        return (fallbacks.get(codec, "libopenh264"), EncoderType.CPU)
         
     def get_fallback_encoder(self, current_encoder: str) -> Tuple[str, EncoderType]:
         """
@@ -215,16 +219,16 @@ class GPUDetector:
                 self._current_encoder_type = EncoderType.CPU
                 return (encoder_info.name, EncoderType.CPU)
                 
-        # Ultimate fallback
+        # Ultimate fallback - prefer LGPL-compatible encoders
         fallbacks = {
-            "h264": "libx264",
-            "hevc": "libx265",
+            "h264": "libopenh264",
+            "hevc": "libkvazaar",
             "av1": "libsvtav1", 
             "vp9": "libvpx-vp9",
         }
         self._gpu_active = False
         self._current_encoder_type = EncoderType.CPU
-        return (fallbacks.get(codec, "libx264"), EncoderType.CPU)
+        return (fallbacks.get(codec, "libopenh264"), EncoderType.CPU)
         
     def get_encoder_params(self, encoder_name: str, quality: int) -> Dict[str, str]:
         """

@@ -1,0 +1,4 @@
+- [x] Check `size_estimator_registry.py` -> Automatic registration confirmed
+- [ ] Check `config.py` for PRODUCTION_DEFAULTS
+- [ ] Update `PRODUCTION_DEFAULTS` to use `v5` if necessary
+- [ ] Verify with debug script

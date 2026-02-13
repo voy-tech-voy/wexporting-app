@@ -44,7 +44,7 @@ class EnergyManager(QObject):
     _instance = None
     
     # Configuration
-    MAX_DAILY_ENERGY = 50
+    DEFAULT_DAILY_ENERGY = 50  # Fallback if server doesn't specify
     STORAGE_FILE = "energy.dat"
     
     # Job-Based Sync Thresholds
@@ -76,8 +76,9 @@ class EnergyManager(QObject):
         self.storage_path = self._get_storage_path()
         self.key = self._get_device_key()
         
-        self.balance = self.MAX_DAILY_ENERGY
-        self.last_refresh = date.today().isoformat()
+        self.max_daily_energy = self.DEFAULT_DAILY_ENERGY  # Dynamic limit from server
+        self.balance = self.max_daily_energy
+        self.last_refresh = datetime.utcnow().date().isoformat()
         self.unsynced_usage = 0  # Track local usage not yet reported to server
         self.server_signature = None  # Server's cryptographic signature
         
@@ -196,8 +197,9 @@ class EnergyManager(QObject):
                     raise ValueError("Tampered data")
                 state = json.loads(content)
             
-            self.balance = state.get('balance', self.MAX_DAILY_ENERGY)
-            self.last_refresh = state.get('last_refresh', date.today().isoformat())
+            self.balance = state.get('balance', self.max_daily_energy)
+            self.last_refresh = state.get('last_refresh', datetime.utcnow().date().isoformat())
+            self.max_daily_energy = state.get('max_daily_energy', self.DEFAULT_DAILY_ENERGY)
             
         except Exception as e:
             print(f"[EnergyManager] Failed to load data (tampering?): {e}")
@@ -207,7 +209,8 @@ class EnergyManager(QObject):
         """Encrypt and save energy state"""
         state = {
             'balance': self.balance,
-            'last_refresh': self.last_refresh
+            'last_refresh': self.last_refresh,
+            'max_daily_energy': self.max_daily_energy
         }
         json_str = json.dumps(state)
         
@@ -230,21 +233,21 @@ class EnergyManager(QObject):
 
     def reset_defaults(self):
         """Reset to default max energy"""
-        self.balance = self.MAX_DAILY_ENERGY
-        self.last_refresh = date.today().isoformat()
+        self.balance = self.max_daily_energy
+        self.last_refresh = datetime.utcnow().date().isoformat()
         self.save()
-        self.energy_changed.emit(self.balance, self.MAX_DAILY_ENERGY)
+        self.energy_changed.emit(self.balance, self.max_daily_energy)
 
     def check_refresh(self):
-        """Check if day has changed and refresh if needed"""
-        today = date.today().isoformat()
+        """Check if day has changed (UTC) and refresh if needed"""
+        today = datetime.utcnow().date().isoformat()
         if self.last_refresh != today:
-            print(f"[EnergyManager] New day! Refreshing energy. Last: {self.last_refresh}, Today: {today}")
-            self.balance = self.MAX_DAILY_ENERGY
+            print(f"[EnergyManager] New UTC day! Refreshing energy. Last: {self.last_refresh}, Today: {today}")
+            self.balance = self.max_daily_energy
             self.last_refresh = today
             self.save()
             self.refreshed.emit()
-            self.energy_changed.emit(self.balance, self.MAX_DAILY_ENERGY)
+            self.energy_changed.emit(self.balance, self.max_daily_energy)
 
     def get_balance(self):
         self.check_refresh() # Ensure fresh
@@ -260,7 +263,7 @@ class EnergyManager(QObject):
             self.balance -= cost
             self.unsynced_usage += cost
             self.save()
-            self.energy_changed.emit(self.balance, self.MAX_DAILY_ENERGY)
+            self.energy_changed.emit(self.balance, self.max_daily_energy)
             return True
         return False
     
@@ -482,10 +485,11 @@ class EnergyManager(QObject):
         return max(1, cost)
 
     def get_time_until_refresh(self):
-        """Return string "HH:MM" until midnight"""
-        now = datetime.now()
-        tomorrow_midnight = datetime(now.year, now.month, now.day) + timedelta(days=1)
-        remaining = tomorrow_midnight - now
+        """Return string "HH:MM" until UTC midnight"""
+        now_utc = datetime.utcnow()
+        # Tomorrow midnight UTC
+        tomorrow_midnight = (now_utc + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+        remaining = tomorrow_midnight - now_utc
         hours, remainder = divmod(remaining.seconds, 3600)
         minutes, _ = divmod(remainder, 60)
         return f"{hours}h {minutes}m"
@@ -534,10 +538,11 @@ class EnergyManager(QObject):
         """Handle sync response from server."""
         if success:
             self.balance = data.get('balance', self.balance)
+            self.max_daily_energy = data.get('max_daily_energy', self.DEFAULT_DAILY_ENERGY)
             self.server_signature = data.get('signature')
-            print(f"[EnergyManager] Sync successful - Balance: {self.balance}")
+            print(f"[EnergyManager] Sync successful - Balance: {self.balance}, Max: {self.max_daily_energy}")
             self.save()
-            self.energy_changed.emit(self.balance, self.MAX_DAILY_ENERGY)
+            self.energy_changed.emit(self.balance, self.max_daily_energy)
         else:
             error = data.get('error', 'unknown')
             print(f"[EnergyManager] Sync failed: {error}")
@@ -546,10 +551,11 @@ class EnergyManager(QObject):
         """Handle reservation response from server."""
         if success:
             self.balance = data.get('balance', self.balance)
+            self.max_daily_energy = data.get('max_daily_energy', self.max_daily_energy)
             self.server_signature = data.get('signature')
             print(f"[EnergyManager] Reservation successful - New balance: {self.balance}")
             self.save()
-            self.energy_changed.emit(self.balance, self.MAX_DAILY_ENERGY)
+            self.energy_changed.emit(self.balance, self.max_daily_energy)
         else:
             error = data.get('error', 'unknown')
             print(f"[EnergyManager] Reservation failed: {error}")
@@ -575,7 +581,8 @@ class EnergyManager(QObject):
     def _on_sync_completed(self, success, data):
         """Handle sync response from server"""
         if success:
-            self.balance = data.get('balance', self.MAX_DAILY_ENERGY)
+            self.balance = data.get('balance', self.max_daily_energy)
+            self.max_daily_energy = data.get('max_daily_energy', self.DEFAULT_DAILY_ENERGY)
             self.server_signature = data.get('signature')
             
             # Update premium status from server
@@ -585,7 +592,7 @@ class EnergyManager(QObject):
             
             self.unsynced_usage = 0
             self.save()
-            self.energy_changed.emit(self.balance, self.MAX_DAILY_ENERGY)
+            self.energy_changed.emit(self.balance, self.max_daily_energy)
         else:
             self.server_sync_failed.emit(data.get('error', 'unknown'))
     
@@ -596,7 +603,7 @@ class EnergyManager(QObject):
             self.balance = data.get('new_balance', self.balance)
             self.server_signature = data.get('signature')
             self.save()
-            self.energy_changed.emit(self.balance, self.MAX_DAILY_ENERGY)
+            self.energy_changed.emit(self.balance, self.max_daily_energy)
     
     def _on_report_completed(self, success, data):
         """Handle report response from server"""
@@ -605,7 +612,7 @@ class EnergyManager(QObject):
             self.server_signature = data.get('signature')
             self.unsynced_usage = 0
             self.save()
-            self.energy_changed.emit(self.balance, self.MAX_DAILY_ENERGY)
+            self.energy_changed.emit(self.balance, self.max_daily_energy)
     
     def _flush_unsynced_usage(self):
         """

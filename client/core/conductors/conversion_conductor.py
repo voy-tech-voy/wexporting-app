@@ -96,7 +96,8 @@ class ConversionConductor(QObject):
         files = self.drag_drop_area.get_files()
         
         if not files:
-            self.dialogs.show_warning("No Files", "Please add files for conversion first.")
+            # Show toast instead of modal dialog
+            self.drag_drop_area.show_no_files_toast()
             return
             
         if self.conversion_engine and self.conversion_engine.isRunning():
@@ -180,7 +181,8 @@ class ConversionConductor(QObject):
         files = self.drag_drop_area.get_files(grouped=is_sequence_aware)
         
         if not files:
-            self.dialogs.show_warning("No Files", "Please add files for conversion first.")
+            # Show toast instead of modal dialog
+            self.drag_drop_area.show_no_files_toast()
             return
         
         # NEW: Energy check for free tier users (preset mode)
@@ -287,7 +289,8 @@ class ConversionConductor(QObject):
             custom_path: Path for custom mode
         """
         if not files:
-            self.dialogs.show_warning("No Files", "Please add files for conversion first.")
+            # Show toast instead of modal dialog
+            self.drag_drop_area.show_no_files_toast()
             return
         
         if self.conversion_engine and self.conversion_engine.isRunning():

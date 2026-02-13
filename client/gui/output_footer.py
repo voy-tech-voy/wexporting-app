@@ -101,7 +101,7 @@ class OutputFooter(QWidget):
         
         # Initialize with current values
         current = self.energy_manager.get_balance()
-        max_energy = EnergyManager.MAX_DAILY_ENERGY
+        max_energy = self.energy_manager.max_daily_energy
         self.credit_bar.set_credits(current, max_energy)
         
         # Set initial visibility based on premium status

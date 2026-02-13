@@ -246,7 +246,14 @@ class ToastNotification(QFrame):
         
     def _dismiss(self):
         """Dismiss the toast and emit signal."""
+        # Ensure it doesn't block mouse events immediately by hiding first
+        self.hide()
+        
+        # Emit signal synchronously - this may block if connected to a modal dialog
+        # but since we are hidden, it won't block input to the dialog
         self.dismissed.emit()
+        
+        # Schedule deletion after emit standard
         self.deleteLater()
         
     def update_theme(self, is_dark: bool):

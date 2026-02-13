@@ -1,0 +1,7 @@
+NOTICE
+
+This software uses libraries from the FFmpeg project under the LGPL v3.0.
+This software uses ImageMagick Studio LLC code.
+Original source code for these tools can be found at:
+- FFmpeg: https://ffmpeg.org
+- ImageMagick: https://imagemagick.org

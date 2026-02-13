@@ -36,13 +36,17 @@ def show_insufficient_energy_toast(parent: QWidget) -> ToastNotification:
     """
     dismiss_active_toast(parent)
     
-    message = """<b>Not enough energy</b><br>Please wait until your energy is restored.
-    <br> Your energy will be restored the next day (after midnight)."""
+    # Import here to avoid circular dependencies
+    from client.core.energy_manager import EnergyManager
+    reset_time = EnergyManager.instance().get_time_until_refresh()
+    
+    message = f"""<b>Not enough energy</b><br><br>Please wait until your energy is restored.
+    <br><br>Resets in: {reset_time} (UTC Midnight)"""
     
     toast = ToastNotification(
         message=message,
         icon_type="warning",
-        duration=4000,
+        duration=5000,
         parent=parent,
         position="center",
         size="large"
@@ -80,6 +84,34 @@ def show_unsupported_files_toast(parent: QWidget, count: int) -> ToastNotificati
     
     parent._active_toast = toast
     return toast
+
+
+def show_no_files_toast(parent: QWidget) -> ToastNotification:
+    """
+    Show a toast notification when user tries to start with no files.
+    
+    Args:
+        parent: Parent widget
+        
+    Returns:
+        The created ToastNotification instance
+    """
+    dismiss_active_toast(parent)
+    
+    message = "Please add items to convert"
+    
+    toast = ToastNotification(
+        message=message,
+        icon_type="warning",
+        duration=3000,
+        parent=parent
+    )
+    toast.dismissed.connect(lambda: setattr(parent, '_active_toast', None))
+    toast.show_toast()
+    
+    parent._active_toast = toast
+    return toast
+
 
 
 def show_conversion_toast(

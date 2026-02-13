@@ -30,7 +30,7 @@ class DevCreditBarPanel(QWidget):
             energy_mgr = EnergyManager.instance()
             energy_mgr.balance = int(value)
             energy_mgr.save()
-            energy_mgr.energy_changed.emit(int(value), energy_mgr.MAX_DAILY_ENERGY)
+            energy_mgr.energy_changed.emit(int(value), energy_mgr.max_daily_energy)
         
         self.add_slider(layout, "Credits", 0, credit_bar.max_credits, credit_bar.current_credits, 
                        update_credits)

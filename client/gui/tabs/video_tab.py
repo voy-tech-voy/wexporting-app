@@ -261,6 +261,12 @@ class VideoTab(BaseTab):
         }
         # Merge resize params
         params.update(resize_params)
+        
+        # Add estimator version from version selector (dev mode)
+        version = self.version_selector.get_selected_version()
+        if version:
+            params['estimator_version'] = version
+        
         return params
 
     def restore_settings(self, settings: dict):
