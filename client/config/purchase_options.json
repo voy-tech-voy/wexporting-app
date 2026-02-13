@@ -3,27 +3,10 @@
     "version": "1.0",
     "options": [
         {
-            "id": "credits_100",
-            "name": "100 Credits",
-            "description": "Additional 100 credits for conversions",
-            "cost": "$0.99",
-            "color": "blue",
-            "button_label": "Buy 100 Credits",
-            "product_id": "9NBLGGH42DRG",
-            "type": "consumable",
-            "style": {
-                "outline_active": "#3B82F6",
-                "btn_bg_ghost": "rgba(59, 130, 246, 0.3)",
-                "btn_bg_active": "rgba(59, 130, 246, 1.0)",
-                "btn_text_ghost": "#B0B0B0",
-                "btn_text_active": "#FFFFFF"
-            }
-        },
-        {
             "id": "credits_500",
             "name": "500 Credits",
-            "description": "Get 500 credits with 20% bonus",
-            "cost": "$3.99",
+            "description": "Get 500 credits",
+            "cost": "$1.99",
             "color": "blue",
             "button_label": "Buy 500 Credits",
             "product_id": "9NBLGGH42DRH",
@@ -33,7 +16,26 @@
                 "btn_bg_ghost": "rgba(59, 130, 246, 0.3)",
                 "btn_bg_active": "rgba(59, 130, 246, 1.0)",
                 "btn_text_ghost": "#B0B0B0",
-                "btn_text_active": "#FFFFFF"
+                "btn_text_active": "#FFFFFF",
+                "price_color": "#3B82F6"
+            }
+        },
+        {
+            "id": "daily_limit_150",
+            "name": "Daily Focus Pack",
+            "description": "Increase daily limit to 150 (Permanently)",
+            "cost": "$5.99",
+            "color": "#00E0FF",
+            "button_label": "Boost Daily Limit",
+            "product_id": "9NBLGGH42DRJ",
+            "type": "durable",
+            "style": {
+                "outline_active": "#00E0FF",
+                "btn_bg_ghost": "rgba(0, 224, 255, 0.3)",
+                "btn_bg_active": "rgba(0, 224, 255, 0.7)",
+                "btn_text_ghost": "#B0B0B0",
+                "btn_text_active": "#FFFFFF",
+                "price_color": "#00E0FF"
             }
         },
         {

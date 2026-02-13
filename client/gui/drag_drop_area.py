@@ -50,6 +50,7 @@ class DragDropArea(QWidget):
     preset_applied = pyqtSignal(object, list)  # Emits (preset, files) when preset selected
     view_mode_changed = pyqtSignal(str)  # Emits new view mode name
     go_to_lab_requested = pyqtSignal(dict)  # Emits lab_mode_settings when "Go to Lab" is clicked
+    insufficient_credits_dismissed = pyqtSignal()  # Emits when insufficient credits toast is dismissed
     
     # Note: SUPPORTED_EXTENSIONS moved to client.core.file_type_utils
     
@@ -297,7 +298,21 @@ class DragDropArea(QWidget):
         
         if self._group_sequences:
             from client.utils.sequence_detector import SequenceDetector
-            sequences, singles = SequenceDetector.detect(self.file_list)
+            
+            # SPLIT: Only process images for sequences
+            image_files = [f for f in self.file_list if file_type_utils.is_image_file(f)]
+            other_files = [f for f in self.file_list if not file_type_utils.is_image_file(f)]
+            
+            # Detect sequences ONLY in images
+            sequences, image_singles = SequenceDetector.detect(image_files)
+            
+            # Combine singles (Images that didn't sequence + Non-images)
+            singles = image_singles + other_files
+            
+            # Optional: Sort singles by name to keep them tidy? 
+            # Or just append. SequenceDetector returns singles in order of appearance usually.
+            # self.file_list order might be important.
+            # Let's just keep them as is.
             
             # Add sequences
             for seq in sequences:
@@ -733,11 +748,17 @@ class DragDropArea(QWidget):
     
     def show_insufficient_credits_toast(self):
         """Show a large, centered toast for insufficient energy."""
-        toast_helpers.show_insufficient_energy_toast(self)
+        toast = toast_helpers.show_insufficient_energy_toast(self)
+        # Connect to dismissal to trigger purchase dialog
+        toast.dismissed.connect(self.insufficient_credits_dismissed.emit)
 
     def show_unsupported_files_toast(self, count):
         """Show a toast notification for unsupported files"""
         toast_helpers.show_unsupported_files_toast(self, count)
+
+    def show_no_files_toast(self):
+        """Show a warning toast when trying to start with no files"""
+        toast_helpers.show_no_files_toast(self)
 
     def show_conversion_toast(self, successful: int, failed: int, skipped: int, stopped: int):
         """

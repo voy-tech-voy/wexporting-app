@@ -194,7 +194,7 @@ class TitleBarWindow(QMainWindow):
         check_updates_action.triggered.connect(self.check_updates_requested.emit)
         self._menu.addAction(check_updates_action)
         
-        buy_action = QAction("Buy Credits", self)
+        buy_action = QAction("Buy...", self)
         buy_action.triggered.connect(self.buy_credits_requested.emit)
         self._menu.addAction(buy_action)
         

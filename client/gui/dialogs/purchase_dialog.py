@@ -355,22 +355,21 @@ class PurchaseOptionCard(QWidget):
     
     def enterEvent(self, event):
         """Animate to hover state."""
-        self.border_anim.setStartValue(self._col_outline_ghost)
+        # Border
+        self.border_anim.stop()
+        self.border_anim.setStartValue(self._border_color)
         self.border_anim.setEndValue(self._col_outline_active)
         self.border_anim.start()
         
-        # Background opacity animation - now stays opaque
-        # self.bg_anim.setStartValue(self._bg_opacity)
-        # self.bg_anim.setEndValue(1.0)
-        # self.bg_anim.start()
-        
-        # Button Background Animation (Data Driven)
-        self.button_bg_anim.setStartValue(self._col_btn_bg_ghost)
+        # Button Background
+        self.button_bg_anim.stop()
+        self.button_bg_anim.setStartValue(self._button_bg_color)
         self.button_bg_anim.setEndValue(self._col_btn_bg_active)
         self.button_bg_anim.start()
         
-        # Button Text Animation (Data Driven)
-        self.text_anim.setStartValue(self._col_btn_text_ghost)
+        # Button Text
+        self.text_anim.stop()
+        self.text_anim.setStartValue(self._text_color)
         self.text_anim.setEndValue(self._col_btn_text_active)
         self.text_anim.start()
         
@@ -378,22 +377,21 @@ class PurchaseOptionCard(QWidget):
     
     def leaveEvent(self, event):
         """Animate back to normal state."""
-        self.border_anim.setStartValue(self._col_outline_active)
+        # Border
+        self.border_anim.stop()
+        self.border_anim.setStartValue(self._border_color)
         self.border_anim.setEndValue(self._col_outline_ghost)
         self.border_anim.start()
         
-        # Background opacity animation - no change
-        # self.bg_anim.setStartValue(self._bg_opacity)
-        # self.bg_anim.setEndValue(0.9)
-        # self.bg_anim.start()
-        
-        # Button Background Animation (Data Driven)
-        self.button_bg_anim.setStartValue(self._col_btn_bg_active)
+        # Button Background
+        self.button_bg_anim.stop()
+        self.button_bg_anim.setStartValue(self._button_bg_color)
         self.button_bg_anim.setEndValue(self._col_btn_bg_ghost)
         self.button_bg_anim.start()
         
-        # Button Text Animation (Data Driven)
-        self.text_anim.setStartValue(self._col_btn_text_active)
+        # Button Text
+        self.text_anim.stop()
+        self.text_anim.setStartValue(self._text_color)
         self.text_anim.setEndValue(self._col_btn_text_ghost)
         self.text_anim.start()
         
@@ -590,11 +588,40 @@ class PurchaseDialog(QDialog):
         self._drag_start_pos = None
         self._is_dragging = False
         
-        # Check if click is inside content panel
+        # 1. Handle Emulated Title Bar Interactions (Drag, Min, Close)
+        # Title bar is at top 0, height 45 (TitleBarWindow.TITLE_BAR_HEIGHT)
+        if event.pos().y() < 45:
+            # Check for button areas (Right aligned)
+            # Layout logic from TitleBarWindow:
+            # [Theme] 10 [Min 45] 10 [Close 45] 10 (Margin)
+            
+            # Close Button: Right 10 to Right 55 (45px width)
+            # Minimize Button: Right 65 to Right 110 (45px width)
+            
+            x_from_right = self.width() - event.pos().x()
+            
+            # Close Button
+            if 10 <= x_from_right <= 55:
+                if not self.progress.isVisible():
+                    self.reject() # Close dialog
+                return
+            
+            # Minimize Button
+            elif 65 <= x_from_right <= 110:
+                if self.parent():
+                    self.parent().showMinimized()
+                return
+
+            # Otherwise: Drag Window
+            else:
+                 self._drag_start_pos = event.globalPosition().toPoint()
+                 self._is_dragging = True
+                 return
+
+        # 2. Check if click is inside content panel
         content_rect = self.content_panel.geometry()
         if content_rect.contains(event.pos()):
-            # If inside content, checking if it's in the "Title Bar" area (top 60px)
-            # Map position to content panel coordinates
+            # If inside content, checking if it's in the "Header" area of content panel (top 60px)
             local_pos = self.content_panel.mapFrom(self, event.pos())
             if local_pos.y() < 60:
                 self._drag_start_pos = event.globalPosition().toPoint()
@@ -614,11 +641,7 @@ class PurchaseDialog(QDialog):
             if self.parent():
                 new_pos = self.parent().pos() + delta
                 self.parent().move(new_pos)
-                # The dialog moves with parent automatically usually, or we might need to sync
-                # But since we are covering parent and move parent, it should be fine.
-                # Actually, dialog is a separate top-level window in local coord system of screen?
-                # "self.parent().move" moves the main window.
-                # "self.move" moves the dialog.
+                # Sync dialog position immediately
                 self.move(self.pos() + delta)
             
             self._drag_start_pos = event.globalPosition().toPoint()
@@ -631,7 +654,14 @@ class PurchaseDialog(QDialog):
             self._is_dragging = False
             self._drag_start_pos = None
         else:
-            # Only close if we weren't dragging and clicked outside
+            # Only close if we weren't dragging, clicked outside content, AND NOT in title bar
+            # Title bar clicks are handled in mousePressEvent's immediate actions or drag start
+            # But if a user clicked title bar (non-button) and didn't drag much?
+            # We don't want to close.
+            
+            if event.pos().y() < 45:
+                return # Ignore title bar releases
+                
             content_rect = self.content_panel.geometry()
             if not content_rect.contains(event.pos()):
                 # Confirm it wasn't a drag release (simple check)
