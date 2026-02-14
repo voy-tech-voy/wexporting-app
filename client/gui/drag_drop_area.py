@@ -64,6 +64,7 @@ class DragDropArea(QWidget):
         self._pending_files = None  # Files waiting for preset selection
         self._current_view_mode = ViewMode.FILES  # Default view mode
         self._group_sequences = True # Default state for sequence grouping
+        self._file_statuses = {}  # Track file path -> status for persistence across refreshes
         self.setup_ui()
     
     def set_file_progress(self, file_index, progress):
@@ -94,69 +95,69 @@ class DragDropArea(QWidget):
 
         file_path = self.file_list[file_index]
         
-        # 1. Check Sequence View Mode
-        if self.current_view_mode == ViewMode.FILES and self._group_sequences:
-            # Find the widget containing this file
-            for i in range(self.file_list_widget.count()):
-                item = self.file_list_widget.item(i)
-                widget = self.file_list_widget.itemWidget(item)
-                
-                if widget and getattr(widget, 'is_sequence', False):
-                    if hasattr(widget, 'sequence_files') and file_path in widget.sequence_files:
-                        # Found sequence!
-                        if status == 'success':
-                            # Set intermediate status to trigger paintEvent but NOT full completion logic yet
-                            widget.set_status('processing') 
-                            widget.mark_file_complete(file_path)
-                        elif status in ['failed', 'skipped', 'stopped']:
-                            # For now, just mark as complete so progress continues? 
-                            # Or maybe mark as failed? 
-                            # Let's count it as complete for progress bar purposes, 
-                            # but if it fails, the bar might need a mixed color?
-                            # Simple approach: Mark complete so bar fills.
-                            widget.mark_file_complete(file_path)
-                            
-                        return
+        # Store status in persistent dict (survives refresh_file_list)
+        self._file_statuses[file_path] = status
+        
+        # Apply status to current widgets
+        self._apply_status_to_widget(file_path, status)
+    
+    def _apply_status_to_widget(self, file_path: str, status: str):
+        """Apply status to widget for given file path (internal helper)"""
+        # Always scan widgets by path for robustness across all view modes
+        # This handles both sequence-grouped and flat views uniformly
+        
+        # Normalize input path for comparison
+        norm_path = os.path.normpath(file_path).lower()
+        
+        for i in range(self.file_list_widget.count()):
+            item = self.file_list_widget.item(i)
+            widget = self.file_list_widget.itemWidget(item)
+            
+            if not widget:
+                continue
+            
+            # Check if this is a sequence widget containing our file
+            if getattr(widget, 'is_sequence', False):
+                if hasattr(widget, 'sequence_files'):
+                    # Check if normalized path exists in normalized sequence files
+                    # We iterate to find match because we need the ORIGINAL path for the widget method
+                    # (though widget.mark_file_complete probably doesn't care about path format if we matched it)
                     
-                # Also check single items in sequence view (they might not be is_sequence=True)
-                # But if they are single, file_index mapping might be tricky if we don't scan.
-                # Actually, simpler: just scan all widgets.
-                elif widget and widget.file_path == file_path:
-                     widget.set_status(status)
-                     if status == 'success':
-                         item.setData(Qt.ItemDataRole.UserRole + 1, True)
-                     return
-
-        # 2. Standard View (or Fallback)
-        # If NOT in sequence mode, file_index should match row index (mostly)
-        # BUT safely, we should probably find by path or trust index if counts match
-        if 0 <= file_index < self.file_list_widget.count():
-             # Basic 1:1 mapping (Process: legacy logic relied on this)
-             # But to be safe with new DragDropArea refactor, let's double check path?
-             # For now, stick to index if counts match, else scan.
-             if len(self.file_list) == self.file_list_widget.count():
-                item = self.file_list_widget.item(file_index)
-                if status == 'success':
-                    item.setData(Qt.ItemDataRole.UserRole + 1, True)
-                
-                widget = self.file_list_widget.itemWidget(item)
-                if widget and hasattr(widget, 'set_status'):
+                    # Quick check first
+                    if file_path in widget.sequence_files:
+                        widget.mark_file_complete(file_path, status)
+                        return
+                        
+                    # Slow check with normalization
+                    for seq_file in widget.sequence_files:
+                        if os.path.normpath(seq_file).lower() == norm_path:
+                            # Use file_path (the one we looked up) for consistency
+                            widget.mark_file_complete(file_path, status)
+                            return
+            
+            # Check if this is a single file widget matching our path
+            elif hasattr(widget, 'file_path') and widget.file_path:
+                # Quick check
+                if widget.file_path == file_path:
                     widget.set_status(status)
-             else:
-                 # Counts mismatch (maybe filtering?), scan for path
-                 for i in range(self.file_list_widget.count()):
-                     item = self.file_list_widget.item(i)
-                     widget = self.file_list_widget.itemWidget(item)
-                     if widget and widget.file_path == file_path:
-                         widget.set_status(status)
-                         if status == 'success':
-                             item.setData(Qt.ItemDataRole.UserRole + 1, True)
-                         return
+                    if status == 'success':
+                        item.setData(Qt.ItemDataRole.UserRole + 1, True)
+                    return
+                
+                # Slow check
+                if os.path.normpath(widget.file_path).lower() == norm_path:
+                    widget.set_status(status)
+                    if status == 'success':
+                        item.setData(Qt.ItemDataRole.UserRole + 1, True)
+                    return
 
     def clear_all_statuses(self):
         """Clear visual status from all files"""
         if self._is_converting:
             return
+        
+        # Clear persistent status dict
+        self._file_statuses.clear()
             
         for i in range(self.file_list_widget.count()):
             item = self.file_list_widget.item(i)
@@ -206,8 +207,8 @@ class DragDropArea(QWidget):
         self.file_list_widget.setSelectionMode(QListWidget.SelectionMode.ExtendedSelection)
         self.file_list_widget.viewport().installEventFilter(self) # Detect clicks on empty space
         
-        # Disable dashed focus rectangle
-        self.file_list_widget.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        # Enable focus for keyboard events (Delete/Backspace)
+        self.file_list_widget.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         
         # Disable horizontal scrollbar
         self.file_list_widget.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
@@ -296,6 +297,8 @@ class DragDropArea(QWidget):
         """Rebuild list widget based on current files and view mode"""
         self.file_list_widget.clear()
         
+        # Note: Statuses will be restored after widgets are created
+        
         if self._group_sequences:
             from client.utils.sequence_detector import SequenceDetector
             
@@ -344,6 +347,12 @@ class DragDropArea(QWidget):
             # Flat list
             for file_path in self.file_list:
                 self._add_single_file_item(file_path)
+        
+        # Restore statuses after widgets are created
+        for file_path, status in self._file_statuses.items():
+            # Only restore if file still exists in current file_list
+            if file_path in self.file_list:
+                self._apply_status_to_widget(file_path, status)
         
         self.update_placeholder_text()
 
@@ -746,6 +755,58 @@ class DragDropArea(QWidget):
             if 0 <= row < len(self.file_list):
                 self.remove_file_by_index(row)
     
+    def remove_items(self, items):
+        """Remove multiple file items efficiently (batch operation)"""
+        if not items:
+            return
+        
+        files_removed = False
+        removed_paths = []  # Track for status dict cleanup
+        
+        print(f"[remove_items] Removing {len(items)} items")
+        print(f"[remove_items] Current file_list has {len(self.file_list)} files")
+        
+        for item in items:
+            # Skip placeholder items
+            if item.data(Qt.ItemDataRole.UserRole) == "PLACEHOLDER":
+                continue
+            
+            widget = self.file_list_widget.itemWidget(item)
+            print(f"[remove_items] Processing item at row {self.file_list_widget.row(item)}")
+            
+            if widget:
+                # Check if sequence
+                if getattr(widget, 'is_sequence', False) and hasattr(widget, 'sequence_files'):
+                    # Remove all files in sequence
+                    print(f"  Sequence with {len(widget.sequence_files)} files")
+                    for f in widget.sequence_files:
+                        if f in self.file_list:
+                            self.file_list.remove(f)
+                            removed_paths.append(f)
+                            files_removed = True
+                            print(f"    Removed from sequence: {os.path.basename(f)}")
+                elif hasattr(widget, 'file_path') and widget.file_path:
+                    # Remove single file
+                    print(f"  Single file: {os.path.basename(widget.file_path)}")
+                    print(f"  file_path in file_list: {widget.file_path in self.file_list}")
+                    if widget.file_path in self.file_list:
+                        self.file_list.remove(widget.file_path)
+                        removed_paths.append(widget.file_path)
+                        files_removed = True
+                        print(f"    Removed: {os.path.basename(widget.file_path)}")
+                    else:
+                        print(f"    NOT IN file_list!")
+        
+        # Clean up status dict for removed files
+        for path in removed_paths:
+            self._file_statuses.pop(path, None)
+        
+        print(f"[remove_items] After removal, file_list has {len(self.file_list)} files")
+        
+        # Refresh list once after all removals
+        if files_removed:
+            self.refresh_file_list()
+    
     def show_insufficient_credits_toast(self):
         """Show a large, centered toast for insufficient energy."""
         toast = toast_helpers.show_insufficient_energy_toast(self)
@@ -759,6 +820,18 @@ class DragDropArea(QWidget):
     def show_no_files_toast(self):
         """Show a warning toast when trying to start with no files"""
         toast_helpers.show_no_files_toast(self)
+
+    def show_no_image_files_toast(self):
+        """Show a warning toast when no image files are found"""
+        toast_helpers.show_no_image_files_toast(self)
+
+    def show_no_video_files_toast(self):
+        """Show a warning toast when no video files are found"""
+        toast_helpers.show_no_video_files_toast(self)
+
+    def show_no_loop_files_toast(self):
+        """Show a warning toast when no video files are found for loop conversion"""
+        toast_helpers.show_no_loop_files_toast(self)
 
     def show_conversion_toast(self, successful: int, failed: int, skipped: int, stopped: int):
         """
@@ -775,31 +848,7 @@ class DragDropArea(QWidget):
         if event.key() in (Qt.Key.Key_Delete, Qt.Key.Key_Backspace):
             selected_items = self.file_list_widget.selectedItems()
             if selected_items:
-                # Remove items in reverse order to maintain visual consistency during removal?
-                # Actually, if we rebuild list, order doesn't matter much but efficient to remove from widget.
-                # But we are modifying self.file_list.
-                
-                files_removed = False
-                
-                for item in selected_items:
-                    if item.data(Qt.ItemDataRole.UserRole) == "PLACEHOLDER":
-                        continue
-                        
-                    widget = self.file_list_widget.itemWidget(item)
-                    if widget:
-                        # Check if sequence
-                        if getattr(widget, 'is_sequence', False) and hasattr(widget, 'sequence_files'):
-                            for f in widget.sequence_files:
-                                if f in self.file_list:
-                                    self.file_list.remove(f)
-                                    files_removed = True
-                        elif hasattr(widget, 'file_path') and widget.file_path:
-                            if widget.file_path in self.file_list:
-                                self.file_list.remove(widget.file_path)
-                                files_removed = True
-                
-                if files_removed:
-                    self.refresh_file_list()
+                self.remove_items(selected_items)
         else:
             # Call the original key press event handler for other keys
             QListWidget.keyPressEvent(self.file_list_widget, event)
@@ -808,7 +857,8 @@ class DragDropArea(QWidget):
         """Show context menu for file operations"""
         file_context_menu.show_file_context_menu(
             self, self.file_list_widget, position, self.theme_manager,
-            self.remove_file_item, self._show_in_explorer_wrapper,
+            self.remove_items,  # Pass batch removal method
+            self._show_in_explorer_wrapper,
             sequences_enabled=self._group_sequences,
             on_toggle_sequences=self.toggle_sequence_view
         )

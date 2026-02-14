@@ -100,10 +100,10 @@ class FileListItemWidget(QWidget):
         self.set_status('success')
         self._is_completed = True
 
-    def mark_file_complete(self, file_path: str):
-        """Mark a single file in a sequence as complete"""
+    def mark_file_complete(self, file_path: str, status: str = 'success'):
+        """Mark a single file in a sequence as complete with a specific status"""
         if not getattr(self, 'is_sequence', False):
-            self.set_status('success')
+            self.set_status(status)
             return
 
         if not hasattr(self, 'completed_files'):
@@ -111,16 +111,25 @@ class FileListItemWidget(QWidget):
             
         self.completed_files.add(file_path)
         
-        # Ensure we have a status so paintEvent runs (show 'processing' green bar)
-        if self._status is None:
-            self._status = 'processing'
+        # Track per-status sets for aggregation
+        if status == 'failed':
+            if not hasattr(self, 'failed_files'):
+                self.failed_files = set()
+            self.failed_files.add(file_path)
+        elif status == 'skipped':
+            if not hasattr(self, 'skipped_files'):
+                self.skipped_files = set()
+            self.skipped_files.add(file_path)
+        elif status == 'stopped':
+            if not hasattr(self, 'stopped_files'):
+                self.stopped_files = set()
+            self.stopped_files.add(file_path)
         
-        # If all files done, mark fully complete
-        if len(self.completed_files) >= self.sequence_count:
-            self.set_status('success')
-        else:
-            # Trigger repaint to show progress
-            self.update()
+        # Update aggregate status
+        self._update_sequence_status()
+        
+        # Trigger repaint to show progress
+        self.update()
         
         
     def mousePressEvent(self, event):
@@ -200,6 +209,9 @@ class FileListItemWidget(QWidget):
         self.sequence_count = count
         self.sequence_files = file_paths
         self.completed_files = set() # Track completed files for granular progress
+        self.failed_files = set()    # Track failed files
+        self.skipped_files = set()   # Track skipped files
+        self.stopped_files = set()   # Track stopped files
         
         # Load thumbnails for first few items (max 4)
         self.sequence_pixmaps = []
@@ -215,6 +227,34 @@ class FileListItemWidget(QWidget):
         # The paintEvent will draw 3 empty squares behind it
         self.update()
 
+    def _update_sequence_status(self):
+        """Update the aggregate status for a sequence based on individual file statuses.
+        
+        Priority: failed > stopped > skipped > success/processing
+        """
+        # Priority 1: Any failures -> entire sequence is 'failed'
+        if hasattr(self, 'failed_files') and len(self.failed_files) > 0:
+            self.set_status('failed')
+            return
+        
+        # Priority 2: Any stopped -> entire sequence is 'stopped'
+        if hasattr(self, 'stopped_files') and len(self.stopped_files) > 0:
+            self.set_status('stopped')
+            return
+        
+        # Priority 3: Any skipped (but no failures) -> entire sequence is 'skipped'
+        if hasattr(self, 'skipped_files') and len(self.skipped_files) > 0:
+            self.set_status('skipped')
+            return
+        
+        # Priority 4: All files completed successfully
+        if len(self.completed_files) >= self.sequence_count:
+            self.set_status('success')
+        else:
+            # Still processing
+            if self._status is None:
+                self._status = 'processing'
+    
     def _load_single_thumbnail(self, path):
         """Load a single thumbnail pixmap"""
         try:
