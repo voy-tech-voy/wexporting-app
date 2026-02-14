@@ -47,23 +47,16 @@ class VideoConverter(BaseConverter):
     
     # Codec name mapping from UI to internal codec key
     CODEC_MAP = {
-        # UI codec names (new format)
-        'MP4 (H.264)': 'h264',
-        'MP4 (H.265)': 'h265',
-        'MP4 (AV1)': 'av1',
-        'WebM (VP9)': 'vp9',
-        'WebM (AV1)': 'av1',
-        # Legacy UI codec names 
-        'H.264 (MP4)': 'h264',
-        'H.265 (MP4)': 'h265',
-        'WebM (VP9, faster)': 'vp9',
-        'WebM (AV1, slower)': 'av1',
-        'AV1 (MP4)': 'av1',
-        # Direct codec names
-        'h264': 'h264',
-        'h265': 'h265',
-        'vp9': 'vp9',
-        'av1': 'av1',
+        "MP4 (H.264)": "h264",
+        "MP4 (H.265)": "h265",
+        "MP4 (AV1)": "av1",
+        "WebM (VP9)": "vp9",
+        "WebM (AV1)": "av1_webm",
+        # Legacy/Fallback mappings
+        "H.264": "h264",
+        "H.265": "h265", 
+        "VP9": "vp9",
+        "AV1": "av1"
     }
     
     def get_supported_extensions(self) -> set:
@@ -170,6 +163,21 @@ class VideoConverter(BaseConverter):
             
         except ffmpeg.Error as e:
             error_msg = e.stderr.decode('utf-8') if e.stderr else str(e)
+            
+            # Check for GPU error and attempt fallback
+            from client.utils.gpu_detector import get_gpu_detector
+            gpu_detector = get_gpu_detector(get_ffmpeg_path())
+            
+            # Check if this error looks like a GPU failure (Codec not supported, etc)
+            if gpu_detector.is_gpu_error(error_msg) or "Codec not supported" in error_msg:
+                print(f"[VideoConverter] Detected GPU error: {error_msg[:100]}...")
+                self.emit_status("GPU encoding failed, attempting CPU fallback...")
+                
+                # Verify we haven't already fallen back (avoid infinite loop)
+                codec_config = get_video_codec_config(codec_key)
+                if codec_config and self._attempt_fallback_conversion(file_path, output_path, codec_config, audio_exists):
+                    return True
+            
             self.emit_status(f"FFmpeg error: {error_msg[:200]}")
             print(f"Video conversion FFmpeg error for {file_path}: {error_msg}")
             return False
@@ -178,6 +186,103 @@ class VideoConverter(BaseConverter):
             print(f"Video conversion error for {file_path}: {str(e)}")
             import traceback
             traceback.print_exc()
+            return False
+    
+    def _attempt_fallback_conversion(self, file_path: str, output_path: str, original_config, audio_exists: bool) -> bool:
+        """
+        Attempt conversion using CPU fallback when GPU encoder fails.
+        """
+        try:
+            from client.utils.gpu_detector import get_gpu_detector
+            detector = get_gpu_detector(get_ffmpeg_path())
+            
+            # Get fallback encoder name (usually libsvtav1, libx264, etc)
+            fallback_encoder, _ = detector.get_fallback_encoder(original_config.ffmpeg_codec)
+            print(f"[VideoConverter] Fallback: {original_config.ffmpeg_codec} -> {fallback_encoder}")
+            
+            if fallback_encoder == original_config.ffmpeg_codec:
+                print("[VideoConverter] Fallback encoder same as original, aborting.")
+                return False
+                
+            # Create a modified config for the fallback
+            from dataclasses import replace
+            
+            # Clean extra args (remove GPU specific ones)
+            clean_extra = {}
+            # Allow CPU-specific args
+            cpu_args = {'cpu-used', 'crf', 'preset', 'tune'} 
+            
+            # Add fallback specific args
+            fallback_params = detector.get_encoder_params(fallback_encoder, self.params.get('quality', 85))
+            for k, v in fallback_params.items():
+                if k == 'crf': continue # Handled by build_output_args
+                if k == 'preset': continue # Handled by config.preset
+                clean_extra[k] = v
+                
+            # Update config with fallback encoder
+            fallback_config = replace(
+                original_config,
+                ffmpeg_codec=fallback_encoder,
+                extra_args=clean_extra,
+                preset=fallback_params.get('preset', 'medium')
+            )
+            
+            print(f"[VideoConverter] Retrying with: {fallback_encoder}")
+            self.emit_status(f"Retrying with CPU ({fallback_encoder})...")
+            
+            # --- Re-build Pipeline (Duplicated from convert) ---
+            
+            # Build input
+            input_args = self._get_input_args(file_path)
+            input_stream = ffmpeg.input(file_path, **input_args)
+            video_stream = input_stream.video
+            audio_stream = input_stream.audio if audio_exists else None
+            
+            # Apply filters
+            video_stream, audio_stream = self._apply_retime(video_stream, audio_stream)
+            video_stream = self._apply_resize(video_stream, file_path)
+            video_stream = self._apply_rotation(video_stream)
+            
+            # Build output args with FALLBACK config
+            output_args = self._build_output_args(fallback_config, audio_exists)
+            
+            # Create output stream
+            if audio_stream is not None and fallback_config.audio_codec:
+                output = ffmpeg.output(video_stream, audio_stream, output_path, **output_args)
+            else:
+                output = ffmpeg.output(video_stream, output_path, **output_args)
+            
+            if self.params.get('overwrite', False):
+                output = ffmpeg.overwrite_output(output)
+                
+            ffmpeg_cmd = get_ffmpeg_path()
+            
+            # Recalculate duration
+            total_duration = get_video_duration(file_path)
+            if self.params.get('enable_time_cutting'):
+                time_start = self.params.get('time_start', 0)
+                time_end = self.params.get('time_end', 1)
+                total_duration = total_duration * (time_end - time_start)
+            if self.params.get('retime_enabled') or self.params.get('enable_retime'):
+                retime_speed = self.params.get('retime_speed', 1.0)
+                if retime_speed > 0:
+                    total_duration = total_duration / retime_speed
+            
+            # Run fallback
+            if total_duration > 0 and self.progress_callback:
+                success = self.run_ffmpeg_with_progress(output, ffmpeg_cmd, total_duration)
+            else:
+                ffmpeg.run(output, cmd=ffmpeg_cmd, capture_stdout=True, capture_stderr=True, quiet=True)
+                success = True
+                
+            if success:
+                self.emit_status(f"[OK] Converted with fallback")
+                return True
+                
+            return False
+            
+        except Exception as e:
+            print(f"[VideoConverter] Fallback failed: {e}")
             return False
     
     def _get_input_args(self, file_path: str) -> Dict[str, Any]:
@@ -328,8 +433,14 @@ class VideoConverter(BaseConverter):
             output_args['crf'] = crf
             print(f"[VideoConverter] Quality {quality} -> CRF {crf}")
         
-        # Apply preset for h264/h265
-        if codec_config.preset:
+        # Apply dynamic preset (speed/quality mapping) if available
+        # This maps the quality slider to encoding speed (0=Fast/Draft, 100=Slow/Best)
+        dynamic_preset = codec_config.ui_quality_to_preset(quality)
+        if dynamic_preset and codec_config.preset_param:
+            output_args[codec_config.preset_param] = dynamic_preset
+            print(f"[VideoConverter] Dynamic preset: {codec_config.preset_param}={dynamic_preset}")
+        elif codec_config.preset:
+            # Fallback to static preset
             output_args['preset'] = codec_config.preset
         
         # Apply codec-specific extra args

@@ -115,7 +115,7 @@ class VideoTab(BaseTab):
         self.quality.setValue(30)
         self.quality.setTickPosition(QSlider.TickPosition.TicksBelow)
         self.quality.setTickInterval(10)
-        self.quality.setToolTip("Quality: 0=lossless, 100=worst quality\nRecommended: 30-50 for WebM")
+        self.quality.setToolTip("Quality: 100=best quality, 0=worst quality\nRecommended: 70-85 for good balance")
         self.quality_label = QLabel("Quality")
         self.quality_value = QLabel("30")
         self.quality.valueChanged.connect(lambda v: self.quality_value.setText(str(v)))
@@ -410,13 +410,9 @@ class VideoTab(BaseTab):
         # Update version selector for new codec
         self.version_selector.set_format(codec)
         
-        # Update UI based on codec
-        if "H.265" in codec or "HEVC" in codec:
-            self.quality_label.setText("CRF (0-51, lower=better):")
-        elif "VP9" in codec or "AV1" in codec:
-            self.quality_label.setText("CRF (0-63, lower=better):")
-        else:  # H.264
-            self.quality_label.setText("CRF (0-51, lower=better):")
+        # Keep label as "Quality" for all codecs
+        # Note: The slider value (0-100) is inverted to CRF internally by the converter
+        # (100 quality = low CRF, 0 quality = high CRF)
         # Restore visibility state based on current checkbox
         is_multiple = self.multiple_qualities.isChecked()
         self.quality_variants.setVisible(is_multiple)

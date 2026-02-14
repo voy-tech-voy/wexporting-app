@@ -170,18 +170,29 @@ class BaseConverter(ABC):
                     break
             
             # Wait for process to complete
-            self.current_process.wait()
+            if self.current_process:
+                self.current_process.wait()
             stderr_thread.join(timeout=1.0)
             
             if self.current_process.returncode != 0:
                 stderr_text = ''.join(stderr_output)
                 print(f"FFmpeg error: {stderr_text}")
-                return False
+                self.current_process = None
+                import ffmpeg as _ffmpeg
+                raise _ffmpeg.Error(
+                    'ffmpeg',
+                    stdout=None,
+                    stderr=stderr_text.encode('utf-8')
+                )
             
             self.current_process = None
             return True
             
         except Exception as e:
+            import ffmpeg as _ffmpeg
+            # Re-raise ffmpeg.Error so VideoConverter can handle GPU fallback
+            if isinstance(e, _ffmpeg.Error):
+                raise
             print(f"FFmpeg progress tracking error: {e}")
             import traceback
             traceback.print_exc()

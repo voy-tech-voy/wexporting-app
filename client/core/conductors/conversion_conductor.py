@@ -99,6 +99,38 @@ class ConversionConductor(QObject):
             # Show toast instead of modal dialog
             self.drag_drop_area.show_no_files_toast()
             return
+
+        # NEW: Filter files based on conversion mode
+        # This prevents e.g. Image Tab from trying to process Video files
+        conversion_type = self._detect_conversion_type(params)
+        from client.core import file_type_utils
+        
+        # Filter files based on active tab type and track excluded files
+        all_files = files
+        excluded_files = []
+        if conversion_type == 'image':
+            files = [f for f in all_files if file_type_utils.is_image_file(f)]
+            excluded_files = [f for f in all_files if not file_type_utils.is_image_file(f)]
+            if not files and all_files:
+                self.drag_drop_area.show_no_image_files_toast()
+                return
+        elif conversion_type == 'video':
+            files = [f for f in all_files if file_type_utils.is_video_file(f)]
+            excluded_files = [f for f in all_files if not file_type_utils.is_video_file(f)]
+            if not files and all_files:
+                self.drag_drop_area.show_no_video_files_toast()
+                return
+        elif conversion_type == 'loop':
+            # Loop mode accepts videos (for conversion to GIF/WebM)
+            files = [f for f in all_files if file_type_utils.is_video_file(f)]
+            excluded_files = [f for f in all_files if not file_type_utils.is_video_file(f)]
+            if not files and all_files:
+                self.drag_drop_area.show_no_loop_files_toast()
+                return
+        
+        # Store excluded files count for later toast reporting
+        self._excluded_files_count = len(excluded_files)
+        self._excluded_files = excluded_files
             
         if self.conversion_engine and self.conversion_engine.isRunning():
             self.dialogs.show_warning("Conversion Running", "A conversion is already in progress.")
@@ -114,6 +146,13 @@ class ConversionConductor(QObject):
         # Reset file statuses and progress tracking
         self.drag_drop_area.clear_all_statuses()
         self.drag_drop_area.set_converting(True)
+        
+        # Mark excluded files as skipped in UI immediately
+        for excluded_file in excluded_files:
+            for i, f in enumerate(self.drag_drop_area.file_list):
+                if f == excluded_file:
+                    self.drag_drop_area.set_file_status(i, 'skipped')
+                    break
         
         # Check if we should use TargetSizeConversionEngine (max_size mode with any estimator version)
         use_target_size_engine = False
@@ -445,11 +484,14 @@ class ConversionConductor(QObject):
         # Reset progress manager state
         self.progress_manager.reset()
         
+        # Add excluded files to skipped count for accurate toast reporting
+        total_skipped = skipped + getattr(self, '_excluded_files_count', 0)
+        
         # Reset UI state
         self._reset_conversion_ui()
         
         # Show unified conversion summary toast (replacing dialog)
-        self.drag_drop_area.show_conversion_toast(successful, failed, skipped, stopped)
+        self.drag_drop_area.show_conversion_toast(successful, failed, total_skipped, stopped)
     
     def _is_sequence_aware_preset(self, preset) -> bool:
         """

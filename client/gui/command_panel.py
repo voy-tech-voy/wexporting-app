@@ -551,11 +551,9 @@ class CommandPanel(QWidget):
         """Initialize GPU detection for codec acceleration."""
         try:
             from client.utils.gpu_detector import get_gpu_detector
-            from client.core.conversion_engine_validation import validate_system_ffmpeg
+            from client.core.tool_registry import get_ffmpeg_path
             
-            is_valid, error_msg, ffmpeg_path, version_info = validate_system_ffmpeg()
-            if not is_valid or not ffmpeg_path:
-                ffmpeg_path = "ffmpeg"
+            ffmpeg_path = get_ffmpeg_path()
             
             self._gpu_detector = get_gpu_detector(ffmpeg_path)
             encoders = self._gpu_detector.detect_encoders()

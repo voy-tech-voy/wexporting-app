@@ -205,9 +205,9 @@ class LoopTab(BaseTab):
         
         # WebM Quality
         self.webm_quality = QSlider(Qt.Orientation.Horizontal)
-        self.webm_quality.setRange(0, 63)
-        self.webm_quality.setValue(30)
-        self.webm_quality_value = QLabel("30")
+        self.webm_quality.setRange(0, 100)
+        self.webm_quality.setValue(75)
+        self.webm_quality_value = QLabel("75")
         self.webm_quality.valueChanged.connect(lambda v: self.webm_quality_value.setText(str(v)))
         self.webm_quality_label = QLabel("Quality")
         
@@ -218,8 +218,8 @@ class LoopTab(BaseTab):
         
         # WebM Quality Variants
         self.webm_quality_variants = UnifiedVariantInput()
-        self.webm_quality_variants.setPlaceholderText("e.g., 20,30,40")
-        self.webm_quality_variants.setText("20,30,40")  
+        self.webm_quality_variants.setPlaceholderText("e.g., 50,75,90")
+        self.webm_quality_variants.setText("50,75,90")  
         self.webm_quality_variants.setVisible(False)
         self.webm_quality_variants_label = QLabel("Quality variants")
         self.webm_quality_variants_label.setVisible(False)

@@ -113,6 +113,87 @@ def show_no_files_toast(parent: QWidget) -> ToastNotification:
     return toast
 
 
+def show_no_image_files_toast(parent: QWidget) -> ToastNotification:
+    """
+    Show a toast notification when no image files are found.
+    
+    Args:
+        parent: Parent widget
+        
+    Returns:
+        The created ToastNotification instance
+    """
+    dismiss_active_toast(parent)
+    
+    message = "No image files found for Image conversion"
+    
+    toast = ToastNotification(
+        message=message,
+        icon_type="warning",
+        duration=3000,
+        parent=parent
+    )
+    toast.dismissed.connect(lambda: setattr(parent, '_active_toast', None))
+    toast.show_toast()
+    
+    parent._active_toast = toast
+    return toast
+
+
+def show_no_video_files_toast(parent: QWidget) -> ToastNotification:
+    """
+    Show a toast notification when no video files are found.
+    
+    Args:
+        parent: Parent widget
+        
+    Returns:
+        The created ToastNotification instance
+    """
+    dismiss_active_toast(parent)
+    
+    message = "No video files found for Video conversion"
+    
+    toast = ToastNotification(
+        message=message,
+        icon_type="warning",
+        duration=3000,
+        parent=parent
+    )
+    toast.dismissed.connect(lambda: setattr(parent, '_active_toast', None))
+    toast.show_toast()
+    
+    parent._active_toast = toast
+    return toast
+
+
+def show_no_loop_files_toast(parent: QWidget) -> ToastNotification:
+    """
+    Show a toast notification when no video files are found for loop conversion.
+    
+    Args:
+        parent: Parent widget
+        
+    Returns:
+        The created ToastNotification instance
+    """
+    dismiss_active_toast(parent)
+    
+    message = "No video files found for Looped file conversion"
+    
+    toast = ToastNotification(
+        message=message,
+        icon_type="warning",
+        duration=3000,
+        parent=parent
+    )
+    toast.dismissed.connect(lambda: setattr(parent, '_active_toast', None))
+    toast.show_toast()
+    
+    parent._active_toast = toast
+    return toast
+
+
 
 def show_conversion_toast(
     parent: QWidget,

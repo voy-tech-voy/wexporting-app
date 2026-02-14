@@ -201,14 +201,15 @@ class SuffixManager:
                 else:
                     parts.append(f'_speed{retime_speed:.1f}x')
         
-        # 2.5 Codec Suffix (Video Tab)
+        # 2.5 Codec Suffix (Video/Loop Tab)
         is_gif = format_ext.lower() == 'gif' or p.get('type') == 'gif' or p.get('loop_format') == 'GIF'
         
         codec = p.get('codec')
-        # Only add codec suffix for video type and when codec is specified
-        if codec and not is_gif and p.get('type') == 'video':
+        # Add codec suffix for video and loop types when codec is specified
+        if codec and not is_gif and (p.get('type') == 'video' or p.get('type') == 'loop'):
              # Clean up codec string
              # "MP4 (H.264)" -> "H264"
+             # "WebM (AV1)" -> "AV1"
              cleaned_codec = codec
              if '(' in codec:
                  cleaned_codec = codec.split('(')[1].split(')')[0]
@@ -216,7 +217,7 @@ class SuffixManager:
              cleaned_codec = cleaned_codec.replace('.', '').replace(' ', '')
              
              if cleaned_codec:
-                 parts.append(f"_codec{cleaned_codec}")
+                 parts.append(f"_{cleaned_codec}")
         
         # 3. GIF Specifics (FPS/Colors/Dither)
         if is_gif:

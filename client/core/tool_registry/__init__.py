@@ -136,7 +136,7 @@ def _register_default_tools(registry: ToolRegistry) -> None:
         required_capabilities=["libx264", "libx265", "libvpx-vp9", "libsvtav1", "aac", "libopus"],
         companions=["ffprobe"],
         is_bundled=True,
-        bundle_subpath="tools",
+        bundle_subpath="tools/ffmpeg",
         file_filter="FFmpeg Executable (ffmpeg.exe);;All Files (*.*)" if os.name == 'nt' else "All Files (*)"
     ))
     

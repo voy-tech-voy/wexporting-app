@@ -18,6 +18,9 @@ class CodecConfig:
     crf_max: int
     crf_default: int
     preset: str
+    preset_min: Optional[int] = None  # Best quality preset (slowest)
+    preset_max: Optional[int] = None  # Worst quality preset (fastest)
+    preset_param: Optional[str] = None  # Parameter name ('preset' for AV1, 'cpu-used' for VP9)
     pixel_format: Optional[str] = 'yuv420p'
     audio_codec: Optional[str] = None
     audio_bitrate: str = '128k'
@@ -39,6 +42,27 @@ class CodecConfig:
         normalized = 1.0 - (ui_quality / 100.0)
         crf = self.crf_min + normalized * (self.crf_max - self.crf_min)
         return int(round(crf))
+    
+    def ui_quality_to_preset(self, ui_quality: int) -> Optional[str]:
+        """
+        Convert UI quality (0-100, higher is better) to codec preset/speed
+        
+        Preset scale is inverted (higher numeric preset = faster/lower quality).
+        
+        Args:
+            ui_quality: Quality from UI (0-100)
+            
+        Returns:
+            Preset value as string, or None if preset range not defined
+        """
+        if self.preset_min is None or self.preset_max is None:
+            return None
+        
+        # Invert quality (UI 100 = best quality = slowest = lowest numeric preset)
+        # UI 0 = worst quality = fastest = highest numeric preset
+        normalized = 1.0 - (ui_quality / 100.0)
+        preset_value = self.preset_min + normalized * (self.preset_max - self.preset_min)
+        return str(int(round(preset_value)))
 
 
 # Video codec definitions matching existing conversion_engine.py logic
@@ -72,10 +96,13 @@ VIDEO_CODECS = {
         name='VP9',
         ffmpeg_codec='libvpx-vp9',
         container='webm',
-        crf_min=23,
-        crf_max=40,
+        crf_min=0,
+        crf_max=63,
         crf_default=31,
         preset='',  # VP9 doesn't use preset
+        preset_min=0,  # Best quality (slowest)
+        preset_max=5,  # Worst quality (fastest)
+        preset_param='cpu-used',  # VP9 uses cpu-used instead of preset
         pixel_format='yuv420p',
         audio_codec=None,  # WebM typically no audio in this app
         extra_args={'b:v': '0', 'row-mt': '1'}  # b:v=0 required for VP9 CRF mode
@@ -84,12 +111,30 @@ VIDEO_CODECS = {
         name='AV1',
         ffmpeg_codec='libsvtav1',
         container='mp4',
-        crf_min=10,
+        crf_min=0,
         crf_max=63,
         crf_default=30,
         preset='8',
+        preset_min=4,  # Best quality (slow but reasonable)
+        preset_max=8,  # Worst quality (fastest)
+        preset_param='preset',  # SVT-AV1 uses -preset
         pixel_format='yuv420p',
         audio_codec='aac',
+        extra_args={}
+    ),
+    'av1_webm': CodecConfig(
+        name='AV1 WebM',
+        ffmpeg_codec='libsvtav1',
+        container='webm',
+        crf_min=0,
+        crf_max=63,
+        crf_default=30,
+        preset='8',
+        preset_min=4,  # Best quality (slow but reasonable)
+        preset_max=8,  # Worst quality (fastest)
+        preset_param='preset',  # SVT-AV1 uses -preset
+        pixel_format='yuv420p',
+        audio_codec=None,  # WebM loops typically no audio
         extra_args={}
     )
 }
@@ -149,6 +194,7 @@ def get_video_codec_config(codec_name: str) -> Optional[CodecConfig]:
         'h265': 'MP4 (H.265)',
         'vp9': 'WebM (VP9)',
         'av1': 'MP4 (AV1)',
+        'av1_webm': 'WebM (AV1)',
     }
     
     ui_sel = ui_selection_map.get(codec_name.lower())
@@ -208,11 +254,25 @@ def get_video_codec_config(codec_name: str) -> Optional[CodecConfig]:
                     preset=hw_preset,
                 )
             else:
-                config = replace(
-                    config,
-                    ffmpeg_codec=best_encoder,
-                    extra_args=clean_extra,
-                )
+                # CPU Fallback handling
+                # If falling back to libaom-av1 (no SVT), we must change params
+                if best_encoder == 'libaom-av1':
+                    # libaom uses -cpu-used instead of -preset
+                    # Map SVT preset (0-13) to aom cpu-used (0-8)
+                    # SVT 8 -> AOM 6 (approx balanced)
+                    clean_extra['cpu-used'] = '6'
+                    config = replace(
+                        config,
+                        ffmpeg_codec=best_encoder,
+                        extra_args=clean_extra,
+                        preset='',  # Clear preset
+                    )
+                else:
+                    config = replace(
+                        config,
+                        ffmpeg_codec=best_encoder,
+                        extra_args=clean_extra,
+                    )
             
             print(f"[CodecConfig] Resolved {codec_name} -> {best_encoder} ({encoder_type.value})")
     except Exception as e:

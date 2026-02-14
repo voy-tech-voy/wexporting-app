@@ -60,7 +60,8 @@ class PresetOrchestrator(QObject):
         self._conversion_conductor = conversion_conductor
         
         # Initialize logic components
-        gpu_detector = get_gpu_detector()
+        from client.core.tool_registry import get_ffmpeg_path
+        gpu_detector = get_gpu_detector(get_ffmpeg_path())
         self._manager = PresetManager(registry, gpu_detector=gpu_detector)
         self._builder = CommandBuilder(registry)
         self._analyzer = MediaAnalyzer(registry)

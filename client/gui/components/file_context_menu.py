@@ -17,7 +17,7 @@ def show_file_context_menu(
     list_widget: QListWidget,
     position: QPoint,
     theme_manager,
-    on_remove: Callable[[QListWidgetItem], None],
+    on_remove: Callable[[list], None],  # Changed to accept list of items
     on_show_explorer: Callable[[QListWidgetItem], None],
     sequences_enabled: bool = True,
     on_toggle_sequences: Optional[Callable[[bool], None]] = None
@@ -30,7 +30,7 @@ def show_file_context_menu(
         list_widget: The QListWidget containing the file items
         position: Position where the menu should appear
         theme_manager: ThemeManager for styling
-        on_remove: Callback when "Remove File" is selected
+        on_remove: Callback when "Remove" is selected (receives list of items)
         on_show_explorer: Callback when "Show in Explorer" is selected
         sequences_enabled: Current state of sequence grouping
         on_toggle_sequences: Callback to toggle sequence grouping
@@ -43,11 +43,33 @@ def show_file_context_menu(
 
     menu = QMenu(parent)
     
+    # Get selected items
+    selected_items = list_widget.selectedItems()
+    
+    # Determine if we're doing batch operation
+    is_batch = False
+    items_to_remove = []
+    
+    if item:
+        # Check if clicked item is part of selection
+        if item in selected_items and len(selected_items) > 1:
+            is_batch = True
+            items_to_remove = selected_items
+        else:
+            # Single item operation (clicked item not in selection or only one selected)
+            items_to_remove = [item]
+    
     # File-specific actions
     remove_action = None
     show_action = None
     if item:
-        remove_action = menu.addAction("Remove File")
+        # Dynamic menu text based on selection
+        if is_batch:
+            remove_text = f"Remove {len(items_to_remove)} Files"
+        else:
+            remove_text = "Remove File"
+        
+        remove_action = menu.addAction(remove_text)
         show_action = menu.addAction("Show in Explorer")
         menu.addSeparator()
     
@@ -79,7 +101,7 @@ def show_file_context_menu(
     
     action = menu.exec(list_widget.mapToGlobal(position))
     if action == remove_action:
-        on_remove(item)
+        on_remove(items_to_remove)  # Pass list of items
     elif action == show_action:
         on_show_explorer(item)
     elif action == group_action:

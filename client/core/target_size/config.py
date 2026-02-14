@@ -12,13 +12,13 @@ PRODUCTION_DEFAULTS = {
         'avif': 'v2',
     },
     'video': {
-        'mp4_h264': 'v5',
-        'mp4_h265': 'v5',
+        'mp4_h264': 'v6',
+        'mp4_h265': 'v6',
         'webm_vp9': 'v3',
         'webm_av1': 'v6',
     },
     'loop': {
-        'gif': 'v6',
+        'gif': 'v24',
         'webm_loop': 'v2',  # VP9 loop
         'webm_av1_loop': 'v6',  # AV1 loop
     }
