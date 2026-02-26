@@ -1,0 +1,27 @@
+PyQt6 License
+=============
+
+PyQt6 is licensed under the GNU General Public License version 3 (GPL v3).
+Commercial licenses are also available from Riverbank Computing Limited.
+
+This application uses PyQt6 under the GPL v3.
+
+Copyright (c) Riverbank Computing Limited.
+
+GPL v3 full text: https://www.gnu.org/licenses/gpl-3.0.html
+PyQt6 homepage:   https://www.riverbankcomputing.com/software/pyqt/
+
+---
+
+Qt6 License
+===========
+
+Qt is available under the GNU Lesser General Public License version 3 (LGPL v3)
+and the GNU General Public License version 2 (GPL v2) or later, or a commercial license.
+
+PyQt6-Qt6 is used under the LGPL v3.
+
+Copyright (C) The Qt Company Ltd.
+
+LGPL v3 full text: https://www.gnu.org/licenses/lgpl-3.0.html
+Qt homepage:       https://www.qt.io/

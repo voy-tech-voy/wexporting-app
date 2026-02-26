@@ -19,7 +19,7 @@ from client.gui.custom_widgets import (
     CustomTargetSizeSpinBox, LoopFormatSelector, TimeRangeSlider,
     UnifiedVariantInput
 )
-from client.gui.widgets import EstimatorVersionSelector
+from client.gui.widgets import EstimatorVersionSelector, CustomPresetGallery
 from client.gui.sections import ResizeSection, TargetSizeSection, TimeSection
 from client.gui.theme import get_combobox_style
 from client.gui.components.info_tooltip import TooltipHoverFilter
@@ -236,7 +236,11 @@ class LoopTab(BaseTab):
         
         # --- Custom Preset Button (bottom of settings group) ---
         self._create_preset_button(self.settings_group)
-        
+
+        self._custom_preset_gallery = CustomPresetGallery(['gif', 'loop'], tab_ref=self)
+        self._custom_preset_gallery.setVisible(False)
+        self.settings_group.main_layout.addWidget(self._custom_preset_gallery)
+
         # ============================================================
         # TRANSFORM FOLDER (Bottom)
         # ============================================================
@@ -558,17 +562,40 @@ class LoopTab(BaseTab):
         # Store mode explicitly
         self._current_mode = mode
         self._is_max_size_mode = (mode == "Max Size")  # Track for dev mode features
-        
+        is_lab_presets = (mode == "Presets") # "Presets" mode triggers the custom lab presets gallery
+        is_presets = is_lab_presets
+
         is_max_size = (mode == "Max Size")
+
+        if hasattr(self, '_custom_preset_gallery'):
+            self._custom_preset_gallery.setVisible(is_lab_presets)
+            if is_lab_presets:
+                self._custom_preset_gallery.refresh()
+
+        # In Presets mode: show only gallery inside the folder, hide all other rows
+        if hasattr(self, 'settings_group'):
+            self.settings_group.content_widget.setVisible(not is_lab_presets)
         
+        # Ensure transform mode buttons come back when leaving presets
+        if hasattr(self, 'transform_group'):
+            if hasattr(self.transform_group, 'mode_buttons_container'):
+                self.transform_group.mode_buttons_container.setVisible(
+                    not is_lab_presets and self.transform_group.mode_buttons_widget is not None
+                )
+
         # Target size section (only visible in Max Size mode)
         self.target_size_section.setVisible(is_max_size)
+        
+        # Custom preset button hidden when viewing Lab Presets (which have their own presets)
+        if hasattr(self, 'custom_preset_btn'):
+            self.custom_preset_btn.setVisible(not is_presets)
         
         # Estimator version selector visibility handled by component itself
         
         # Delegate format-specific visibility to centralized method
         self._update_format_visibility()
-    
+
+
     def set_transform_mode(self, mode: str):
         """Set which transform section is visible."""
         self.resize_section.setVisible(mode == 'resize')

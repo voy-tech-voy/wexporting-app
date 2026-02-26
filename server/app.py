@@ -1,4 +1,4 @@
-from flask import Flask
+from flask import Flask, render_template
 from config.settings import Config
 from api import api_bp, webhook_bp
 from api.messages import messages_bp
@@ -19,7 +19,11 @@ def create_app(config_class=Config):
 
     @app.route('/', methods=['GET'])
     def health_check():
-        return {"status": "online", "service": "ImageWave License API"}
+        return {"status": "online", "service": "webatchify API"}
+
+    @app.route('/privacy', methods=['GET'])
+    def privacy_policy():
+        return render_template('privacy.html')
 
     return app
 

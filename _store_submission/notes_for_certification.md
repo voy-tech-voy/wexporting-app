@@ -19,3 +19,17 @@ To verify the core functionality of the application:
 
     The processed output file will be generated in the same or nested directory as the source file.
 
+4. Network Activity (internetClient Capability Justification)
+
+This application requires the internetClient capability for the following specific, user-beneficial purposes. All network communication uses HTTPS exclusively. No user PII or file content is ever transmitted.
+
+    External endpoint: https://wavyvoy.pythonanywhere.com
+
+    The following API calls are made to this server:
+
+    - /api/v1/app-config — Checks whether a mandatory or optional app update is available. Called once at startup.
+    - /api/v1/store/validate-receipt — Validates the Microsoft Store purchase receipt to confirm premium entitlement. Called after a Store purchase event.
+    - /api/v1/energy/sync — Synchronises the local AI processing energy balance with the server. Called when a user is authenticated and initiates a session.
+    - /api/v1/energy/reserve and /api/v1/energy/report — Reserves and reports AI processing units consumed during a job. Called during processing operations where AI upscaling or interpolation is active.
+
+    No analytics, telemetry, crash reports, or user file content is transmitted. All media processing is performed entirely on-device.

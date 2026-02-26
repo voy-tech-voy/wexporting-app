@@ -215,8 +215,9 @@ class PresetManager:
             output_extension=meta.get('output_extension'),  # Optional forced extension
             ratio=meta.get('ratio'),  # For social media 2-step selection
             credit_cost=meta.get('credit_cost'),  # Optional credit cost override
-            raw_yaml=data
+            raw_yaml={**data, '_source_path': source_path}  # Embed source path for deletion
         )
+
     
     def _validate_tools(self, preset: PresetDefinition) -> PresetDefinition:
         """

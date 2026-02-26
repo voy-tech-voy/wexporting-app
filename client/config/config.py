@@ -1,9 +1,10 @@
 """
-Configuration settings for ImageWave Converter
+Configuration settings for webatchify
 """
 
 import os
 import sys
+from client.version import APP_NAME, AUTHOR
 
 class Config:
     """Base configuration"""
@@ -37,7 +38,7 @@ class Config:
     
     # Version Gateway Configuration (NEW)
     APP_CONFIG_ENDPOINT = f"{API_PREFIX}/app-config"
-    MSSTORE_PRODUCT_ID = "YOUR_APP_ID"  # Replace with real MS Store Product ID
+    MSSTORE_PRODUCT_ID = "9PN056NK952D"  # MS Store Product ID
     
     # Content Update Configuration (NEW)
     UPDATE_MANIFEST_ENDPOINT = f"{API_PREFIX}/updates/manifest"
@@ -45,8 +46,8 @@ class Config:
     UPDATE_DOWNLOAD_ESTIMATOR_ENDPOINT = f"{API_PREFIX}/updates/download/estimator"
     
     # Application Configuration
-    APP_NAME = "ImageWave Converter"
-    APP_VERSION = "1.1.0"
+    APP_VERSION = "1.1.2"
+    APP_AUTHOR = AUTHOR
     
     # Development mode detection
     # Production mode when frozen (PyInstaller build)

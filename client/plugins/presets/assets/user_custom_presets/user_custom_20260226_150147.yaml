@@ -1,0 +1,68 @@
+meta:
+  id: user_custom_20260226_150147
+  name: ddd
+  category: custom
+  description: Custom preset created from Lab Mode
+  version: '1.0'
+  output_extension: .mp4
+  execution_mode: lab_mode_reference
+style:
+  accent_color: '#9C27B0'
+  icon: text:custom
+  glow_strength: normal
+constraints:
+  accepted_types:
+  - video
+  - image
+  min_duration: 0.1
+lab_mode_settings:
+  output_dir: ''
+  use_nested_output: false
+  nested_output_name: output
+  suffix: _converted
+  overwrite: true
+  _is_dev_mode: true
+  type: loop
+  loop_format: WebM (AV1)
+  rotation_angle: No rotation
+  estimator_version: v6
+  enable_time_cutting: false
+  time_start: 0.0
+  time_end: 1.0
+  retime_enabled: false
+  retime_speed: 1.0
+  video_max_size_mb: 2.0
+  video_auto_resize: false
+  video_size_mode: max_size
+  video_multiple_max_sizes: false
+  video_max_size_variants: &id001 []
+  codec: WebM (AV1)
+  multiple_max_sizes: false
+  max_size_variants: *id001
+  resize_mode: No resize
+  resize_value: 720
+  current_resize: null
+  multiple_resize: false
+  multiple_size_variants: false
+  resize_variants: &id002
+  - '480'
+  - '720'
+  - '1280'
+  video_variants: *id002
+  webm_quality: 75
+  webm_multiple_variants: false
+  webm_quality_variants:
+  - '50'
+  - '75'
+  - '90'
+lab_mode_info:
+  output_format: ''
+  codec: WebM (AV1)
+  quality: ''
+  resize_mode: No resize
+  resize_width: ''
+  resize_height: ''
+  rotation_angle: No rotation
+  audio_enabled: true
+  comparison_enabled: false
+  created_timestamp: '2026-02-26T15:01:47.682604'

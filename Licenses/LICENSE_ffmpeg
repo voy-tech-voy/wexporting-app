@@ -1,0 +1,23 @@
+FFmpeg License
+==============
+
+FFmpeg is licensed under the GNU Lesser General Public License (LGPL) version 2.1 or later.
+
+CONFIRMED BUILD CONFIGURATION (audited 2026-02-26):
+This build does NOT include any GPL-licensed components.
+Confirmed disabled: --disable-libx264, --disable-libx265, --disable-libxavs2, --disable-libxvid
+No --enable-gpl flag is present in the build configuration.
+This binary is safe to distribute with commercial applications under LGPL terms.
+
+Build version: N-122740-g0a629df0a8-20260213
+Architecture:  x86_64 (Windows)
+
+Source code for FFmpeg is available at: https://ffmpeg.org/download.html
+LGPL v2.1 full text: https://www.gnu.org/licenses/old-licenses/lgpl-2.1.html
+LGPL v3 full text:   https://www.gnu.org/licenses/lgpl-3.0.html
+
+Copyright (c) 2000-2026 the FFmpeg developers.
+
+Compliance note: This application invokes FFmpeg as a separate process (subprocess call).
+The FFmpeg binary is not statically linked into the application's code, consistent with
+LGPL compliance for application distributors.

@@ -339,59 +339,67 @@ class MSStoreProvider(IStoreAuthProvider):
                 if status == StorePurchaseStatus.SUCCEEDED:
                     logger.info("Purchase SUCCEEDED.")
                     return transaction_id
-                    
+
                 elif status == StorePurchaseStatus.ALREADY_PURCHASED:
-                    logger.info("Product ALREADY_PURCHASED.")
-                    # If it's consumable, we might need to check unfulfilled?
-                    pass 
+                    logger.info("Product ALREADY_PURCHASED — checking for unfulfilled balance.")
+                    is_consumable = 'energy' in product_id.lower() or 'day_pass' in product_id.lower()
+
+                    if is_consumable:
+                        # Safe recovery: the Store may be holding unfulfilled units from a
+                        # previous interrupted session. Check and fulfill any owed quantity.
+                        try:
+                            balance_result = await self._store_context.get_consumable_balance_remaining_async(
+                                product_id
+                            )
+                            remaining = getattr(balance_result, 'balance', 0)
+                            if remaining and remaining > 0:
+                                logger.info(f"Found {remaining} unfulfilled unit(s) for {product_id} — fulfilling.")
+                                await self._store_context.report_consumable_fulfillment_async(
+                                    product_id,
+                                    remaining,
+                                    transaction_id or "recovery"
+                                )
+                            else:
+                                logger.info(f"No unfulfilled balance found for {product_id}.")
+                        except Exception as bal_err:
+                            logger.warning(f"Balance check failed for {product_id}: {bal_err}")
+
                     return "already_owned"
-                    
+
                 elif status == StorePurchaseStatus.NOT_PURCHASED:
                     logger.info("User cancelled purchase.")
                     return None
-                    
-                elif status == StorePurchaseStatus.NETWORK_ERROR or status == StorePurchaseStatus.SERVER_ERROR:
+
+                elif status in (StorePurchaseStatus.NETWORK_ERROR, StorePurchaseStatus.SERVER_ERROR):
                     logger.error(f"Store Error: {status} (Extended: {result.extended_error})")
                     return None
-                    
+
                 else:
                     logger.warning(f"Purchase failed with status: {status}")
                     return None
 
             # Execute Async
             tx_id = asyncio.run(_purchase_flow())
-            
+
             if not tx_id:
                 return False
-                
+
             # 5. Validation & Fulfillment
             logger.info("Validating purchase with server...")
-            # We pass product_id to validate receipt to help server if needed, 
-            # though server usually gets it from receipt.
-            # However, for 'already_owned', we might not have a fresh receipt transaction ID 
-            # if it was a durable. But for consumable, we should have gotten a new transaction if successful? 
-            # Wait, ALREADY_PURCHASED for consumable means unfulfilled?
-            
+
+            # For already_owned: validate entitlements (fulfillment was handled inside async flow)
             if tx_id == "already_owned":
-                 # Just validate current entitlements
-                 return self.validate_receipt(None)
-            
-            # For new purchase, validate
+                return self.validate_receipt(None)
+
+            # For new purchase: validate then fulfill consumable
             is_valid = self.validate_receipt(None)
-            
+
             if is_valid:
-                # 6. Fulfillment (Crucial for Consumables)
-                # Check if product is consumable (Server validation usually confirms this, 
-                # but we can check product type if we had the product object)
-                # For now, rely on ID convention or server response?
-                # User guide says: "If the product is a Consumable... fulfill"
-                
                 is_consumable = 'energy' in product_id.lower() or 'day_pass' in product_id.lower()
-                
                 if is_consumable:
-                     logger.info(f"Fulfilling consumable: {product_id}")
-                     self.report_fulfillment(product_id, tx_id)
-            
+                    logger.info(f"Fulfilling consumable: {product_id}")
+                    self.report_fulfillment(product_id, tx_id)
+
             return is_valid
 
         except Exception as e:
@@ -410,27 +418,58 @@ class MSStoreProvider(IStoreAuthProvider):
 
 class WinRTInterop:
     """
-    Interop helper for Windows Store API.
+    Interop helper: parents a WinRT UI object to a Win32 HWND.
+
+    IInitializeWithWindow (GUID 3E68D4BD-7135-4D10-8018-9FB6D9F33FA1) exposes
+    a single method Initialize(HWND). Called via raw vtable pointer using ctypes.
+    Vtable layout: [0]=QI, [1]=AddRef, [2]=Release, [3]=Initialize
     """
+
     class InitializeWithWindow:
         @staticmethod
-        def Initialize(context, hwnd):
+        def Initialize(winrt_obj, hwnd: int) -> bool:
+            """
+            Parent winrt_obj to the Win32 window identified by hwnd.
+
+            Args:
+                winrt_obj: A winrt Python object (StoreContext).
+                hwnd:      HWND integer from window.winId().
+
+            Returns:
+                True if succeeded, False on any error.
+            """
             try:
-                # COM Interface IInitializeWithWindow
-                # GUID: 3E68D4BD-7135-4D10-8018-9FB6D9F33FA1
                 import ctypes
-                from ctypes import c_void_p, POINTER, c_int
-                
-                # This is a stub for the complex generic COM logic needed in Python.
-                # In C#, this is one line. In Python, we need comtypes or pythonnet.
-                # Assuming 'winrt' library might have a helper or we skimp on it 
-                # if not critical for basic function (though user said it IS critical).
-                
-                # If using 'winsdk', it exposes IInitializeWithWindow?
-                # from winsdk.windows.foundation.interop import IInitializeWithWindow?
-                
-                # Implementing basic ctypes approach (requires knowing memory layout of winrt object)
-                # If context is a PyObject wrapping a pointer...
-                pass
-            except Exception:
-                pass
+                import ctypes.wintypes
+
+                # Retrieve the raw COM pointer from the winrt Python wrapper.
+                raw_ptr = getattr(winrt_obj, '_as_parameter_', None)
+                if raw_ptr is None:
+                    logger.warning("IInitializeWithWindow: winrt object has no _as_parameter_")
+                    return False
+
+                # Dereference vtable pointer (first field of COM object is vtable ptr)
+                vtable_p = ctypes.cast(raw_ptr, ctypes.POINTER(ctypes.c_void_p))
+                vtable = ctypes.cast(vtable_p[0], ctypes.POINTER(ctypes.c_void_p))
+
+                # Slot 3: HRESULT Initialize(HWND hwnd)
+                Initialize_fn = ctypes.WINFUNCTYPE(
+                    ctypes.HRESULT,        # return type
+                    ctypes.c_void_p,       # this
+                    ctypes.wintypes.HWND,  # hwnd
+                )(vtable[3])
+
+                hr = Initialize_fn(raw_ptr, hwnd)
+                if hr != 0:
+                    logger.warning(
+                        f"IInitializeWithWindow::Initialize HRESULT=0x{hr & 0xFFFFFFFF:08X}"
+                    )
+                    return False
+
+                logger.info(f"IInitializeWithWindow: parented to HWND {hwnd:#x}")
+                return True
+
+            except Exception as e:
+                logger.warning(f"IInitializeWithWindow: failed: {e}")
+                return False
+

@@ -12,6 +12,7 @@ from .target_size_spinbox import CustomTargetSizeSpinBox, DragOverlay, SpinBoxLi
 from .morphing_button import MorphingButton
 from .preset_status_button import PresetStatusButton
 from .estimator_version_selector import EstimatorVersionSelector
+from .custom_preset_gallery import CustomPresetGallery
 
 __all__ = [
     'FileListItemWidget',
@@ -22,4 +23,5 @@ __all__ = [
     'MorphingButton',
     'PresetStatusButton',
     'EstimatorVersionSelector',
+    'CustomPresetGallery',
 ]

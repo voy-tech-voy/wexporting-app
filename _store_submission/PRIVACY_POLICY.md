@@ -1,5 +1,5 @@
 link:
-https://gist.githubusercontent.com/voy-tech-voy/f9e61743f0869b96b0b83d6e9e31f4f1/raw/b5745baf58dd1edf12c00315425d51f10850cb7a/PRIVACY.md
+https://wavyvoy.pythonanywhere.com/privacy
 
 # Privacy Policy for webatchify
 
@@ -66,4 +66,4 @@ We may update this Privacy Policy from time to time. We will notify you of any c
 
 If you have any questions or suggestions about our Privacy Policy, do not hesitate to contact us at:
 
-**Email:** [Insert Your Email]
+**Email:** voytechapps@gmail.com

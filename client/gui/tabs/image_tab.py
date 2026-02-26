@@ -18,7 +18,7 @@ from client.gui.custom_widgets import (
     FormatButtonRow, RotationButtonRow, 
     ThemedCheckBox, CustomTargetSizeSpinBox, UnifiedVariantInput
 )
-from client.gui.widgets import EstimatorVersionSelector
+from client.gui.widgets import EstimatorVersionSelector, CustomPresetGallery
 from client.gui.sections import ResizeSection, TargetSizeSection
 from client.gui.theme import get_combobox_style
 from client.gui.components.info_tooltip import TooltipHoverFilter
@@ -151,7 +151,11 @@ class ImageTab(BaseTab):
         
         # --- Custom Preset Button (bottom of settings group) ---
         self._create_preset_button(self.format_group)
-        
+
+        self._custom_preset_gallery = CustomPresetGallery(['image'], tab_ref=self)
+        self._custom_preset_gallery.setVisible(False)
+        self.format_group.main_layout.addWidget(self._custom_preset_gallery)
+
         # ============================================================
         # TRANSFORM FOLDER (Bottom)
         # ============================================================
@@ -224,12 +228,16 @@ class ImageTab(BaseTab):
         params.update(resize_params)
         return params
 
-    def restore_settings(self, settings: dict):
+    def restore_settings(self, settings: dict, switch_mode: bool = True):
         """
         Restore Lab Mode settings to UI controls.
-        
+
         Args:
             settings: Dictionary of saved Lab Mode settings
+            switch_mode: If True (default), automatically switch the UI mode
+                         to Max Size or Manual based on the settings. Pass False
+                         when called from the preset gallery to keep the gallery
+                         visible after applying settings.
         """
         # Restore format
         if 'format' in settings:
@@ -287,12 +295,13 @@ class ImageTab(BaseTab):
         if target_params['target_size_mb'] is not None or target_params['size_variants']:
             self.target_size_section.restore_settings(target_params)
             
-        # Set visualization mode (Max Size vs Manual)
-        size_mode = settings.get('image_size_mode', 'manual')
-        if size_mode == 'max_size':
-            self.set_mode("Max Size")
-        else:
-            self.set_mode("Manual")
+        # Set visualization mode (Max Size vs Manual) — only when not in gallery
+        if switch_mode:
+            size_mode = settings.get('image_size_mode', 'manual')
+            if size_mode == 'max_size':
+                self.set_mode("Max Size")
+            else:
+                self.set_mode("Manual")
     
     def update_theme(self, is_dark: bool):
         """Apply theme styling to all elements."""
@@ -313,10 +322,30 @@ class ImageTab(BaseTab):
         """
         is_max_size = (mode == "Max Size")
         is_manual = (mode == "Manual")
+        is_lab_presets = (mode == "Presets") # "Presets" mode triggers the custom lab presets gallery
+        is_presets = is_lab_presets
         self._is_max_size_mode = is_max_size  # Track for dev mode features
-        
+
+        if hasattr(self, '_custom_preset_gallery'):
+            self._custom_preset_gallery.setVisible(is_lab_presets)
+            if is_lab_presets:
+                self._custom_preset_gallery.refresh()
+
+        # In Presets mode: show only gallery inside the folder, hide all other rows
+        if hasattr(self, 'format_group'):
+            self.format_group.content_widget.setVisible(not is_lab_presets)
+            if hasattr(self.format_group, 'mode_buttons_container'):
+                if not is_lab_presets:
+                    self.format_group.mode_buttons_container.setVisible(
+                        self.format_group.mode_buttons_widget is not None
+                    )
+
         # Target size section (only visible in Max Size mode)
         self.target_size_section.setVisible(is_max_size)
+        
+        # Custom preset button hidden when viewing Lab Presets (which have their own presets)
+        if hasattr(self, 'custom_preset_btn'):
+            self.custom_preset_btn.setVisible(not is_presets)
         
         # Estimator version selector visibility handled by component itself
         
@@ -329,7 +358,8 @@ class ImageTab(BaseTab):
         self.multiple_qualities.setVisible(is_manual)
         self.quality_variants_label.setVisible(is_manual and self.multiple_qualities.isChecked())
         self.quality_variants.setVisible(is_manual and self.multiple_qualities.isChecked())
-    
+
+
     def set_transform_mode(self, mode: str):
         """Set which transform section is visible (resize or rotate)."""
         self.resize_section.setVisible(mode == 'resize')

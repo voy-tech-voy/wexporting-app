@@ -757,7 +757,7 @@ class ModeButtonsWidget(QWidget):
         
         # Configure Presets Button
         self.presets_btn.setCheckable(True)
-        self.presets_btn.setToolTip("Lab Presets: Select from social media and common aspect ratio presets")
+        self.presets_btn.setToolTip("Lab presets: your custom presets.")
         self._configure_button_sizing(self.presets_btn, button_size)
         
         # Configure Manual Button
