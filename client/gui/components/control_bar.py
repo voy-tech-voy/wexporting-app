@@ -1,13 +1,13 @@
-"""
+﻿"""
 Control Bar Component - Mediator-Shell Architecture
 
 Unified control bar with file buttons, preset toggle, and lab mode selector.
 Extracted from MainWindow to follow the Mediator-Shell pattern.
 """
 
-from PyQt6.QtWidgets import QWidget, QHBoxLayout, QPushButton
-from PyQt6.QtCore import Qt, QSize, pyqtSignal
-from PyQt6.QtGui import QCursor
+from PySide6.QtWidgets import QWidget, QHBoxLayout, QPushButton
+from PySide6.QtCore import Qt, QSize, Signal
+from PySide6.QtGui import QCursor
 
 
 class ControlBar(QWidget):
@@ -23,11 +23,11 @@ class ControlBar(QWidget):
     """
     
     # Signals for Mediator routing
-    add_files_clicked = pyqtSignal()
-    add_folder_clicked = pyqtSignal()
-    clear_files_clicked = pyqtSignal()
-    preset_mode_clicked = pyqtSignal()
-    lab_mode_clicked = pyqtSignal(int)  # Tab index
+    add_files_clicked = Signal()
+    add_folder_clicked = Signal()
+    clear_files_clicked = Signal()
+    preset_mode_clicked = Signal()
+    lab_mode_clicked = Signal(int)  # Tab index
     
     def __init__(self, parent=None):
         super().__init__(parent)

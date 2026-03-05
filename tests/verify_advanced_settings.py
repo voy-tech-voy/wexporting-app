@@ -1,4 +1,4 @@
-
+﻿
 import sys
 import os
 import unittest
@@ -9,7 +9,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from client.core.tool_registry import get_registry
 from client.gui.advanced_settings_window import AdvancedSettingsWindow
-from PyQt6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication
 
 class TestAdvancedSettings(unittest.TestCase):
     @classmethod

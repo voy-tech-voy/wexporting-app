@@ -1,10 +1,10 @@
-"""
+﻿"""
 Central manager for all Developer Panels.
 Handles registration, toggling, and keyboard shortcuts.
 """
 
 import traceback
-from PyQt6.QtCore import Qt, QObject
+from PySide6.QtCore import Qt, QObject
 from typing import Dict, Type, Optional
 
 # Import panel classes (will be moved/refactored next)

@@ -1,12 +1,12 @@
-"""
+﻿"""
 Toast Notification Component
 
 A reusable, non-blocking notification widget that appears in the upper left corner.
 Styled to match the app's design language with auto-dismiss functionality.
 """
-from PyQt6.QtWidgets import QFrame, QLabel, QHBoxLayout, QGraphicsOpacityEffect, QApplication
-from PyQt6.QtCore import Qt, QTimer, QPropertyAnimation, QEasingCurve, pyqtSignal, QEvent, QPoint
-from PyQt6.QtGui import QPixmap, QColor
+from PySide6.QtWidgets import QFrame, QLabel, QHBoxLayout, QGraphicsOpacityEffect, QApplication
+from PySide6.QtCore import Qt, QTimer, QPropertyAnimation, QEasingCurve, Signal, QEvent, QPoint
+from PySide6.QtGui import QPixmap, QColor
 from client.gui.theme import Theme
 from pathlib import Path
 
@@ -22,7 +22,7 @@ class ToastNotification(QFrame):
     - Icon support (warning, error, info)
     """
     
-    dismissed = pyqtSignal()
+    dismissed = Signal()
     
     def __init__(self, message: str, icon_type: str = "warning", duration: int = 4000, parent=None, position: str = "top-left", size: str = "standard"):
         """
@@ -206,7 +206,7 @@ class ToastNotification(QFrame):
         self.show()
         
         # Install event filter on application to catch global clicks
-        from PyQt6.QtWidgets import QApplication
+        from PySide6.QtWidgets import QApplication
         QApplication.instance().installEventFilter(self)
         
         # Start auto-dismiss timer
@@ -230,7 +230,7 @@ class ToastNotification(QFrame):
     def _start_fade_out(self):
         """Start fade-out animation before dismissing."""
         # Remove event filter to stop monitoring
-        from PyQt6.QtWidgets import QApplication
+        from PySide6.QtWidgets import QApplication
         QApplication.instance().removeEventFilter(self)
         
         self.opacity_effect = QGraphicsOpacityEffect(self)
@@ -268,8 +268,8 @@ class InputToast(QFrame):
     Stays visible until accepted or dismissed.
     """
     
-    accepted = pyqtSignal(str)
-    cancelled = pyqtSignal()
+    accepted = Signal(str)
+    cancelled = Signal()
     
     def __init__(self, message: str, placeholder: str = "", button_text: str = "Add", parent=None, position: str = "top-right", description: str = ""):
         super().__init__(parent)
@@ -286,7 +286,7 @@ class InputToast(QFrame):
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         
         # Shadow effect
-        from PyQt6.QtWidgets import QGraphicsDropShadowEffect
+        from PySide6.QtWidgets import QGraphicsDropShadowEffect
         shadow = QGraphicsDropShadowEffect(self)
         shadow.setBlurRadius(20)
         shadow.setColor(QColor(0, 0, 0, 60))
@@ -298,7 +298,7 @@ class InputToast(QFrame):
         
     def _setup_ui(self):
         """Setup UI components"""
-        from PyQt6.QtWidgets import QLineEdit, QPushButton, QVBoxLayout
+        from PySide6.QtWidgets import QLineEdit, QPushButton, QVBoxLayout
         
         # Use VBoxLayout if description is provided
         if self._description:
@@ -592,7 +592,7 @@ class InputToast(QFrame):
             """)
         else:
             # Create confirmation label
-            from PyQt6.QtWidgets import QVBoxLayout
+            from PySide6.QtWidgets import QVBoxLayout
             self.description_label = QLabel(message)
             self.description_label.setObjectName("ToastConfirmation")
             self.description_label.setWordWrap(True)

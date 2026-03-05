@@ -1,14 +1,14 @@
-"""
+﻿"""
 Base class for all Developer Panels.
 Enforces consistent styling (Dark Mode) and common functionality.
 """
 
-from PyQt6.QtWidgets import (
+from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, 
     QScrollArea, QFrame, QMessageBox
 )
-from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QFont, QKeyEvent
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QFont, QKeyEvent
 
 from client.gui.theme import Theme
 
@@ -19,7 +19,7 @@ class BaseDevPanel(QWidget):
     """
     
     # Signal emitted when changes should be applied/saved
-    apply_changes = pyqtSignal()
+    apply_changes = Signal()
     
     def __init__(self, title="Dev Panel", parent=None, width=500, height=600):
         super().__init__(parent, Qt.WindowType.Tool | Qt.WindowType.WindowStaysOnTopHint)

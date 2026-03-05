@@ -1,4 +1,4 @@
-"""
+﻿"""
 Unit tests for MainWindow Mediator-Shell Architecture
 
 Tests the communication flow between:
@@ -12,9 +12,9 @@ Tests the communication flow between:
 import pytest
 import sys
 from unittest.mock import MagicMock, patch, PropertyMock
-from PyQt6.QtWidgets import QApplication
-from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtTest import QSignalSpy
+from PySide6.QtWidgets import QApplication
+from PySide6.QtCore import Qt, QTimer
+from PySide6.QtTest import QSignalSpy
 
 
 # Ensure we have a QApplication for widget tests

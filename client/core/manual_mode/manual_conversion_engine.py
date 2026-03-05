@@ -1,6 +1,6 @@
-"""Manual Mode Conversion Engine - Main Orchestrator"""
+﻿"""Manual Mode Conversion Engine - Main Orchestrator"""
 
-from PyQt6.QtCore import QThread, pyqtSignal
+from PySide6.QtCore import QThread, Signal
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 
@@ -25,14 +25,14 @@ class ManualModeConversionEngine(QThread):
     """
     
     # Signals matching target_size and old ConversionEngine
-    progress_updated = pyqtSignal(int)                    # Overall percentage (0-100)
-    file_progress_updated = pyqtSignal(int, float)        # (file_index, 0.0-1.0) - BLUE bar: single file encoding progress
-    status_updated = pyqtSignal(str)                      # Status messages
-    file_completed = pyqtSignal(str, str)                 # (source_path, output_path)
-    file_skipped = pyqtSignal(str)                        # (source_path)
-    file_failed = pyqtSignal(str)                         # (source_path)
-    file_stopped = pyqtSignal(str)                        # (source_path)
-    conversion_completed = pyqtSignal(int, int, int, int) # (successful, failed, skipped, stopped)
+    progress_updated = Signal(int)                    # Overall percentage (0-100)
+    file_progress_updated = Signal(int, float)        # (file_index, 0.0-1.0) - BLUE bar: single file encoding progress
+    status_updated = Signal(str)                      # Status messages
+    file_completed = Signal(str, str)                 # (source_path, output_path)
+    file_skipped = Signal(str)                        # (source_path)
+    file_failed = Signal(str)                         # (source_path)
+    file_stopped = Signal(str)                        # (source_path)
+    conversion_completed = Signal(int, int, int, int) # (successful, failed, skipped, stopped)
     
     # Current file index for progress callbacks
     _current_file_index = 0

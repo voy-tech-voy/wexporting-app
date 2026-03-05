@@ -1,17 +1,17 @@
-"""
+﻿"""
 Custom PyQt6 Widgets with Dark Mode Support
 Provides TimeRangeSlider, ResizeFolder, and Rotation classes
 """
 
-from PyQt6.QtCore import Qt, pyqtSignal, QRect, QRectF, QPoint, QPointF, QSize, QPropertyAnimation, QVariantAnimation, QEasingCurve, pyqtProperty, QTimer, QObject, QByteArray
-from PyQt6.QtGui import QPainter, QPen, QColor, QBrush, QPalette, QIcon, QPixmap, QFont, QFontMetrics, QPainterPath
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import Qt, Signal, QRect, QRectF, QPoint, QPointF, QSize, QPropertyAnimation, QVariantAnimation, QEasingCurve, Property, QTimer, QObject, QByteArray
+from PySide6.QtGui import QPainter, QPen, QColor, QBrush, QPalette, QIcon, QPixmap, QFont, QFontMetrics, QPainterPath
+from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QComboBox, 
     QSpinBox, QLineEdit, QGroupBox, QFormLayout, QCheckBox, QSizePolicy, 
     QApplication, QButtonGroup, QStyleOptionButton, QStyle, QFrame, QFileDialog,
     QGraphicsOpacityEffect, QGraphicsDropShadowEffect
 )
-from PyQt6.QtSvg import QSvgRenderer
+from PySide6.QtSvg import QSvgRenderer
 from client.utils.font_manager import AppFonts, FONT_FAMILY
 from client.utils.resource_path import get_resource_path
 from client.gui.theme import Theme
@@ -229,8 +229,8 @@ class UnifiedVariantInput(QLineEdit):
         self._is_dark = theme_manager.is_dark_mode()
         
         # Set up input validation
-        from PyQt6.QtGui import QRegularExpressionValidator
-        from PyQt6.QtCore import QRegularExpression
+        from PySide6.QtGui import QRegularExpressionValidator
+        from PySide6.QtCore import QRegularExpression
         # Allow: digits, commas, spaces, decimal points, and percent signs
         validator = QRegularExpressionValidator(QRegularExpression(r"[0-9,.\s%]*"))
         self.setValidator(validator)
@@ -297,7 +297,7 @@ class GenericSegmentedControl(QFrame):
     Supports dynamic segments and unified styling.
     Automatically connects to ThemeManager for theme updates.
     """
-    selectionChanged = pyqtSignal(str) # Emits segment ID
+    selectionChanged = Signal(str) # Emits segment ID
     
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -634,7 +634,7 @@ class AnimatedSideModeButton(QPushButton):
         self.animation.setEndValue(target)
         self.animation.start()
         
-    @pyqtProperty(int)
+    @Property(int)
     def pos_offset(self):
         return self._offset
         
@@ -711,7 +711,7 @@ class ModeButtonsWidget(QWidget):
     
     # Signal emitted when mode changes: emits "Max Size" or "Manual"
     # Signal emitted when mode changes: emits "Max Size" or "Manual"
-    modeChanged = pyqtSignal(str)
+    modeChanged = Signal(str)
     
     def __init__(self, default_mode="Manual", orientation=Qt.Orientation.Horizontal, parent=None):
         """
@@ -916,7 +916,7 @@ class ModeButtonsWidget(QWidget):
             if not os.path.exists(icon_path):
                 return QIcon()
                 
-            from PyQt6.QtSvg import QSvgRenderer
+            from PySide6.QtSvg import QSvgRenderer
             
             # Read SVG
             with open(icon_path, 'r', encoding='utf-8') as f:
@@ -1037,7 +1037,7 @@ class SideButtonGroup(QWidget):
     """
     
     # Signal emitted when selection changes: emits the button identifier
-    selectionChanged = pyqtSignal(str)
+    selectionChanged = Signal(str)
     
     def __init__(self, buttons_config, default_selection=None, parent=None):
         """
@@ -1267,9 +1267,9 @@ class CustomComboBox(QComboBox):
         self.is_dark = False
         
         # Create chevron arrow label overlay (matches CustomTargetSizeSpinBox style)
-        from PyQt6.QtWidgets import QLabel
-        from PyQt6.QtCore import Qt
-        from PyQt6.QtGui import QFont
+        from PySide6.QtWidgets import QLabel
+        from PySide6.QtCore import Qt
+        from PySide6.QtGui import QFont
         
         self.arrow_label = QLabel("˅", self)  # Down chevron Unicode character
         self.arrow_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -1408,7 +1408,7 @@ class TimeRangeSlider(QWidget):
     """
     
     # Signals emitted when values change
-    rangeChanged = pyqtSignal(float, float)  # start_value, end_value
+    rangeChanged = Signal(float, float)  # start_value, end_value
     
     def __init__(self, parent=None, is_dark_mode=True):
         super().__init__(parent)
@@ -1651,7 +1651,7 @@ class ResizeFolder(QGroupBox):
     Supports single value or multiple variants for batch processing.
     """
     
-    resizeChanged = pyqtSignal(dict)  # Emits dict with resize settings
+    resizeChanged = Signal(dict)  # Emits dict with resize settings
     
     def __init__(self, parent=None, is_dark_mode=True, combobox_style=""):
         super().__init__("Resize Options", parent)
@@ -1753,7 +1753,7 @@ class RotationOptions(QGroupBox):
     Provides preset rotation angles (0°, 90°, 180°, 270°).
     """
     
-    rotationChanged = pyqtSignal(str)  # Emits rotation angle string
+    rotationChanged = Signal(str)  # Emits rotation angle string
     
     def __init__(self, parent=None, is_dark_mode=True, combobox_style=""):
         super().__init__("Rotation Options", parent)
@@ -1818,9 +1818,9 @@ class QSvgIconWidget(QWidget):
         
     def _render_icon(self):
         """Render SVG to a high-resolution pixmap"""
-        from PyQt6.QtSvg import QSvgRenderer
-        from PyQt6.QtGui import QPixmap, QPainter, QColor, QIcon
-        from PyQt6.QtCore import QByteArray, QRectF
+        from PySide6.QtSvg import QSvgRenderer
+        from PySide6.QtGui import QPixmap, QPainter, QColor, QIcon
+        from PySide6.QtCore import QByteArray, QRectF
         import os
         
         try:
@@ -1869,8 +1869,8 @@ class QSvgIconWidget(QWidget):
         if not self.cached_pixmap:
             return
         
-        from PyQt6.QtGui import QPainter, QColor
-        from PyQt6.QtCore import Qt
+        from PySide6.QtGui import QPainter, QColor
+        from PySide6.QtCore import Qt
         
         # Create a colored version by compositing
         color = QColor(self.stroke_color)
@@ -1886,8 +1886,8 @@ class QSvgIconWidget(QWidget):
         if not self.cached_pixmap:
             return
         
-        from PyQt6.QtGui import QPainter
-        from PyQt6.QtCore import QRectF
+        from PySide6.QtGui import QPainter
+        from PySide6.QtCore import QRectF
         
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
@@ -1916,7 +1916,7 @@ class QSvgIconWidget(QWidget):
     
     def sizeHint(self):
         """Provide default size hint"""
-        from PyQt6.QtCore import QSize
+        from PySide6.QtCore import QSize
         return QSize(64, 64)
 
 
@@ -1949,7 +1949,7 @@ class SquareButtonRow(QWidget):
 
     def minimumSizeHint(self):
         """Return minimum size needed"""
-        from PyQt6.QtCore import QSize
+        from PySide6.QtCore import QSize
         if not self.buttons:
             return QSize(100, 40)
         
@@ -2035,12 +2035,12 @@ class PresetButton(QPushButton):
         self.setCheckable(True)
         
         # Enable heightForWidth to keep it square while filling width
-        from PyQt6.QtWidgets import QSizePolicy
+        from PySide6.QtWidgets import QSizePolicy
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.setMinimumSize(40, 40)
         
         if icon_path:
-            from PyQt6.QtGui import QIcon
+            from PySide6.QtGui import QIcon
             self.setIcon(QIcon(icon_path))
         
         # Set intelligent tooltip
@@ -2053,7 +2053,7 @@ class PresetButton(QPushButton):
         """Scale icon to fill button area smartly based on preset type"""
         super().resizeEvent(event)
         if not self.icon().isNull():
-            from PyQt6.QtCore import QSize
+            from PySide6.QtCore import QSize
             # Base size: 80% of button area
             side = int(min(self.width(), self.height()) * 0.8)
             
@@ -2171,7 +2171,7 @@ class FormatButtonRow(GenericSegmentedControl):
     for easy drop-in replacement.
     Now uses Segmented Pill style.
     """
-    currentTextChanged = pyqtSignal(str)
+    currentTextChanged = Signal(str)
     
     def __init__(self, formats, parent=None):
         super().__init__(parent)
@@ -2205,7 +2205,7 @@ class RotationButtonRow(GenericSegmentedControl):
     Now uses Segmented Pill style.
     Mimics QComboBox API for compatibility.
     """
-    currentTextChanged = pyqtSignal(str)
+    currentTextChanged = Signal(str)
     
     # Mapping from display text to internal value (for compatibility with existing logic)
     ROTATION_MAP = {
@@ -2484,7 +2484,7 @@ class AppTooltip(QLabel):
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
         
         # Calculate size using QFontMetrics for precise control
-        from PyQt6.QtGui import QFontMetrics, QFont
+        from PySide6.QtGui import QFontMetrics, QFont
         
         font = QFont(FONT_FAMILY, 14)
         font.setWeight(QFont.Weight.Medium)
@@ -2591,8 +2591,8 @@ class TooltipEventFilter(QObject):
             text = self._custom_text or self._target.toolTip()
             if text:
                 # Use native QToolTip - much more reliable
-                from PyQt6.QtWidgets import QToolTip
-                from PyQt6.QtCore import QPoint
+                from PySide6.QtWidgets import QToolTip
+                from PySide6.QtCore import QPoint
                 
                 # Position above widget center
                 global_pos = self._target.mapToGlobal(
@@ -2601,7 +2601,7 @@ class TooltipEventFilter(QObject):
                 QToolTip.showText(global_pos, text, self._target)
                 
         elif event_type == 11:  # QEvent.Type.Leave
-            from PyQt6.QtWidgets import QToolTip
+            from PySide6.QtWidgets import QToolTip
             QToolTip.hideText()
             
         return False
@@ -2683,7 +2683,7 @@ class LoopFormatSelector(QWidget):
     - When WebM is selected, shows a segmented control for AV1/VP9
     - Uses GenericSegmentedControl for both rows
     """
-    formatChanged = pyqtSignal(str)
+    formatChanged = Signal(str)
     
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -2884,7 +2884,7 @@ class VideoCodecSelector(GenericSegmentedControl):
     Selector for video codecs (H.264, H.265, AV1) with hardware acceleration indicators.
     Now uses Segmented Pill style.
     """
-    codecChanged = pyqtSignal(str)
+    codecChanged = Signal(str)
     
     def __init__(self, parent=None):
         super().__init__(parent)

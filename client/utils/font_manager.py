@@ -1,9 +1,9 @@
-"""
+﻿"""
 Centralized Font Configuration for ImgApp
 Single source of truth for all fonts used in the application
 """
 
-from PyQt6.QtGui import QFont, QFontDatabase
+from PySide6.QtGui import QFont, QFontDatabase
 from client.utils.resource_path import get_resource_path
 
 # Global font settings - CHANGE THESE TO UPDATE FONTS EVERYWHERE

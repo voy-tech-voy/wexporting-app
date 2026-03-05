@@ -1,18 +1,18 @@
-"""
+﻿"""
 Advanced Settings Window for External Tools Configuration
 """
 
 import os
 import sys
 import subprocess
-from PyQt6.QtWidgets import (
+from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QGroupBox, 
     QRadioButton, QLineEdit, QPushButton, QLabel,
     QFileDialog, QMessageBox, QWidget, QComboBox,
     QScrollArea
 )
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QFont, QPalette
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QFont, QPalette
 from client.utils.ffmpeg_settings import get_ffmpeg_settings
 from client.core.conversion_engine_validation import (
     validate_ffmpeg_executable,

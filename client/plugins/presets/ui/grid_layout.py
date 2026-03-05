@@ -1,10 +1,10 @@
-"""
+﻿"""
 Grid Layout Manager
 
 Manages responsive card grid layout for preset gallery.
 """
-from PyQt6.QtWidgets import QWidget, QHBoxLayout, QScrollArea, QLabel
-from PyQt6.QtCore import Qt
+from PySide6.QtWidgets import QWidget, QHBoxLayout, QScrollArea, QLabel
+from PySide6.QtCore import Qt
 from typing import List, Dict
 from client.plugins.presets.logic.models import PresetDefinition
 from client.plugins.presets.ui.card import PresetCard

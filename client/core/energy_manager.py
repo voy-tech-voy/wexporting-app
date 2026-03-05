@@ -1,4 +1,4 @@
-"""
+﻿"""
 Energy Manager - Usage-Based Licensing System with Server Validation
 
 Manages the daily "Energy" allowance for Free Tier users.
@@ -25,7 +25,7 @@ except ImportError:
     CRYPTO_AVAILABLE = False
     import hashlib
 
-from PyQt6.QtCore import QObject, pyqtSignal
+from PySide6.QtCore import QObject, Signal
 from client.core.energy_api_client import EnergyAPIClient
 
 class EnergyManager(QObject):
@@ -37,9 +37,9 @@ class EnergyManager(QObject):
     """
     
     # Signals
-    energy_changed = pyqtSignal(int, int)  # current, max
-    refreshed = pyqtSignal()               # emitted on daily reset
-    server_sync_failed = pyqtSignal(str)   # error message
+    energy_changed = Signal(int, int)  # current, max
+    refreshed = Signal()               # emitted on daily reset
+    server_sync_failed = Signal(str)   # error message
     
     _instance = None
     
@@ -100,7 +100,7 @@ class EnergyManager(QObject):
         self.api_client.report_completed.connect(self._on_report_completed)
         
         # Batch sync timer - report accumulated usage every 60 seconds
-        from PyQt6.QtCore import QTimer
+        from PySide6.QtCore import QTimer
         self._batch_timer = QTimer()
         self._batch_timer.timeout.connect(self._flush_unsynced_usage)
         self._batch_timer.start(60000)  # 60 seconds

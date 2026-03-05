@@ -1,11 +1,11 @@
-"""
+﻿"""
 ResizeSection - Reusable resize UI component.
 
 Provides a consistent resize interface across Image, Video, and Loop tabs.
 """
 
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel
-from PyQt6.QtCore import pyqtSignal
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel
+from PySide6.QtCore import Signal
 
 from client.gui.custom_spinbox import CustomSpinBox
 from client.gui.custom_widgets import CustomComboBox, ThemedCheckBox, UnifiedVariantInput
@@ -24,7 +24,7 @@ class ResizeSection(QWidget):
     """
     
     # Signal emitted when any resize parameter changes
-    paramChanged = pyqtSignal()
+    paramChanged = Signal()
     
     def __init__(self, parent=None, focus_callback=None, variant_label="Size variants"):
         """

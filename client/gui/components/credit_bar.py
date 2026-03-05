@@ -1,12 +1,12 @@
-"""
+﻿"""
 Credit Bar Component
 Procedural geometry visualization for Energy credits.
 Vertical bars with sine-wave modulated Y-position.
 """
 
-from PyQt6.QtWidgets import QWidget, QSizePolicy
-from PyQt6.QtCore import Qt, QTimer, QSize, pyqtProperty, pyqtSlot, QRectF, pyqtSignal
-from PyQt6.QtGui import QPainter, QColor, QBrush, QPen, QFont
+from PySide6.QtWidgets import QWidget, QSizePolicy
+from PySide6.QtCore import Qt, QTimer, QSize, Property, Slot, QRectF, Signal
+from PySide6.QtGui import QPainter, QColor, QBrush, QPen, QFont
 import math
 
 from client.gui.theme import Theme
@@ -89,7 +89,7 @@ class CreditBarArchive(QWidget):
         # Ensure geometry is recalculated
         self.updateGeometry()
     
-    @pyqtProperty(float)
+    @Property(float)
     def amplitude(self): return self._amplitude
 
     @amplitude.setter
@@ -97,7 +97,7 @@ class CreditBarArchive(QWidget):
         self._amplitude = value
         self.update()
         
-    @pyqtProperty(float)
+    @Property(float)
     def frequency(self): return self._frequency
     
     @frequency.setter
@@ -105,7 +105,7 @@ class CreditBarArchive(QWidget):
         self._frequency = value
         self.update()
         
-    @pyqtProperty(float)
+    @Property(float)
     def phase(self): return self._phase
     
     @phase.setter
@@ -113,7 +113,7 @@ class CreditBarArchive(QWidget):
         self._phase = value
         self.update()
         
-    @pyqtProperty(int)
+    @Property(int)
     def bar_count(self): return self._bar_count
     
     @bar_count.setter
@@ -121,7 +121,7 @@ class CreditBarArchive(QWidget):
         self._bar_count = value
         self.update()
 
-    @pyqtProperty(float)
+    @Property(float)
     def saturation(self): return self._saturation
     
     @saturation.setter
@@ -129,7 +129,7 @@ class CreditBarArchive(QWidget):
         self._saturation = max(0.0, min(1.0, value))
         self.update()
 
-    @pyqtProperty(float)
+    @Property(float)
     def transparency(self): return self._transparency
     
     @transparency.setter
@@ -137,7 +137,7 @@ class CreditBarArchive(QWidget):
         self._transparency = max(0.0, min(1.0, value))
         self.update()
 
-    @pyqtProperty(float)
+    @Property(float)
     def noise(self): return self._noise
     
     @noise.setter
@@ -145,7 +145,7 @@ class CreditBarArchive(QWidget):
         self._noise = max(0.0, min(1.0, value))
         self.update()
         
-    @pyqtProperty(float)
+    @Property(float)
     def horizontal_offset(self): return self._horizontal_offset
     
     @horizontal_offset.setter
@@ -153,7 +153,7 @@ class CreditBarArchive(QWidget):
         self._horizontal_offset = max(0.0, min(1.0, value))
         self.update()
 
-    @pyqtProperty(float)
+    @Property(float)
     def active_saturation(self): return self._active_saturation
     
     @active_saturation.setter
@@ -161,7 +161,7 @@ class CreditBarArchive(QWidget):
         self._active_saturation = max(0.0, min(1.0, value))
         self.update()
 
-    @pyqtProperty(float)
+    @Property(float)
     def noise(self): return self._noise
     
     @noise.setter
@@ -169,7 +169,7 @@ class CreditBarArchive(QWidget):
         self._noise = max(0.0, min(1.0, value))
         self.update()
         
-    @pyqtProperty(int)
+    @Property(int)
     def current_credits(self): return self._current_credits
     
     @current_credits.setter
@@ -177,7 +177,7 @@ class CreditBarArchive(QWidget):
         self._current_credits = value
         self.update()
         
-    @pyqtProperty(int)
+    @Property(int)
     def max_credits(self): return self._max_credits
     
     @max_credits.setter
@@ -185,7 +185,7 @@ class CreditBarArchive(QWidget):
         self._max_credits = value
         self.update()
         
-    @pyqtProperty(float)
+    @Property(float)
     def active_transparency(self): return self._active_transparency
     
     @active_transparency.setter
@@ -193,7 +193,7 @@ class CreditBarArchive(QWidget):
         self._active_transparency = max(0.0, min(1.0, value))
         self.update()
         
-    @pyqtProperty(float)
+    @Property(float)
     def hue_shift(self): return self._hue_shift
     
     @hue_shift.setter
@@ -201,7 +201,7 @@ class CreditBarArchive(QWidget):
         self._hue_shift = max(0.0, min(1.0, value))
         self.update()
         
-    @pyqtProperty(float)
+    @Property(float)
     def chromatic_aberration(self): return self._chromatic_aberration
     
     @chromatic_aberration.setter
@@ -209,7 +209,7 @@ class CreditBarArchive(QWidget):
         self._chromatic_aberration = max(0.0, min(1.0, value))
         self.update()
         
-    @pyqtProperty(float)
+    @Property(float)
     def glow_intensity(self): return self._glow_intensity
     
     @glow_intensity.setter
@@ -217,7 +217,7 @@ class CreditBarArchive(QWidget):
         self._glow_intensity = max(0.0, min(1.0, value))
         self.update()
         
-    @pyqtProperty(float)
+    @Property(float)
     def shimmer_speed(self): return self._shimmer_speed
     
     @shimmer_speed.setter
@@ -225,7 +225,7 @@ class CreditBarArchive(QWidget):
         self._shimmer_speed = max(0.0, min(1.0, value))
         self.update()
         
-    @pyqtProperty(float)
+    @Property(float)
     def gain(self): return self._gain
     
     @gain.setter
@@ -530,7 +530,7 @@ class CreditBar(QWidget):
     Displays energy credits as a thunderbolt icon that fills up.
     Format: [Current/Max] [Thunderbolt Icon]
     """
-    clicked = pyqtSignal()
+    clicked = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -620,7 +620,7 @@ class CreditBar(QWidget):
         else:
             self._dev_panel.close()
 
-    @pyqtProperty(float)
+    @Property(float)
     def filled_transparency(self): return self._filled_transparency
     
     @filled_transparency.setter
@@ -628,7 +628,7 @@ class CreditBar(QWidget):
         self._filled_transparency = max(0.0, min(1.0, value))
         self.update()
 
-    @pyqtProperty(float)
+    @Property(float)
     def empty_transparency(self): return self._empty_transparency
     
     @empty_transparency.setter
@@ -636,7 +636,7 @@ class CreditBar(QWidget):
         self._empty_transparency = max(0.0, min(1.0, value))
         self.update()
 
-    @pyqtProperty(float)
+    @Property(float)
     def gain(self): return self._gain
     
     @gain.setter
@@ -644,7 +644,7 @@ class CreditBar(QWidget):
         self._gain = max(0.0, min(2.0, value))
         self.update()
     
-    @pyqtProperty(int)
+    @Property(int)
     def current_credits(self): return self._current_credits
     
     @current_credits.setter
@@ -652,7 +652,7 @@ class CreditBar(QWidget):
         self._current_credits = value
         self.update()
     
-    @pyqtProperty(int)
+    @Property(int)
     def max_credits(self): return self._max_credits
     
     @max_credits.setter
@@ -679,7 +679,7 @@ class CreditBar(QWidget):
         # This matches the fixed width logic in paintEvent
         max_text_str = "9999/9999"
         
-        from PyQt6.QtGui import QFontMetrics
+        from PySide6.QtGui import QFontMetrics
         fm = QFontMetrics(self.font())
         text_w = fm.horizontalAdvance(max_text_str)
         
@@ -735,7 +735,7 @@ class CreditBar(QWidget):
             (0.55, 0.45), # Horizontal Inset Left
         ]
         
-        from PyQt6.QtGui import QPainterPath
+        from PySide6.QtGui import QPainterPath
         path = QPainterPath()
         start_pt = path_points[0]
         path.moveTo(icon_x + start_pt[0] * icon_w, icon_y + start_pt[1] * icon_h)

@@ -1,4 +1,4 @@
-"""
+﻿"""
 FileListItemWidget - Custom widget for file list items with thumbnails.
 
 Extracted from custom_widgets.py for better organization.
@@ -7,9 +7,9 @@ Extracted from custom_widgets.py for better organization.
 import os
 import subprocess
 import tempfile
-from PyQt6.QtCore import Qt, pyqtSignal, QSize, QRectF
-from PyQt6.QtWidgets import QWidget, QHBoxLayout, QLabel, QPushButton
-from PyQt6.QtGui import QPixmap, QCursor, QPainter, QLinearGradient, QColor, QPainterPath, QBrush, QPen
+from PySide6.QtCore import Qt, Signal, QSize, QRectF
+from PySide6.QtWidgets import QWidget, QHBoxLayout, QLabel, QPushButton
+from PySide6.QtGui import QPixmap, QCursor, QPainter, QLinearGradient, QColor, QPainterPath, QBrush, QPen
 
 from client.gui.theme import Theme
 from client.gui.dev_panels.noise_params import NoiseParams
@@ -18,15 +18,15 @@ from typing import List
 
 class FileListItemWidget(QWidget):
     """Custom widget for list items with hover-based remove button and progress indicator"""
-    remove_clicked = pyqtSignal()
-    status_clicked = pyqtSignal()
+    remove_clicked = Signal()
+    status_clicked = Signal()
     
     _noise_texture = None # Static texture cache
     
     def __init__(self, text, file_path=None, parent=None):
         super().__init__(parent)
-        from PyQt6.QtCore import QEvent
-        from PyQt6.QtGui import QCursor
+        from PySide6.QtCore import QEvent
+        from PySide6.QtGui import QCursor
         
         self.setAttribute(Qt.WidgetAttribute.WA_Hover)
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)  # Enable stylesheet rendering
@@ -151,11 +151,11 @@ class FileListItemWidget(QWidget):
         if FileListItemWidget._noise_texture is None:
             # Generate 64x64 blue noise (simplified approximation)
             import random
-            from PyQt6.QtGui import QImage
+            from PySide6.QtGui import QImage
             
             # Generate blue noise (scaled up for lower frequency/larger grain)
             import random
-            from PyQt6.QtGui import QImage
+            from PySide6.QtGui import QImage
             
             size = NoiseParams.texture_size  # Dynamic size from dev panel
             random.seed(42) 

@@ -1,15 +1,15 @@
-"""
+﻿"""
 Login Window for ImgApp
 Simple authentication dialog that appears before the main application
 Supports both Gumroad and Microsoft Store distribution.
 """
 
-from PyQt6.QtWidgets import (
+from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, 
     QLineEdit, QPushButton, QFrame, QApplication, QMessageBox, QInputDialog, QWidget
 )
-from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtGui import QFont, QIcon, QPalette, QPixmap
+from PySide6.QtCore import Qt, QTimer
+from PySide6.QtGui import QFont, QIcon, QPalette, QPixmap
 import sys
 import winreg
 import os
@@ -230,7 +230,7 @@ class LoginWindow(QDialog):
         
         # Set window icon
         try:
-            from PyQt6.QtGui import QIcon
+            from PySide6.QtGui import QIcon
             from client.utils.resource_path import get_app_icon_path
             
             icon_path = get_app_icon_path()
@@ -858,7 +858,7 @@ class LoginWindow(QDialog):
         self.setPalette(dimmed_palette)
         
         # Show dialog
-        dialog.exec_()
+        dialog.exec()
         
         # Restore original appearance
         self.setPalette(original_palette)
@@ -1452,7 +1452,7 @@ class LoginWindow(QDialog):
             dimmed_palette.setColor(role, color)
         
         self.setPalette(dimmed_palette)
-        dialog.exec_()
+        dialog.exec()
         self.setPalette(original_palette)
     
     def show_trial_error_dialog(self, title, message):
@@ -1526,7 +1526,7 @@ class LoginWindow(QDialog):
             dimmed_palette.setColor(role, color)
         
         self.setPalette(dimmed_palette)
-        dialog.exec_()
+        dialog.exec()
         self.setPalette(original_palette)
     
     def show_trial_warning_dialog(self, title, message):
@@ -1600,7 +1600,7 @@ class LoginWindow(QDialog):
             dimmed_palette.setColor(role, color)
         
         self.setPalette(dimmed_palette)
-        dialog.exec_()
+        dialog.exec()
         self.setPalette(original_palette)
     
     def exit_app(self):

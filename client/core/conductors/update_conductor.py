@@ -1,4 +1,4 @@
-"""
+﻿"""
 Update Conductor
 
 Decouples application update logic from MainWindow.
@@ -7,7 +7,7 @@ Manages the async UpdateClient using a QThread to prevent UI blocking.
 
 import asyncio
 import logging
-from PyQt6.QtCore import QObject, QThread, pyqtSignal
+from PySide6.QtCore import QObject, QThread, Signal
 from client.core.update_client import UpdateClient, UpdateManifest
 from client.config import config
 
@@ -17,7 +17,7 @@ class UpdateWorker(QThread):
     """
     Worker thread to execute async update checks.
     """
-    check_complete = pyqtSignal(bool, object)  # success, manifest/error_msg
+    check_complete = Signal(bool, object)  # success, manifest/error_msg
     
     def __init__(self, server_url, license_key):
         super().__init__()
@@ -56,8 +56,8 @@ class UpdateApplyWorker(QThread):
     """
     Worker thread to execute async update application (download and install).
     """
-    apply_complete = pyqtSignal(bool, object)  # success, result_dict/error_msg
-    progress_update = pyqtSignal(str, int)  # status_message, percentage
+    apply_complete = Signal(bool, object)  # success, result_dict/error_msg
+    progress_update = Signal(str, int)  # status_message, percentage
     
     def __init__(self, server_url, license_key, manifest):
         super().__init__()
@@ -103,15 +103,15 @@ class UpdateConductor(QObject):
     - Emit higher-level signals for UI (updates_available, update_error)
     """
     
-    updates_available = pyqtSignal(object)  # Emits UpdateManifest
-    no_update_found = pyqtSignal()
-    update_error = pyqtSignal(str)
+    updates_available = Signal(object)  # Emits UpdateManifest
+    no_update_found = Signal()
+    update_error = Signal(str)
     
     # New signals for update application
-    update_progress = pyqtSignal(str, int)  # message, percentage
-    update_complete = pyqtSignal(dict)  # result dictionary
-    update_failed = pyqtSignal(str)  # error message
-    check_already_running = pyqtSignal()  # Emitted when check is already in progress
+    update_progress = Signal(str, int)  # message, percentage
+    update_complete = Signal(dict)  # result dictionary
+    update_failed = Signal(str)  # error message
+    check_already_running = Signal()  # Emitted when check is already in progress
     
     def __init__(self, jwt_token=None):
         super().__init__()

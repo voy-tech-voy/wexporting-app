@@ -1,11 +1,11 @@
-"""
+﻿"""
 Development and Debugging Tools
 
 Contains debug utilities for the application.
 These should only be active in development/debug modes.
 """
 
-from PyQt6.QtCore import QObject, QEvent, Qt
+from PySide6.QtCore import QObject, QEvent, Qt
 
 
 DEBUG_INTERACTIVITY = True

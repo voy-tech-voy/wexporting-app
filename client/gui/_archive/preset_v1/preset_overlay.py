@@ -1,7 +1,7 @@
-from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QScrollArea, 
+﻿from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QScrollArea, 
                              QPushButton, QFrame, QGridLayout, QApplication, QGraphicsOpacityEffect)
-from PyQt6.QtCore import Qt, pyqtSignal, QTimer, QPropertyAnimation, QEasingCurve
-from PyQt6.QtGui import QColor, QPalette, QMouseEvent, QPainter, QBrush, QPaintEvent
+from PySide6.QtCore import Qt, Signal, QTimer, QPropertyAnimation, QEasingCurve
+from PySide6.QtGui import QColor, QPalette, QMouseEvent, QPainter, QBrush, QPaintEvent
 
 from client.core.preset_registry import PresetRegistry
 from client.gui.preset_card import PresetCard
@@ -12,8 +12,8 @@ class PresetOverlay(QWidget):
     Full-window overlay displayed during Drag & Drop operations.
     Contains filtering tabs and a grid of PresetCards.
     """
-    preset_selected = pyqtSignal(object)  # Emits PresetObject when card clicked
-    dismissed = pyqtSignal()  # Emits when background clicked (no preset selected)
+    preset_selected = Signal(object)  # Emits PresetObject when card clicked
+    dismissed = Signal()  # Emits when background clicked (no preset selected)
     
     def __init__(self, parent=None):
         super().__init__(parent)

@@ -1,4 +1,4 @@
-"""
+﻿"""
 Custom Preset Gallery Widget
 
 Self-contained, reusable component for displaying user-created lab presets
@@ -27,12 +27,12 @@ from __future__ import annotations
 import os
 from typing import TYPE_CHECKING, List, Optional
 
-from PyQt6.QtWidgets import (
+from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QScrollArea,
     QLabel, QFrame, QMenu, QSizePolicy
 )
-from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QCursor, QAction, QPixmap, QPainter, QColor
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QCursor, QAction, QPixmap, QPainter, QColor
 
 from client.gui.theme import Theme
 from client.utils.resource_path import get_resource_path
@@ -81,8 +81,8 @@ def _render_svg_to_pixmap(svg_path: str, color_hex: str, size: int) -> Optional[
     """
     import re
     try:
-        from PyQt6.QtSvg import QSvgRenderer
-        from PyQt6.QtCore import QByteArray, QRectF
+        from PySide6.QtSvg import QSvgRenderer
+        from PySide6.QtCore import QByteArray, QRectF
 
         with open(svg_path, 'r', encoding='utf-8') as f:
             svg_text = f.read()
@@ -119,8 +119,8 @@ class MiniPresetCard(QFrame):
     Right-click: "Remove preset" context menu.
     """
 
-    clicked = pyqtSignal(object)          # emits preset definition
-    delete_requested = pyqtSignal(str)    # emits file path
+    clicked = Signal(object)          # emits preset definition
+    delete_requested = Signal(str)    # emits file path
 
     CARD_HEIGHT = 72
     ICON_SIZE = 28
@@ -331,7 +331,7 @@ class MiniPresetCard(QFrame):
         remove_action = QAction("Remove preset", menu)
         # Build a flat SVG trash icon tinted in the error/red colour
         try:
-            from PyQt6.QtGui import QIcon
+            from PySide6.QtGui import QIcon
             from client.utils.resource_path import get_resource_path
             icon_path = get_resource_path('client/assets/icons/removefile.svg')
             pix = _render_svg_to_pixmap(icon_path, Theme.error(), 16)
@@ -372,8 +372,8 @@ class CustomPresetGallery(QWidget):
         preset_deleted()      - emitted after a file is deleted
     """
 
-    preset_applied = pyqtSignal(dict)
-    preset_deleted = pyqtSignal()
+    preset_applied = Signal(dict)
+    preset_deleted = Signal()
 
     CARDS_PER_ROW = 2
     CARD_SPACING = 8

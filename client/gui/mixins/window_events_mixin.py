@@ -1,12 +1,12 @@
-"""
+﻿"""
 Window Event Mixin for MainWindow
 
 Extracts boilerplate window event handlers (resize, move, show, close, mouse events)
 into a reusable mixin to reduce MainWindow complexity.
 """
 
-from PyQt6.QtWidgets import QWidget
-from PyQt6.QtCore import Qt
+from PySide6.QtWidgets import QWidget
+from PySide6.QtCore import Qt
 
 
 class WindowEventMixin:

@@ -1,21 +1,21 @@
-"""
+﻿"""
 Developer Gallery Color Panel - F12 Gallery Color Editor
 Allows real-time gallery color adjustment and saving to theme_variables.py
 """
 
-from PyQt6.QtWidgets import (
+from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, 
     QScrollArea, QColorDialog, QFrame, QLineEdit, QMessageBox, QSpinBox
 )
-from PyQt6.QtCore import Qt, pyqtSignal, QTimer
-from PyQt6.QtGui import QColor, QKeyEvent
+from PySide6.QtCore import Qt, Signal, QTimer
+from PySide6.QtGui import QColor, QKeyEvent
 import re
 
 
 class ColorPickerRow(QWidget):
     """Single row with color variable name, preview, and edit button"""
     
-    colorChanged = pyqtSignal(str, str)  # (variable_name, hex_color)
+    colorChanged = Signal(str, str)  # (variable_name, hex_color)
     
     def __init__(self, var_name: str, color_hex: str, description: str = "", parent=None):
         super().__init__(parent)
@@ -112,7 +112,7 @@ class ColorPickerRow(QWidget):
 class AlphaRow(QWidget):
     """Row for numeric value with spinbox"""
     
-    alphaChanged = pyqtSignal(str, str)  # (variable_name, value_as_string)
+    alphaChanged = Signal(str, str)  # (variable_name, value_as_string)
     
     def __init__(self, var_name: str, value: str, description: str = "", min_val: int = 0, max_val: int = 255, parent=None):
         super().__init__(parent)
@@ -154,7 +154,7 @@ class AlphaRow(QWidget):
 class CheckboxRow(QWidget):
     """Row for boolean toggle with checkbox"""
     
-    toggleChanged = pyqtSignal(str, str)  # (variable_name, value_as_string "0" or "1")
+    toggleChanged = Signal(str, str)  # (variable_name, value_as_string "0" or "1")
     
     def __init__(self, var_name: str, value: str, description: str = "", parent=None):
         super().__init__(parent)
@@ -171,7 +171,7 @@ class CheckboxRow(QWidget):
         layout.addWidget(name_label)
         
         # Checkbox toggle
-        from PyQt6.QtWidgets import QCheckBox
+        from PySide6.QtWidgets import QCheckBox
         self.checkbox = QCheckBox()
         self.checkbox.setChecked(int(value) == 1)
         self.checkbox.setStyleSheet("""

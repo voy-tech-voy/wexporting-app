@@ -1,4 +1,4 @@
-"""
+﻿"""
 Master Design System - Single Source of Truth
 All visual constants defined here.
 
@@ -24,7 +24,7 @@ from client.utils.font_manager import (
     FONT_SIZE_BASE, FONT_SIZE_TITLE, FONT_SIZE_BUTTON
 )
 from client.gui.theme_variables import DARK_THEME, LIGHT_THEME
-from PyQt6.QtGui import QColor
+from PySide6.QtGui import QColor
 
 
 class Theme:

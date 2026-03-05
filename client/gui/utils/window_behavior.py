@@ -1,4 +1,4 @@
-"""
+﻿"""
 Frameless Window Behavior - Mediator-Shell Architecture Utility
 
 Encapsulates frameless window dragging, resizing, and OS blur effects.
@@ -7,8 +7,8 @@ Extracted from MainWindow to follow the Mediator-Shell pattern.
 
 import ctypes
 from ctypes import POINTER, Structure, c_int, byref, windll, sizeof
-from PyQt6.QtCore import Qt, QRect
-from PyQt6.QtWidgets import QMainWindow
+from PySide6.QtCore import Qt, QRect
+from PySide6.QtWidgets import QMainWindow
 
 
 class FramelessWindowBehavior:

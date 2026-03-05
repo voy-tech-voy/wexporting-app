@@ -1,12 +1,12 @@
-"""
+﻿"""
 Side Panel Animator - Mediator-Shell Architecture Component
 
 Encapsulates spring-based side panel open/close animations.
 Extracted from MainWindow to follow the Mediator-Shell pattern.
 """
 
-from PyQt6.QtCore import QVariantAnimation, QEasingCurve, QTimer
-from PyQt6.QtWidgets import QSplitter, QWidget
+from PySide6.QtCore import QVariantAnimation, QEasingCurve, QTimer
+from PySide6.QtWidgets import QSplitter, QWidget
 
 
 class SidePanelAnimator:

@@ -1,4 +1,4 @@
-"""
+﻿"""
 Gradient Blur Bar Widget
 
 Reusable widget that renders a blurred background with gradient fade.
@@ -12,9 +12,9 @@ Features:
 - Supports both top and bottom bar orientations
 """
 from typing import Literal, Optional
-from PyQt6.QtWidgets import QWidget
-from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtGui import QPainter, QColor, QLinearGradient, QPixmap, QPainterPath, QImage
+from PySide6.QtWidgets import QWidget
+from PySide6.QtCore import Qt, QTimer
+from PySide6.QtGui import QPainter, QColor, QLinearGradient, QPixmap, QPainterPath, QImage
 
 from client.gui.theme import Theme
 from client.gui.theme_variables import get_color

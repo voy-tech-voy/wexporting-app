@@ -1,12 +1,12 @@
-"""
+﻿"""
 DynamicFontButton - Hardware-aware button with GPU acceleration visual effects.
 
 Extracted from custom_widgets.py for better organization.
 """
 
-from PyQt6.QtCore import Qt, QTimer, QPoint
-from PyQt6.QtWidgets import QPushButton
-from PyQt6.QtGui import QPainter, QPen, QColor, QBrush
+from PySide6.QtCore import Qt, QTimer, QPoint
+from PySide6.QtWidgets import QPushButton
+from PySide6.QtGui import QPainter, QPen, QColor, QBrush
 
 
 class DynamicFontButton(QPushButton):

@@ -1,4 +1,4 @@
-"""
+﻿"""
 Dialog Manager for unified dialog handling.
 
 Centralizes all QMessageBox operations with consistent styling and behavior.
@@ -6,8 +6,8 @@ This removes boilerplate from MainWindow and ensures all dialogs follow
 the app's theming guidelines.
 """
 
-from PyQt6.QtWidgets import QMessageBox
-from PyQt6.QtCore import Qt
+from PySide6.QtWidgets import QMessageBox
+from PySide6.QtCore import Qt
 
 
 class DialogManager:
@@ -226,7 +226,7 @@ class DialogManager:
         )
         
         # Install event filter to close on click or keypress
-        from PyQt6.QtCore import QEvent, QObject
+        from PySide6.QtCore import QEvent, QObject
         
         class ClickOrKeyCloseFilter(QObject):
             def __init__(self, dialog):
@@ -265,7 +265,7 @@ class DialogManager:
         an AV1 conversion, informing them that the export will be slow
         due to lack of GPU acceleration.
         """
-        from PyQt6.QtCore import QTimer
+        from PySide6.QtCore import QTimer
         
         dlg = self._create_dialog(
             QMessageBox.Icon.Warning,

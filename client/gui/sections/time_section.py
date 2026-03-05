@@ -1,11 +1,11 @@
-"""
+﻿"""
 TimeSection - Reusable time manipulation UI component.
 
 Provides time cutting and retiming controls for video/loop tabs.
 """
 
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QSlider
-from PyQt6.QtCore import pyqtSignal, Qt
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QSlider
+from PySide6.QtCore import Signal, Qt
 
 from client.gui.custom_widgets import ThemedCheckBox, TimeRangeSlider
 from client.gui.command_group import CommandGroup
@@ -23,7 +23,7 @@ class TimeSection(QWidget):
     """
     
     # Signal emitted when any parameter changes
-    paramChanged = pyqtSignal()
+    paramChanged = Signal()
     
     def __init__(self, parent=None):
         """

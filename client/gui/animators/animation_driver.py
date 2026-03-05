@@ -1,4 +1,4 @@
-from PyQt6.QtCore import QPropertyAnimation, QEasingCurve, QObject
+﻿from PySide6.QtCore import QPropertyAnimation, QEasingCurve, QObject
 
 class AnimationDriver(QObject):
     """

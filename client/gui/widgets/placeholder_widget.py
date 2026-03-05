@@ -1,13 +1,13 @@
-"""
+﻿"""
 Drop Placeholder Widget
 
 A centered SVG icon + text label widget shown when the file list is empty.
 """
 
 from pathlib import Path
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QSizePolicy, QGraphicsColorizeEffect
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QPixmap, QColor
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QSizePolicy, QGraphicsColorizeEffect
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QPixmap, QColor
 
 
 class DropPlaceholderWidget(QWidget):

@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 Graphics Conversion App
 A Qt-based application for converting graphics files using FFmpeg and ImageMagick
@@ -8,9 +8,9 @@ import sys
 import time
 import os
 import shutil
-from PyQt6.QtWidgets import QApplication, QWidget, QVBoxLayout, QLabel, QMessageBox, QDialog
-from PyQt6.QtGui import QPixmap, QColor, QPainter, QFont
-from PyQt6.QtCore import Qt, QRect, QTimer
+from PySide6.QtWidgets import QApplication, QWidget, QVBoxLayout, QLabel, QMessageBox, QDialog
+from PySide6.QtGui import QPixmap, QColor, QPainter, QFont
+from PySide6.QtCore import Qt, QRect, QTimer
 from client.gui.main_window import MainWindow
 from client.utils.font_manager import AppFonts
 from client.version import get_version, APP_NAME
@@ -157,7 +157,7 @@ class ProgressBarWidget(QWidget):
         self.random = random
         
         # Timer for animation
-        from PyQt6.QtCore import QTimer
+        from PySide6.QtCore import QTimer
         import time
         self.time = time
         self.anim_timer = QTimer(self)
@@ -193,7 +193,7 @@ class ProgressBarWidget(QWidget):
         self.update()
         
     def paintEvent(self, event):
-        from PyQt6.QtGui import QPainter, QColor
+        from PySide6.QtGui import QPainter, QColor
         painter = QPainter(self)
         painter.setPen(Qt.PenStyle.NoPen)
         
@@ -218,7 +218,7 @@ class ProgressBarWidget(QWidget):
 # ----------------------------------------------------------------------------
 # Background Worker for Startup Operations
 # ----------------------------------------------------------------------------
-from PyQt6.QtCore import QThread
+from PySide6.QtCore import QThread
 class StartupWorker(QThread):
     def __init__(self):
         super().__init__()
@@ -389,7 +389,7 @@ def main():
         
         # Set application icon
         try:
-            from PyQt6.QtGui import QIcon
+            from PySide6.QtGui import QIcon
             from client.utils.resource_path import get_app_icon_path
             
             icon_path = get_app_icon_path()

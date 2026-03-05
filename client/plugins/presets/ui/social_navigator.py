@@ -1,10 +1,10 @@
-"""
+﻿"""
 Social Navigator
 
 Manages social preset drill-down navigation (ratio grouping and platform views).
 """
-from PyQt6.QtWidgets import QWidget, QLabel
-from PyQt6.QtCore import QTimer
+from PySide6.QtWidgets import QWidget, QLabel
+from PySide6.QtCore import QTimer
 from typing import List
 from client.plugins.presets.logic.models import PresetDefinition, PresetStyle
 

@@ -1,11 +1,11 @@
-"""
+﻿"""
 Theme Conductor
 
 Manages theme propagation to all UI components in the application.
 Follows the Mediator-Shell pattern by centralizing theme update logic.
 """
 
-from PyQt6.QtCore import QObject
+from PySide6.QtCore import QObject
 
 
 class ThemeConductor(QObject):

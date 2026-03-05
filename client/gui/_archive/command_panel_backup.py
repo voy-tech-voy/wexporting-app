@@ -1,9 +1,9 @@
-"""
+﻿"""
 Command Panel Widget
 Provides conversion commands and options for ffmpeg, gifsicle, and ImageMagick
 """
 
-from PyQt6.QtWidgets import (
+from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QListWidget, QListWidgetItem,
     QLabel, QPushButton, QComboBox, QSpinBox, QDoubleSpinBox, QCheckBox, QLineEdit,
     QGroupBox, QFormLayout, QTabWidget, QTextEdit, QSlider, QRadioButton, QSizePolicy, QButtonGroup,
@@ -27,8 +27,8 @@ from client.gui.custom_widgets import (
 )
 from client.gui.custom_spinbox import CustomSpinBox
 from client.gui.command_group import CommandGroup
-from PyQt6.QtCore import Qt, pyqtSignal, QRect, QPoint, QTimer, QSize
-from PyQt6.QtGui import QPainter, QPen, QColor, QBrush, QIcon, QPixmap
+from PySide6.QtCore import Qt, Signal, QRect, QPoint, QTimer, QSize
+from PySide6.QtGui import QPainter, QPen, QColor, QBrush, QIcon, QPixmap
 from client.utils.resource_path import get_resource_path
 from client.utils.theme_utils import is_dark_mode
 import json
@@ -132,10 +132,10 @@ USE_NEW_LOOP_TAB = True   # Phase C: LoopTab integration - TESTING
 
 
 class CommandPanel(QWidget):
-    conversion_requested = pyqtSignal(dict)  # Signal with conversion parameters
-    stop_conversion_requested = pyqtSignal()  # Signal to stop conversion
-    global_mode_changed = pyqtSignal(str) # Signal when global mode changes
-    lab_state_changed = pyqtSignal(str, bool) # Signal: (icon_path, is_solid) for lab button updates
+    conversion_requested = Signal(dict)  # Signal with conversion parameters
+    stop_conversion_requested = Signal()  # Signal to stop conversion
+    global_mode_changed = Signal(str) # Signal when global mode changes
+    lab_state_changed = Signal(str, bool) # Signal: (icon_path, is_solid) for lab button updates
     
     def __init__(self):
         super().__init__()
@@ -236,8 +236,8 @@ class CommandPanel(QWidget):
 
     def _create_label_with_icon(self, text, icon_path):
         """Create a QLabel with an icon and text"""
-        from PyQt6.QtGui import QPixmap, QPainter, QIcon
-        from PyQt6.QtCore import QColor
+        from PySide6.QtGui import QPixmap, QPainter, QIcon
+        from PySide6.QtCore import QColor
         from client.utils.resource_path import get_resource_path
         import os
         
@@ -690,7 +690,7 @@ class CommandPanel(QWidget):
     
     def eventFilter(self, obj, event):
         """Filter Enter key presses in input fields to switch focus to active tab button"""
-        from PyQt6.QtCore import QEvent, Qt
+        from PySide6.QtCore import QEvent, Qt
         
         # Check if this is a KeyPress event
         if event.type() == QEvent.Type.KeyPress:
@@ -715,7 +715,7 @@ class CommandPanel(QWidget):
     
     def _focus_active_tab(self):
         """Set focus to the currently active tab button"""
-        from PyQt6.QtWidgets import QApplication
+        from PySide6.QtWidgets import QApplication
         # Clear current focus first
         focus_widget = QApplication.focusWidget()
         if focus_widget:
@@ -889,7 +889,7 @@ class CommandPanel(QWidget):
     
     def _create_mode_separator(self):
         """Create a grey separator line to divide Mode section from parameters"""
-        from PyQt6.QtWidgets import QFrame
+        from PySide6.QtWidgets import QFrame
         separator = QFrame()
         separator.setFrameShape(QFrame.Shape.HLine)
         separator.setFrameShadow(QFrame.Shadow.Plain)
@@ -2343,7 +2343,7 @@ class CommandPanel(QWidget):
         params = self.get_conversion_params()
         
         # Create a simple preview dialog
-        from PyQt6.QtWidgets import QDialog, QVBoxLayout, QTextEdit, QPushButton
+        from PySide6.QtWidgets import QDialog, QVBoxLayout, QTextEdit, QPushButton
         
         dialog = QDialog(self)
         dialog.setWindowTitle("Command Preview")
@@ -3360,7 +3360,7 @@ class CommandPanel(QWidget):
             invalid_values = [val for val in values if val < 1 or val > 240]
             
             if invalid_values:
-                from PyQt6.QtWidgets import QMessageBox
+                from PySide6.QtWidgets import QMessageBox
                 msg_box = QMessageBox(QMessageBox.Icon.Warning, "Invalid FPS Values", 
                                     f"FPS values must be between 1 and 240.\n\nInvalid values found: {invalid_values}\n\nValid range: 1 to 240\n\nCommon FPS values:\n10-15 = Low motion\n24-30 = Standard motion\n60+ = High motion", 
                                     parent=self)
@@ -3391,7 +3391,7 @@ class CommandPanel(QWidget):
             invalid_values = [val for val in values if val < 2 or val > 256]
             
             if invalid_values:
-                from PyQt6.QtWidgets import QMessageBox
+                from PySide6.QtWidgets import QMessageBox
                 msg_box = QMessageBox(QMessageBox.Icon.Warning, "Invalid Colors Values", 
                                     f"Colors values must be between 2 and 256.\n\nInvalid values found: {invalid_values}\n\nValid range: 2 to 256\n\nColor recommendations:\n2-16 = Very low quality\n32-64 = Low quality\n128-256 = High quality", 
                                     parent=self)
@@ -3424,7 +3424,7 @@ class CommandPanel(QWidget):
             invalid_values = [val for val in values if val < 0 or val > 100]
             
             if invalid_values:
-                from PyQt6.QtWidgets import QMessageBox
+                from PySide6.QtWidgets import QMessageBox
                 msg_box = QMessageBox(QMessageBox.Icon.Warning, "Invalid Quality Values", 
                                     f"Quality values must be between 0 and 100.\n\nInvalid values found: {invalid_values}\n\nValid range: 0 to 100\n\nQuality levels:\n0 = Lossless\n25-40 = High quality\n50-70 = Good quality (recommended)\n80-100 = Low quality", 
                                     parent=self)

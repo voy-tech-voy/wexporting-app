@@ -1,12 +1,12 @@
-"""
+﻿"""
 About Dialog Component
 Displays application information, version, and credits.
 """
 
 import os
-from PyQt6.QtWidgets import QMessageBox
-from PyQt6.QtGui import QIcon
-from PyQt6.QtCore import Qt
+from PySide6.QtWidgets import QMessageBox
+from PySide6.QtGui import QIcon
+from PySide6.QtCore import Qt
 
 from client.utils.font_manager import FONT_FAMILY_APP_NAME
 from client.version import APP_NAME, AUTHOR

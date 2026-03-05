@@ -1,16 +1,16 @@
-"""
+﻿"""
 Codec Efficiency Tooltip Component
 
 A rich tooltip widget that displays codec efficiency comparisons
 when hovering over format/codec selectors.
 """
 
-from PyQt6.QtWidgets import (
+from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
     QProgressBar, QFrame, QGraphicsDropShadowEffect
 )
-from PyQt6.QtCore import Qt, QObject, QEvent, QPoint, QTimer, QPropertyAnimation, QEasingCurve, pyqtProperty
-from PyQt6.QtGui import QColor
+from PySide6.QtCore import Qt, QObject, QEvent, QPoint, QTimer, QPropertyAnimation, QEasingCurve, Property
+from PySide6.QtGui import QColor
 
 from client.gui.theme import Theme
 
@@ -101,7 +101,7 @@ class CodecEfficiencyTooltip(QWidget):
         if hasattr(self, '_current_mode'):
             self.set_mode(self._current_mode)
     
-    @pyqtProperty(float)
+    @Property(float)
     def opacity(self):
         """Get current opacity."""
         return self._opacity

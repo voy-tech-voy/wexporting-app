@@ -1,11 +1,11 @@
-"""
+﻿"""
 Noise Gradient Dev Panel (F11)
 Provides real-time control over noise gradient parameters for file list items.
 """
 
-from PyQt6.QtWidgets import QSlider, QLabel, QHBoxLayout, QGroupBox, QVBoxLayout, QMessageBox
-from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QFont
+from PySide6.QtWidgets import QSlider, QLabel, QHBoxLayout, QGroupBox, QVBoxLayout, QMessageBox
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QFont
 
 from .base import BaseDevPanel
 from .noise_params import NoiseParams
@@ -14,7 +14,7 @@ from .noise_params import NoiseParams
 class NoiseDevPanel(BaseDevPanel):
     """Developer panel for adjusting noise gradient parameters."""
     
-    params_changed = pyqtSignal()  # Emitted when any parameter changes
+    params_changed = Signal()  # Emitted when any parameter changes
     
     def __init__(self, parent=None):
         super().__init__(
@@ -165,7 +165,7 @@ class NoiseDevPanel(BaseDevPanel):
     
     def _create_checkbox_row(self, label_text, current_val, parent_layout):
         """Create a labeled checkbox."""
-        from PyQt6.QtWidgets import QCheckBox
+        from PySide6.QtWidgets import QCheckBox
         
         row_layout = QHBoxLayout()
         

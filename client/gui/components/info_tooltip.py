@@ -1,4 +1,4 @@
-"""
+﻿"""
 Info Tooltip Component
 
 A unified tooltip widget that displays either:
@@ -8,12 +8,12 @@ A unified tooltip widget that displays either:
 Content is provided externally via the tooltips/ package.
 """
 
-from PyQt6.QtWidgets import (
+from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
     QProgressBar, QFrame, QGraphicsDropShadowEffect
 )
-from PyQt6.QtCore import Qt, QObject, QEvent, QPoint, QTimer, QPropertyAnimation, QEasingCurve, pyqtProperty
-from PyQt6.QtGui import QColor
+from PySide6.QtCore import Qt, QObject, QEvent, QPoint, QTimer, QPropertyAnimation, QEasingCurve, Property
+from PySide6.QtGui import QColor
 
 from client.gui.theme import Theme
 
@@ -56,7 +56,7 @@ class InfoTooltip(QWidget):
             else:
                 self.set_comparison_mode(self._current_data)
     
-    @pyqtProperty(float)
+    @Property(float)
     def opacity(self):
         """Get current opacity."""
         return self._opacity

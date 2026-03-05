@@ -1,11 +1,11 @@
-"""
+﻿"""
 Toast Notification Helpers
 
 Factory functions for creating common toast notifications in the drag-drop area.
 """
 
 from typing import Optional
-from PyQt6.QtWidgets import QWidget
+from PySide6.QtWidgets import QWidget
 from client.gui.components.toast_notification import ToastNotification
 from client.gui.theme import Theme
 

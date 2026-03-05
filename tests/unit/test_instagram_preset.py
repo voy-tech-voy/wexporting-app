@@ -15,7 +15,7 @@ mock_pyqt = MagicMock()
 sys.modules['PyQt6'] = mock_pyqt
 sys.modules['PyQt6.QtCore'] = mock_pyqt
 mock_pyqt.QThread = MagicMock
-mock_pyqt.pyqtSignal = MockSignal
+mock_pyqt.Signal = MockSignal
 
 # Mock ffmpeg as well
 sys.modules['ffmpeg'] = MagicMock()

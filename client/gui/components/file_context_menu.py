@@ -1,4 +1,4 @@
-"""
+﻿"""
 File Context Menu
 
 Provides context menu functionality for file list items.
@@ -7,8 +7,8 @@ Provides context menu functionality for file list items.
 import os
 import subprocess
 from typing import Callable, Optional
-from PyQt6.QtWidgets import QWidget, QMenu, QListWidget, QListWidgetItem
-from PyQt6.QtCore import QPoint, Qt
+from PySide6.QtWidgets import QWidget, QMenu, QListWidget, QListWidgetItem
+from PySide6.QtCore import QPoint, Qt
 from client.gui.theme import Theme
 
 

@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 Emergency Windows Crash Reporter
 Handles ALL possible app startup failures, even before GUI can load
@@ -169,7 +169,7 @@ class EmergencyCrashReporter:
             }
             
             # Check critical modules
-            critical_modules = ['PyQt6', 'requests', 'PIL', 'pathlib']
+            critical_modules = ['PySide6', 'requests', 'PIL', 'pathlib']
             for module in critical_modules:
                 try:
                     __import__(module)
@@ -239,19 +239,14 @@ class EmergencyCrashReporter:
                 "widgets": {}
             }
             
-            # Check qt import
+            # Check qt import - only test module availability, do NOT create QApplication
+            # (main() creates the singleton; PySide6 is strict about only one instance)
             try:
-                from PyQt6.QtWidgets import QApplication
+                from PySide6.QtWidgets import QApplication
                 checks["qt_available"] = True
-                
-                # Test QApplication creation
-                try:
-                    app = QApplication.instance()
-                    if app is None:
-                        app = QApplication([])
-                    checks["qapplication"] = "[OK] Created successfully"
-                except Exception as e:
-                    checks["qapplication"] = f"[X] Failed: {e}"
+                # Just confirm an instance exists or can be accessed
+                existing = QApplication.instance()
+                checks["qapplication"] = "[OK] Already created" if existing else "[OK] Import OK, not yet created"
                 
             except ImportError as e:
                 checks["qt_available"] = False

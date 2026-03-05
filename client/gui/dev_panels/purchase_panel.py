@@ -1,12 +1,12 @@
-import logging
+﻿import logging
 import json
 from pathlib import Path
-from PyQt6.QtWidgets import (
+from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QComboBox, QFormLayout, QPushButton, 
     QColorDialog, QHBoxLayout, QLabel, QApplication, QMessageBox, QFrame, QScrollArea
 )
-from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtGui import QColor, QFont
+from PySide6.QtCore import Qt, QTimer
+from PySide6.QtGui import QColor, QFont
 
 from client.gui.dev_panels.base import BaseDevPanel
 from client.gui.theme import Theme

@@ -1,19 +1,19 @@
-"""
+﻿"""
 CustomTargetSizeSpinBox - Spinbox with drag-to-change functionality.
 
 Extracted from custom_widgets.py for better organization.
 """
 
-from PyQt6.QtCore import Qt, QTimer, QPoint, pyqtSignal, QEvent, QByteArray, QDataStream, QMimeData, QRect
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import Qt, QTimer, QPoint, Signal, QEvent, QByteArray, QDataStream, QMimeData, QRect
+from PySide6.QtWidgets import (
     QWidget, QHBoxLayout, QVBoxLayout, QLabel, QLineEdit, 
     QDoubleSpinBox, QAbstractSpinBox, QSizePolicy
 )
-from PyQt6.QtGui import (
+from PySide6.QtGui import (
     QCursor, QIcon, QPainter, QColor, QFont, QPen, QBrush, 
     QMouseEvent, QPixmap, QRegularExpressionValidator
 )
-from PyQt6.QtCore import QRegularExpression
+from PySide6.QtCore import QRegularExpression
 
 from client.gui.theme import Theme
 
@@ -21,8 +21,8 @@ from client.gui.theme import Theme
 class SpinBoxLineEdit(QLineEdit):
     """Custom LineEdit that handles focus and keyboard events better for spinboxes"""
     
-    enterPressed = pyqtSignal()
-    escapePressed = pyqtSignal()
+    enterPressed = Signal()
+    escapePressed = Signal()
     
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -146,7 +146,7 @@ class CustomTargetSizeSpinBox(QWidget):
     Supports drag-to-change: click and drag horizontally to adjust value.
     """
     
-    valueChanged = pyqtSignal(float)  # Emit when value changes
+    valueChanged = Signal(float)  # Emit when value changes
     
     def __init__(self, parent=None, default_value=1.0, on_enter_callback=None, decimals=2):
         super().__init__(parent)
@@ -418,7 +418,7 @@ class CustomTargetSizeSpinBox(QWidget):
         self.drag_overlay.setCursor(self.custom_drag_cursor)
         
         # Update suffix color
-        from PyQt6.QtGui import QColor
+        from PySide6.QtGui import QColor
         suffix_color = QColor("#aaaaaa") if is_dark else QColor("#888888")
         self.custom_line_edit.suffix_color = suffix_color
         

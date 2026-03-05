@@ -1,15 +1,15 @@
-"""
+﻿"""
 Title Bar Window - Separate OS window for blur effect
 Visually docks above the main window, enables blur only on this small area.
 """
 
 import os
 
-from PyQt6.QtWidgets import (
+from PySide6.QtWidgets import (
     QMainWindow, QWidget, QHBoxLayout, QLabel, QPushButton, QFrame, QMenu, QApplication
 )
-from PyQt6.QtGui import QIcon, QMouseEvent, QAction, QFont
-from PyQt6.QtCore import Qt, pyqtSignal, QPoint, QSize
+from PySide6.QtGui import QIcon, QMouseEvent, QAction, QFont
+from PySide6.QtCore import Qt, Signal, QPoint, QSize
 
 from client.utils.font_manager import AppFonts, FONT_FAMILY_APP_NAME, FONT_FAMILY
 from client.utils.resource_path import get_app_icon_path, get_resource_path
@@ -20,7 +20,7 @@ from client.gui.effects.blur_effects import NativeWindowsBlurEffect
 
 class ClickableLabel(QLabel):
     """Custom label that emits a signal when clicked"""
-    clicked = pyqtSignal()
+    clicked = Signal()
     
     def mousePressEvent(self, event: QMouseEvent):
         """Emit signal when label is clicked"""
@@ -36,15 +36,15 @@ class TitleBarWindow(QMainWindow):
     """
     
     # Signals to communicate with main window
-    minimize_requested = pyqtSignal()
-    close_requested = pyqtSignal()
-    theme_toggle_requested = pyqtSignal()
-    show_advanced_requested = pyqtSignal()
-    show_about_requested = pyqtSignal()
-    check_updates_requested = pyqtSignal()
-    buy_credits_requested = pyqtSignal()
+    minimize_requested = Signal()
+    close_requested = Signal()
+    theme_toggle_requested = Signal()
+    show_advanced_requested = Signal()
+    show_about_requested = Signal()
+    check_updates_requested = Signal()
+    buy_credits_requested = Signal()
 
-    logout_requested = pyqtSignal()
+    logout_requested = Signal()
     
     TITLE_BAR_HEIGHT = 45
     
@@ -235,9 +235,9 @@ class TitleBarWindow(QMainWindow):
         
     def _get_tinted_icon(self, icon_path, color):
         """Helper to tint SVG icon with specific color"""
-        from PyQt6.QtSvg import QSvgRenderer
-        from PyQt6.QtGui import QPainter, QPixmap, QColor
-        from PyQt6.QtCore import QSize
+        from PySide6.QtSvg import QSvgRenderer
+        from PySide6.QtGui import QPainter, QPixmap, QColor
+        from PySide6.QtCore import QSize
         
         renderer = QSvgRenderer(icon_path)
         pixmap = QPixmap(QSize(24, 24))
@@ -307,7 +307,7 @@ class TitleBarWindow(QMainWindow):
         
         # Update theme button icon with tint
         if hasattr(self, '_sun_moon_svg_path'):
-            from PyQt6.QtGui import QColor
+            from PySide6.QtGui import QColor
             icon_color = QColor(Theme.text()) # Use theme text color for icon
             self._theme_btn.setIcon(self._get_tinted_icon(self._sun_moon_svg_path, icon_color))
     

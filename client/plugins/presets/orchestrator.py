@@ -1,12 +1,12 @@
-"""
+﻿"""
 Presets Plugin - Orchestrator
 
 Entry point that connects the logic layer with the UI layer.
 Receives ToolRegistryProtocol via Dependency Injection.
 """
 from typing import Optional, List, Dict, Any, TYPE_CHECKING
-from PyQt6.QtWidgets import QWidget
-from PyQt6.QtCore import QObject, pyqtSignal
+from PySide6.QtWidgets import QWidget
+from PySide6.QtCore import QObject, Signal
 
 from client.plugins.presets.logic import PresetManager, CommandBuilder, PresetDefinition, MediaAnalyzer, CustomPresetGenerator
 from client.plugins.presets.ui import PresetGallery, ParameterForm
@@ -36,13 +36,13 @@ class PresetOrchestrator(QObject):
         conversion_finished: Emitted with (success, message) when conversion completes
     """
     
-    preset_selected = pyqtSignal(object)  # PresetDefinition
-    gallery_dismissed = pyqtSignal()
-    conversion_started = pyqtSignal()
-    conversion_progress = pyqtSignal(int, int, str)  # current, total, message
-    conversion_finished = pyqtSignal(bool, str)  # success, message - LEGACY
-    conversion_completed = pyqtSignal(int, int, int, int)  # successful, failed, skipped, stopped - NEW
-    go_to_lab_requested = pyqtSignal(dict)  # lab_mode_settings
+    preset_selected = Signal(object)  # PresetDefinition
+    gallery_dismissed = Signal()
+    conversion_started = Signal()
+    conversion_progress = Signal(int, int, str)  # current, total, message
+    conversion_finished = Signal(bool, str)  # success, message - LEGACY
+    conversion_completed = Signal(int, int, int, int)  # successful, failed, skipped, stopped - NEW
+    go_to_lab_requested = Signal(dict)  # lab_mode_settings
     
     def __init__(self, registry: 'ToolRegistryProtocol', parent_widget: QWidget, conversion_conductor=None):
         """

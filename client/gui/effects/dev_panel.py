@@ -1,4 +1,4 @@
-"""
+﻿"""
 Dev Panel - Live Parameter Tuning UI
 =====================================
 A floating panel that allows interactive editing of object attributes.
@@ -21,12 +21,12 @@ Usage:
 """
 
 
-from PyQt6.QtWidgets import (
+from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
     QSlider, QSpinBox, QDoubleSpinBox, QGroupBox,
     QScrollArea, QPushButton, QMessageBox
 )
-from PyQt6.QtCore import Qt
+from PySide6.QtCore import Qt
 import re
 import os
 
@@ -167,7 +167,7 @@ class DevPanel(QWidget):
             label = QLabel(attr_name)
             label.setFixedWidth(140)
             
-            from PyQt6.QtWidgets import QComboBox
+            from PySide6.QtWidgets import QComboBox
             combo = QComboBox()
             combo.addItems(options)
             if current_str in options:
@@ -260,7 +260,7 @@ class DevPanel(QWidget):
             
     def _reset_all(self):
         """Reset all widgets to initial values"""
-        from PyQt6.QtWidgets import QComboBox
+        from PySide6.QtWidgets import QComboBox
         for section in self._sections:
             for attr_name, initial in section['initial_values'].items():
                 widget_data = section['widgets'][attr_name]

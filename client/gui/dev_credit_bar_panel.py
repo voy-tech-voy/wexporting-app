@@ -1,7 +1,7 @@
-from PyQt6.QtWidgets import (
+﻿from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QSlider, QPushButton
 )
-from PyQt6.QtCore import Qt
+from PySide6.QtCore import Qt
 
 class DevCreditBarPanel(QWidget):
     def __init__(self, credit_bar, parent=None):

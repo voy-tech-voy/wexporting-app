@@ -1,16 +1,16 @@
-"""
+﻿"""
 Dev Panel for Noise Gradient Parameters (F11)
 
 Provides a floating panel with sliders to adjust noise gradient parameters
 for file list items in real-time.
 """
 
-from PyQt6.QtWidgets import (
+from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QSlider, QGroupBox, QScrollArea
 )
-from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QFont
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QFont
 
 from client.gui.theme import Theme
 from client.gui.noise_params import NoiseParams
@@ -26,7 +26,7 @@ class NoiseDevPanel(QWidget):
     - Noise mask distribution
     """
     
-    params_changed = pyqtSignal()  # Emitted when any parameter changes
+    params_changed = Signal()  # Emitted when any parameter changes
     
     def __init__(self, parent=None):
         super().__init__(parent, Qt.WindowType.Tool | Qt.WindowType.WindowStaysOnTopHint)

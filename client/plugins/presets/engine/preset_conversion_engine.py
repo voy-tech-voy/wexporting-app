@@ -1,4 +1,4 @@
-"""
+﻿"""
 Preset Conversion Engine - Async execution with immediate cancellation.
 
 Follows the same pattern as TargetSizeConversionEngine and ManualModeConversionEngine:
@@ -8,7 +8,7 @@ Follows the same pattern as TargetSizeConversionEngine and ManualModeConversionE
 """
 from typing import List, Dict, Any, Optional, TYPE_CHECKING
 from pathlib import Path
-from PyQt6.QtCore import QThread, pyqtSignal
+from PySide6.QtCore import QThread, Signal
 import subprocess
 import os
 import time
@@ -35,14 +35,14 @@ class PresetConversionEngine(QThread):
     """
     
     # Signals matching other conversion engines
-    progress_updated = pyqtSignal(int)                    # Overall percentage (0-100)
-    file_progress_updated = pyqtSignal(int, float)        # (file_index, 0.0-1.0)
-    status_updated = pyqtSignal(str)                      # Status messages
-    file_completed = pyqtSignal(str, str)                 # (source_path, output_path)
-    file_failed = pyqtSignal(str)                         # (source_path)
-    file_skipped = pyqtSignal(str)                        # (source_path)
-    file_stopped = pyqtSignal(str)                        # (source_path)
-    conversion_completed = pyqtSignal(int, int, int, int) # (successful, failed, skipped, stopped)
+    progress_updated = Signal(int)                    # Overall percentage (0-100)
+    file_progress_updated = Signal(int, float)        # (file_index, 0.0-1.0)
+    status_updated = Signal(str)                      # Status messages
+    file_completed = Signal(str, str)                 # (source_path, output_path)
+    file_failed = Signal(str)                         # (source_path)
+    file_skipped = Signal(str)                        # (source_path)
+    file_stopped = Signal(str)                        # (source_path)
+    conversion_completed = Signal(int, int, int, int) # (successful, failed, skipped, stopped)
     
     def __init__(self, files: List[str], params: Dict[str, Any], orchestrator: 'PresetOrchestrator'):
         """

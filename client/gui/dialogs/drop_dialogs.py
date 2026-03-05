@@ -1,4 +1,4 @@
-"""
+﻿"""
 Folder Drop Dialogs
 
 Provides dialog functions for handling folder drops and folder selection.
@@ -6,7 +6,7 @@ Provides dialog functions for handling folder drops and folder selection.
 
 import os
 from typing import List, Optional, Callable
-from PyQt6.QtWidgets import (
+from PySide6.QtWidgets import (
     QWidget, QDialog, QVBoxLayout, QLabel, QCheckBox, 
     QDialogButtonBox, QFileDialog, QMessageBox
 )

@@ -1,4 +1,4 @@
-"""
+﻿"""
 Tests for Presets Plugin - Category Filter Bar
 
 Tests the CategoryFilterBar widget:
@@ -11,7 +11,7 @@ import pytest
 from unittest.mock import MagicMock
 from typing import List
 
-from PyQt6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication
 
 from client.plugins.presets.ui.filter_bar import CategoryFilterBar
 from client.plugins.presets.logic.models import PresetDefinition, PresetStatus, PipelineStep

@@ -1,15 +1,15 @@
-"""
+﻿"""
 Presets Plugin - Category Filter Bar
 
 Dynamic filter bar with exclusive toggle buttons for filtering presets by category.
 Single selection mode with "ALL" button to show all presets.
 """
 from typing import List, Optional
-from PyQt6.QtWidgets import (
+from PySide6.QtWidgets import (
     QHBoxLayout, QPushButton, QButtonGroup
 )
-from PyQt6.QtCore import pyqtSignal, Qt
-from PyQt6.QtGui import QPainter, QColor, QLinearGradient, QPixmap, QImage, QPainterPath
+from PySide6.QtCore import Signal, Qt
+from PySide6.QtGui import QPainter, QColor, QLinearGradient, QPixmap, QImage, QPainterPath
 
 from client.plugins.presets.logic.models import PresetDefinition
 from client.gui.theme import Theme
@@ -30,7 +30,7 @@ class CategoryFilterBar(GradientBlurBar):
         filterChanged: Emitted when selection changes
     """
     
-    filterChanged = pyqtSignal()
+    filterChanged = Signal()
     
     # Special key for "ALL" button
     ALL_KEY = "__all__"
@@ -92,7 +92,7 @@ class CategoryFilterBar(GradientBlurBar):
             offset_x = filter_pos_in_gallery.x() - scroll_pos_in_gallery.x()
             offset_y = filter_pos_in_gallery.y() - scroll_pos_in_gallery.y()
             
-            from PyQt6.QtCore import QRect
+            from PySide6.QtCore import QRect
             capture_rect = QRect(offset_x, offset_y, self.width(), self.height())
             
             # Grab from scroll viewport
@@ -344,7 +344,7 @@ class CategoryFilterBar(GradientBlurBar):
         This creates the most natural-looking dither with minimal visual artifacts.
         """
         import random
-        from PyQt6.QtGui import QImage
+        from PySide6.QtGui import QImage
         
         size = 64  # Smaller is more efficient, still tiles seamlessly
         

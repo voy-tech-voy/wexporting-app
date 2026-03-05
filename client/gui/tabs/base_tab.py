@@ -1,4 +1,4 @@
-"""
+﻿"""
 BaseTab - Abstract Base Class for CommandPanel Tabs
 
 Part of the Mediator-Shell architecture refactoring.
@@ -6,8 +6,8 @@ Each tab (Image, Video, Loop) inherits from this base.
 """
 
 from abc import ABCMeta, abstractmethod
-from PyQt6.QtWidgets import QWidget, QVBoxLayout
-from PyQt6.QtCore import pyqtSignal
+from PySide6.QtWidgets import QWidget, QVBoxLayout
+from PySide6.QtCore import Signal
 
 
 # Combine Qt metaclass with ABCMeta to allow abstract methods in QWidget subclasses
@@ -32,7 +32,7 @@ class BaseTab(QWidget, metaclass=QABCMeta):
     """
     
     # Signal emitted when parameters change (for live preview, etc.)
-    params_changed = pyqtSignal()
+    params_changed = Signal()
     
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -94,8 +94,8 @@ class BaseTab(QWidget, metaclass=QABCMeta):
         Returns:
             QWidget: Styled header widget
         """
-        from PyQt6.QtWidgets import QLabel, QFrame
-        from PyQt6.QtCore import Qt
+        from PySide6.QtWidgets import QLabel, QFrame
+        from PySide6.QtCore import Qt
         from client.gui.theme import Theme
         
         header = QFrame()
@@ -129,7 +129,7 @@ class BaseTab(QWidget, metaclass=QABCMeta):
         Returns:
             CustomPresetButton: The created button instance
         """
-        from PyQt6.QtWidgets import QHBoxLayout, QSizePolicy
+        from PySide6.QtWidgets import QHBoxLayout, QSizePolicy
         from client.gui.widgets.custom_preset_button import CustomPresetButton
         
         button_container = QWidget()

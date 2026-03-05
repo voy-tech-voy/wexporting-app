@@ -1,7 +1,7 @@
-from PyQt6.QtWidgets import (
+﻿from PySide6.QtWidgets import (
     QVBoxLayout, QLabel, QSlider, QFrame, QHBoxLayout, QGroupBox, QPushButton
 )
-from PyQt6.QtCore import Qt, pyqtSignal
+from PySide6.QtCore import Qt, Signal
 
 from .base import BaseDevPanel
 from .sequence_params import SequenceParams
@@ -10,7 +10,7 @@ from client.gui.theme import Theme
 class SequenceDevPanel(BaseDevPanel):
     """Developer panel for tuning sequence visualization (F11)"""
     
-    paramsChanged = pyqtSignal()
+    paramsChanged = Signal()
     
     def __init__(self, parent=None):
         super().__init__(
@@ -27,10 +27,10 @@ class SequenceDevPanel(BaseDevPanel):
     def _save_changes(self):
         if SequenceParams.save():
             # Show brief visual feedback or just print (BaseDevPanel doesn't have toast built-in yet)
-            from PyQt6.QtWidgets import QMessageBox
+            from PySide6.QtWidgets import QMessageBox
             QMessageBox.information(self, "Saved", "Sequence parameters saved successfully.")
         else:
-            from PyQt6.QtWidgets import QMessageBox
+            from PySide6.QtWidgets import QMessageBox
             QMessageBox.warning(self, "Error", "Failed to save parameters.")
             
     def _setup_ui(self):

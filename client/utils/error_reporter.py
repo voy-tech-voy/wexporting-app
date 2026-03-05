@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 Windows Error Reporter
 Handles error reporting and logging for Windows ImgApp
@@ -236,7 +236,7 @@ class WindowsErrorReporter:
         
         # Test PyQt5 availability
         try:
-            from PyQt6.QtWidgets import QApplication
+            from PySide6.QtWidgets import QApplication
             tests["pyqt5_import"] = "[OK] OK"
             
             # Test QApplication creation

@@ -1,4 +1,4 @@
-"""
+﻿"""
 Unit Tests for CommandPanel Signal Architecture
 
 Tests the signal communication between:
@@ -92,7 +92,7 @@ class TestSideButtonGroupSignals:
 @pytest.fixture
 def qapp():
     """Create QApplication for widget tests."""
-    from PyQt6.QtWidgets import QApplication
+    from PySide6.QtWidgets import QApplication
     app = QApplication.instance()
     if app is None:
         app = QApplication([])

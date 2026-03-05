@@ -1,22 +1,22 @@
-"""
+﻿"""
 Developer Theme Panel (F12)
 Allows real-time theme color adjustment and saving to theme_variables.py
 """
 
 import os
 import re
-from PyQt6.QtWidgets import (
+from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, 
     QScrollArea, QColorDialog, QFrame, QLineEdit, QMessageBox, QGroupBox, QSpinBox
 )
-from PyQt6.QtCore import Qt, pyqtSignal, QTimer
-from PyQt6.QtGui import QColor
+from PySide6.QtCore import Qt, Signal, QTimer
+from PySide6.QtGui import QColor
 
 
 class AlphaRow(QWidget):
     """Row for numeric value with spinbox"""
     
-    alphaChanged = pyqtSignal(str, str)  # (variable_name, value_as_string)
+    alphaChanged = Signal(str, str)  # (variable_name, value_as_string)
     
     def __init__(self, var_name: str, value_str: str, description: str = "", min_val: int = 0, max_val: int = 255, parent=None):
         super().__init__(parent)
@@ -34,7 +34,7 @@ class AlphaRow(QWidget):
         
         # Numeric spinbox
         self.alpha_spin = QGroupBox() # Placeholder for type compatibility if needed, but using SpinBox direct
-        from PyQt6.QtWidgets import QSpinBox
+        from PySide6.QtWidgets import QSpinBox
         self.alpha_spin = QSpinBox()
         self.alpha_spin.setRange(min_val, max_val)
         
@@ -72,7 +72,7 @@ from .base import BaseDevPanel
 class ColorPickerRow(QWidget):
     """Single row with color variable name, preview, and edit button"""
     
-    colorChanged = pyqtSignal(str, str)  # (variable_name, hex_color)
+    colorChanged = Signal(str, str)  # (variable_name, hex_color)
     
     def __init__(self, var_name: str, color_hex: str, description: str = "", parent=None):
         super().__init__(parent)

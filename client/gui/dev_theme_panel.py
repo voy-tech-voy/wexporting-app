@@ -1,21 +1,21 @@
-"""
+﻿"""
 Developer Theme Panel - F12 Interactive Color Editor
 Allows real-time theme color adjustment and saving to theme_variables.py
 """
 
-from PyQt6.QtWidgets import (
+from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, 
     QScrollArea, QColorDialog, QFrame, QLineEdit, QMessageBox
 )
-from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QColor, QKeyEvent
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QColor, QKeyEvent
 import re
 
 
 class ColorPickerRow(QWidget):
     """Single row with color variable name, preview, and edit button"""
     
-    colorChanged = pyqtSignal(str, str)  # (variable_name, hex_color)
+    colorChanged = Signal(str, str)  # (variable_name, hex_color)
     
     def __init__(self, var_name: str, color_hex: str, description: str = "", parent=None):
         super().__init__(parent)
@@ -132,7 +132,7 @@ class DevThemePanel(QWidget):
         self.theme_colors = self._load_current_colors()
         
         # Debounce timer for theme updates (prevents lag during rapid changes)
-        from PyQt6.QtCore import QTimer
+        from PySide6.QtCore import QTimer
         self._update_timer = QTimer(self)
         self._update_timer.setSingleShot(True)
         self._update_timer.setInterval(200)  # 200ms debounce

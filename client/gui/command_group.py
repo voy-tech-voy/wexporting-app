@@ -1,6 +1,6 @@
-from PyQt6.QtWidgets import QGroupBox, QVBoxLayout, QHBoxLayout, QLabel, QWidget, QSizePolicy, QFormLayout
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QPixmap, QIcon, QPainter, QColor
+﻿from PySide6.QtWidgets import QGroupBox, QVBoxLayout, QHBoxLayout, QLabel, QWidget, QSizePolicy, QFormLayout
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QPixmap, QIcon, QPainter, QColor
 import os
 
 from client.gui.custom_widgets import ModeButtonsWidget

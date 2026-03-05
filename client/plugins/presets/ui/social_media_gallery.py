@@ -1,17 +1,17 @@
-"""
+﻿"""
 Social Media Gallery - 2-Step Selection Flow
 
 Step 1: Select aspect ratio (4 cards: 9:16, 3:4, 1:1, 16:9)
 Step 2: Select platform (5 cards: Instagram, TikTok, X, YouTube, LinkedIn)
 """
-from PyQt6.QtWidgets import (
+from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QGraphicsOpacityEffect, QFrame, QSizePolicy
 )
-from PyQt6.QtCore import Qt, pyqtSignal, QPropertyAnimation, QEasingCurve, QTimer, QSize
-from PyQt6.QtGui import QColor, QPainter, QPixmap
-from PyQt6.QtSvg import QSvgRenderer
-from PyQt6.QtCore import QByteArray
+from PySide6.QtCore import Qt, Signal, QPropertyAnimation, QEasingCurve, QTimer, QSize
+from PySide6.QtGui import QColor, QPainter, QPixmap
+from PySide6.QtSvg import QSvgRenderer
+from PySide6.QtCore import QByteArray
 
 from typing import Optional, Dict, List
 from pathlib import Path
@@ -22,7 +22,7 @@ from client.utils.resource_path import get_resource_path
 class SocialRatioCard(QFrame):
     """Card for aspect ratio selection (Step 1)."""
     
-    clicked = pyqtSignal(str)  # Emits ratio_id like "9x16"
+    clicked = Signal(str)  # Emits ratio_id like "9x16"
     
     CARD_WIDTH = 120
     CARD_HEIGHT = 140
@@ -121,7 +121,7 @@ class SocialRatioCard(QFrame):
 class SocialPlatformCard(QFrame):
     """Card for platform selection (Step 2)."""
     
-    clicked = pyqtSignal(str, str)  # Emits (platform_id, ratio_id)
+    clicked = Signal(str, str)  # Emits (platform_id, ratio_id)
     
     CARD_WIDTH = 100
     CARD_HEIGHT = 120
@@ -234,8 +234,8 @@ class SocialMediaGallery(QWidget):
         back_requested: Emitted when user wants to go back from step 2 to step 1
     """
     
-    preset_selected = pyqtSignal(str, str)  # (platform_id, ratio_id)
-    back_requested = pyqtSignal()
+    preset_selected = Signal(str, str)  # (platform_id, ratio_id)
+    back_requested = Signal()
     
     ANIMATION_DURATION = 150
     

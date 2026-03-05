@@ -1,13 +1,13 @@
-"""
+﻿"""
 Status Panel Component - Mediator-Shell Architecture
 
 Progress bars and status display for conversion operations.
 Extracted from MainWindow to follow the Mediator-Shell pattern.
 """
 
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QStatusBar
-from PyQt6.QtGui import QPainter, QLinearGradient, QColor
-from PyQt6.QtCore import Qt, QPropertyAnimation, QEasingCurve, pyqtProperty
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QStatusBar
+from PySide6.QtGui import QPainter, QLinearGradient, QColor
+from PySide6.QtCore import Qt, QPropertyAnimation, QEasingCurve, Property
 
 
 class CustomProgressBar(QWidget):
@@ -70,7 +70,7 @@ class CustomProgressBar(QWidget):
         self._animation.setEasingCurve(QEasingCurve.Type.OutCubic)
         self._animation.start()
     
-    @pyqtProperty(float)
+    @Property(float)
     def progress_value(self) -> float:
         return self.progress
     

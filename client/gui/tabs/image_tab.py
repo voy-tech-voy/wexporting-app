@@ -1,15 +1,15 @@
-"""
+﻿"""
 ImageTab - Image conversion tab component.
 
 Extracted from CommandPanel as part of the Mediator-Shell refactoring.
 This tab handles image format, quality, resize, and rotation settings.
 """
 
-from PyQt6.QtWidgets import (
+from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QSlider, 
     QSizePolicy, QComboBox, QDoubleSpinBox, QCheckBox
 )
-from PyQt6.QtCore import Qt
+from PySide6.QtCore import Qt
 
 from client.gui.tabs.base_tab import BaseTab
 from client.gui.command_group import CommandGroup

@@ -1,4 +1,4 @@
-"""
+﻿"""
 UI Rendering Tests for Preset Gallery
 
 Tests for proper overlay rendering behavior:
@@ -10,9 +10,9 @@ Tests for proper overlay rendering behavior:
 """
 import pytest
 from unittest.mock import Mock, MagicMock, patch
-from PyQt6.QtWidgets import QApplication, QWidget
-from PyQt6.QtCore import Qt, QRect
-from PyQt6.QtGui import QColor
+from PySide6.QtWidgets import QApplication, QWidget
+from PySide6.QtCore import Qt, QRect
+from PySide6.QtGui import QColor
 
 
 # Ensure QApplication exists for Qt tests
@@ -121,8 +121,8 @@ class TestGalleryRendering:
     def test_gallery_resize_follows_parent(self, qapp):
         """Test gallery resizes when parent resizes."""
         from client.plugins.presets.ui.gallery import PresetGallery
-        from PyQt6.QtCore import QSize
-        from PyQt6.QtGui import QResizeEvent
+        from PySide6.QtCore import QSize
+        from PySide6.QtGui import QResizeEvent
         
         parent = QWidget()
         parent.resize(800, 600)
@@ -205,9 +205,9 @@ class TestGalleryOverlayBehavior:
     def test_gallery_click_on_background_emits_dismissed(self, qapp):
         """Test clicking on gallery background emits dismissed signal."""
         from client.plugins.presets.ui.gallery import PresetGallery
-        from PyQt6.QtCore import QPointF
-        from PyQt6.QtGui import QMouseEvent, QSinglePointEvent
-        from PyQt6.QtCore import QEvent
+        from PySide6.QtCore import QPointF
+        from PySide6.QtGui import QMouseEvent, QSinglePointEvent
+        from PySide6.QtCore import QEvent
         
         gallery = PresetGallery()
         gallery.resize(800, 600)
@@ -227,7 +227,7 @@ class TestGalleryBackgroundColor:
     def test_gallery_background_is_dark_grey(self, qapp):
         """Test gallery background is dark grey with high opacity."""
         from client.plugins.presets.ui.gallery import PresetGallery
-        from PyQt6.QtGui import QPainter, QColor, QImage
+        from PySide6.QtGui import QPainter, QColor, QImage
         
         gallery = PresetGallery()
         gallery.resize(100, 100)
@@ -255,7 +255,7 @@ class TestGalleryBackgroundColor:
     def test_gallery_opacity_blocks_content_behind(self, qapp):
         """Test gallery opacity is high enough to obscure content behind."""
         from client.plugins.presets.ui.gallery import PresetGallery
-        from PyQt6.QtGui import QColor
+        from PySide6.QtGui import QColor
         
         # The expected alpha is 230/255 = 0.9 (90% opacity)
         expected_alpha = 230

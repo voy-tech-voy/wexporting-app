@@ -1,11 +1,11 @@
-"""
+﻿"""
 Estimator Version Selector Widget
 
 Reusable component for selecting estimator versions across all tabs.
 Automatically populates based on media type and format/codec.
 """
-from PyQt6.QtWidgets import QWidget, QComboBox, QLabel, QHBoxLayout
-from PyQt6.QtCore import pyqtSignal as Signal
+from PySide6.QtWidgets import QWidget, QComboBox, QLabel, QHBoxLayout
+from PySide6.QtCore import Signal as Signal
 from typing import Optional
 
 

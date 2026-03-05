@@ -1,14 +1,14 @@
-"""
+﻿"""
 Version Update Dialogs
 
 Dialogs for handling app version updates (Version Gateway Pattern).
 Separate from content update dialogs (UpdateDialog).
 """
 
-from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QLabel, QPushButton, 
+from PySide6.QtWidgets import (QDialog, QVBoxLayout, QLabel, QPushButton, 
                               QHBoxLayout, QWidget, QApplication)
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QFont
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QFont
 from client.gui.theme_manager import ThemeManager
 import webbrowser
 

@@ -1,6 +1,6 @@
-from PyQt6.QtWidgets import QFrame, QLabel, QVBoxLayout, QWidget, QApplication
-from PyQt6.QtCore import Qt, QSize, QPropertyAnimation, pyqtProperty
-from PyQt6.QtGui import QIcon, QPixmap
+﻿from PySide6.QtWidgets import QFrame, QLabel, QVBoxLayout, QWidget, QApplication
+from PySide6.QtCore import Qt, QSize, QPropertyAnimation, Property
+from PySide6.QtGui import QIcon, QPixmap
 from client.utils.resource_path import get_resource_path
 from client.gui.theme_variables import ThemeVariables
 
@@ -119,5 +119,5 @@ class PresetCard(QFrame):
         # Use a timer to revert? 
         # Actually simplest is just to set a flag or let the overlay handle the reset.
         # But for self-contained:
-        from PyQt6.QtCore import QTimer
+        from PySide6.QtCore import QTimer
         QTimer.singleShot(150, lambda: self.setup_styles())

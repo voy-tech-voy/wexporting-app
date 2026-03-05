@@ -1,15 +1,15 @@
-"""
+﻿"""
 Output Footer Widget
 A unified bottom bar with segmented output destination toggle and Start button.
 Based on Design Spec v4.0 - Premium Industrial
 """
 
-from PyQt6.QtWidgets import (
+from PySide6.QtWidgets import (
     QWidget, QHBoxLayout, QVBoxLayout, QPushButton, QLabel,
     QSizePolicy, QGraphicsOpacityEffect, QGraphicsDropShadowEffect
 )
-from PyQt6.QtCore import Qt, pyqtSignal, QPropertyAnimation, QEasingCurve, QTimer
-from PyQt6.QtGui import QColor, QFont
+from PySide6.QtCore import Qt, Signal, QPropertyAnimation, QEasingCurve, QTimer
+from PySide6.QtGui import QColor, QFont
 
 from client.utils.font_manager import FONT_FAMILY, FONT_FAMILY_APP_NAME, FONT_SIZE_BUTTON
 from client.gui.theme import Theme
@@ -25,9 +25,9 @@ class OutputFooter(QWidget):
     Based on Design Spec v4.0 - Output Bar (Bottom Strip)
     """
     
-    start_conversion = pyqtSignal()
-    stop_conversion = pyqtSignal()
-    output_mode_changed = pyqtSignal(str)  # "source", "organized", "custom"
+    start_conversion = Signal()
+    stop_conversion = Signal()
+    output_mode_changed = Signal(str)  # "source", "organized", "custom"
     
     def __init__(self, parent=None):
         super().__init__(parent)

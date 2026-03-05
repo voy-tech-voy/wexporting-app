@@ -1,7 +1,7 @@
-from PyQt6.QtWidgets import QFrame, QVBoxLayout, QLabel, QApplication, QPushButton
-from PyQt6.QtCore import QPropertyAnimation, QEasingCurve, pyqtSignal, QTimer, pyqtProperty, Qt
-from PyQt6.QtGui import QPixmap, QPainter, QIcon
-from PyQt6.QtSvg import QSvgRenderer
+﻿from PySide6.QtWidgets import QFrame, QVBoxLayout, QLabel, QApplication, QPushButton
+from PySide6.QtCore import QPropertyAnimation, QEasingCurve, Signal, QTimer, Property, Qt
+from PySide6.QtGui import QPixmap, QPainter, QIcon
+from PySide6.QtSvg import QSvgRenderer
 from typing import Optional
 from client.gui.animators.animation_driver import AnimationDriver
 
@@ -20,7 +20,7 @@ class DynamicParameterPanel(QFrame):
     - AnimationDriver integration for dev panel tuning
     """
     
-    go_to_lab_clicked = pyqtSignal(dict)  # Emits lab_mode_settings
+    go_to_lab_clicked = Signal(dict)  # Emits lab_mode_settings
     
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -75,9 +75,9 @@ class DynamicParameterPanel(QFrame):
         
         # Go to Lab button (hidden by default, shown for Lab Mode reference presets)
         # Custom button with lab vial icons on both sides
-        from PyQt6.QtWidgets import QHBoxLayout, QWidget
-        from PyQt6.QtGui import QPixmap
-        from PyQt6.QtCore import QSize
+        from PySide6.QtWidgets import QHBoxLayout, QWidget
+        from PySide6.QtGui import QPixmap
+        from PySide6.QtCore import QSize
         
         # Create a container widget for the button
         self._go_to_lab_btn = QPushButton()
@@ -129,7 +129,7 @@ class DynamicParameterPanel(QFrame):
         self._update_go_to_lab_button_style()
     
     # Custom property for smooth height animation - uses setFixedHeight to bypass layout constraints
-    @pyqtProperty(int)
+    @Property(int)
     def animatedHeight(self):
         """Get current animated height."""
         return self._current_animated_height
@@ -186,8 +186,8 @@ class DynamicParameterPanel(QFrame):
     
     def _load_vial_icons(self):
         """Load lab vial icons for the button."""
-        from PyQt6.QtSvg import QSvgRenderer
-        from PyQt6.QtCore import QByteArray, QRectF
+        from PySide6.QtSvg import QSvgRenderer
+        from PySide6.QtCore import QByteArray, QRectF
         from client.utils.resource_path import get_resource_path
         import re
         

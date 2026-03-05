@@ -1,4 +1,4 @@
-"""
+﻿"""
 Theme Manager - Singleton Controller for Application Theming
 Handles dark/light mode detection and theme switching.
 
@@ -9,9 +9,9 @@ This is the central orchestrator that:
 """
 
 from threading import Lock
-from PyQt6.QtCore import QObject, pyqtSignal
-from PyQt6.QtGui import QPalette
-from PyQt6.QtWidgets import QApplication
+from PySide6.QtCore import QObject, Signal
+from PySide6.QtGui import QPalette
+from PySide6.QtWidgets import QApplication
 from client.gui.theme import Theme
 from client.gui.styles.style_factory import StyleFactory
 
@@ -37,7 +37,7 @@ class ThemeManager(QObject):
     _lock = Lock()
     
     # Signal emits boolean: True for dark mode, False for light mode
-    theme_changed = pyqtSignal(bool)
+    theme_changed = Signal(bool)
     
     def __new__(cls):
         """Thread-safe singleton implementation."""

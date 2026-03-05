@@ -1,10 +1,10 @@
-"""
+﻿"""
 Custom Preset Button - Simple button for creating custom presets from Lab Mode.
 """
 
-from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtWidgets import QWidget, QSizePolicy
-from PyQt6.QtGui import QColor, QPainter, QBrush, QPen, QFont
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtWidgets import QWidget, QSizePolicy
+from PySide6.QtGui import QColor, QPainter, QBrush, QPen, QFont
 from client.gui.effects.glow_effect import GlowEffectManager, GlowState
 from client.utils.font_manager import FONT_FAMILY
 
@@ -14,7 +14,7 @@ class CustomPresetButton(QWidget):
     Simple circular button with "+" icon for creating custom presets.
     Features Siri-style glow effect on hover.
     """
-    clicked = pyqtSignal()
+    clicked = Signal()
     
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -42,7 +42,7 @@ class CustomPresetButton(QWidget):
         top_window = self.window()
         if top_window is None or top_window == self:
             # Retry later if window not ready
-            from PyQt6.QtCore import QTimer
+            from PySide6.QtCore import QTimer
             QTimer.singleShot(100, self._setup_glow)
             return
             
@@ -90,7 +90,7 @@ class CustomPresetButton(QWidget):
         else:
             self._glow_manager.show()
             # Force position update after show
-            from PyQt6.QtCore import QTimer
+            from PySide6.QtCore import QTimer
             QTimer.singleShot(10, self._update_glow_position)
     
     def paintEvent(self, event):

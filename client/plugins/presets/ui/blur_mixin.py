@@ -1,11 +1,11 @@
-"""
+﻿"""
 Blur Background Mixin
 
 Provides blur background capture and rendering functionality for overlay widgets.
 """
-from PyQt6.QtWidgets import QGraphicsScene, QGraphicsPixmapItem, QGraphicsBlurEffect
-from PyQt6.QtGui import QPainter, QPixmap, QColor
-from PyQt6.QtCore import Qt, QRect
+from PySide6.QtWidgets import QGraphicsScene, QGraphicsPixmapItem, QGraphicsBlurEffect
+from PySide6.QtGui import QPainter, QPixmap, QColor
+from PySide6.QtCore import Qt, QRect
 
 
 class BlurBackgroundMixin:
@@ -20,8 +20,8 @@ class BlurBackgroundMixin:
                 super().paintEvent(event)
     """
     
-    def __init__(self):
-        super().__init__()
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self._blurred_background = None
         self._is_capturing_blur = False
     

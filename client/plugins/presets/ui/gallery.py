@@ -1,18 +1,18 @@
-"""
+﻿"""
 Presets Plugin - Preset Gallery
 
 Overlay widget displaying a responsive grid of preset cards.
 Adapts to container width and groups presets by category when showing all.
 """
-from PyQt6.QtWidgets import (
+from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QScrollArea, 
     QLabel, QGraphicsOpacityEffect, QFrame
 )
-from PyQt6.QtCore import Qt, pyqtSignal, QPropertyAnimation, QEasingCurve, QTimer, QRectF
-from PyQt6.QtGui import QPainter, QPainterPath
+from PySide6.QtCore import Qt, Signal, QPropertyAnimation, QEasingCurve, QTimer, QRectF
+from PySide6.QtGui import QPainter, QPainterPath
 
 from typing import List, Dict
-from PyQt6 import sip
+import shiboken6
 from client.plugins.presets.logic.models import PresetDefinition
 from client.plugins.presets.ui.card import PresetCard
 from client.plugins.presets.ui.filter_bar import CategoryFilterBar
@@ -33,16 +33,15 @@ class PresetGallery(BlurBackgroundMixin, QWidget):
     - Centered cards within each row
     """
     
-    preset_selected = pyqtSignal(object)  # PresetDefinition
-    dismissed = pyqtSignal()
-    go_to_lab_requested = pyqtSignal(dict)  # lab_mode_settings
+    preset_selected = Signal(object)  # PresetDefinition
+    dismissed = Signal()
+    go_to_lab_requested = Signal(dict)  # lab_mode_settings
     
     # Animation configuration
     ANIMATION_DURATION = 250  # Fade-in duration in ms
     
     def __init__(self, parent=None):
-        super().__init__()
-        QWidget.__init__(self, parent)
+        super().__init__(parent)
         self.setObjectName("PresetGallery")
         
         self._cards: List[PresetCard] = []
@@ -79,7 +78,7 @@ class PresetGallery(BlurBackgroundMixin, QWidget):
     
     def eventFilter(self, obj, event):
         """Monitor parent resize events and catch double-clicks on scroll area."""
-        from PyQt6.QtCore import QEvent
+        from PySide6.QtCore import QEvent
         
         # Handle parent resize
         if obj == self.parent() and event.type() == QEvent.Type.Resize:
@@ -383,7 +382,7 @@ class PresetGallery(BlurBackgroundMixin, QWidget):
         if self._selected_card is not None:
             try:
                 # Check if the card still exists and is valid
-                if not sip.isdeleted(self._selected_card):
+                if shiboken6.isValid(self._selected_card):
                     self._selected_card.set_selected(False)
             except RuntimeError:
                 # Card was deleted, ignore
@@ -502,8 +501,8 @@ class PresetGallery(BlurBackgroundMixin, QWidget):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         
         # Clip to rounded corners to match parent drop area bevel
-        from PyQt6.QtGui import QPainterPath
-        from PyQt6.QtCore import QRectF
+        from PySide6.QtGui import QPainterPath
+        from PySide6.QtCore import QRectF
         path = QPainterPath()
         # Use Theme.RADIUS_LG for the bevel as used in Drop Area
         radius = Theme.RADIUS_LG
@@ -591,7 +590,7 @@ class PresetGallery(BlurBackgroundMixin, QWidget):
     
     def keyPressEvent(self, event):
         """Handle F12 key to open gallery color panel."""
-        from PyQt6.QtCore import Qt
+        from PySide6.QtCore import Qt
         if event.key() == Qt.Key.Key_F12:
             self.toggle_gallery_color_panel()
         super().keyPressEvent(event)

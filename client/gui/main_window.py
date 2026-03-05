@@ -1,17 +1,17 @@
-"""
+﻿"""
 Main Window for Graphics Conversion App
 Implements the layout: Top Bar | Mid Section (Drag-Drop + Commands) | Bottom Bar
 """
 
 import sys
 import os
-from PyQt6.QtWidgets import (
+from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QPushButton, QFrame, QDialog, QApplication,
     QGraphicsDropShadowEffect, QSplitter, QStatusBar
 )
-from PyQt6.QtGui import QIcon, QFont, QAction, QColor
-from PyQt6.QtCore import Qt, pyqtSignal, QPoint, QSize, pyqtSlot, QTimer, QEvent
+from PySide6.QtGui import QIcon, QFont, QAction, QColor
+from PySide6.QtCore import Qt, Signal, QPoint, QSize, Slot, QTimer, QEvent
 
 from .drag_drop_area import DragDropArea
 from .command_panel import CommandPanel
@@ -91,7 +91,7 @@ class MainWindow(WindowEventMixin, QMainWindow):
         
         # Set window icon if available
         try:
-            from PyQt6.QtGui import QIcon
+            from PySide6.QtGui import QIcon
             from client.utils.resource_path import get_app_icon_path
             
             icon_path = get_app_icon_path()
@@ -138,7 +138,7 @@ class MainWindow(WindowEventMixin, QMainWindow):
         self.check_tools()
         
         # Reset drop area rendering after 1ms
-        from PyQt6.QtCore import QTimer
+        from PySide6.QtCore import QTimer
         QTimer.singleShot(1, self.drag_drop_area.clear_files)
 
         # Global event filter for clearing statuses
@@ -495,7 +495,7 @@ class MainWindow(WindowEventMixin, QMainWindow):
                 gallery = self.drag_drop_area._preset_orchestrator._gallery
                 # If gallery is currently visible, force immediate recapture with delay for rendering
                 if gallery.isVisible():
-                    from PyQt6.QtCore import QTimer
+                    from PySide6.QtCore import QTimer
                     QTimer.singleShot(50, lambda: gallery.capture_blur_background(force=True))
                 else:
                     # If not visible, just clear cache so next open captures fresh
@@ -565,7 +565,7 @@ class MainWindow(WindowEventMixin, QMainWindow):
         if self.conversion_conductor:
             self.conversion_conductor.set_progress(value)
     
-    @pyqtSlot(int, float)
+    @Slot(int, float)
     def on_file_progress(self, file_index, progress):
         """Handle file progress (delegates to ConversionConductor)."""
         if self.conversion_conductor:
@@ -736,7 +736,7 @@ class MainWindow(WindowEventMixin, QMainWindow):
     
     def keyPressEvent(self, event):
         """Handle global keyboard shortcuts"""
-        from PyQt6.QtCore import Qt
+        from PySide6.QtCore import Qt
         
         # Delegate to DevPanelManager
         if hasattr(self, 'dev_panel_manager') and self.dev_panel_manager.handle_key_event(event):

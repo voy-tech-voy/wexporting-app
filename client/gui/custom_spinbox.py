@@ -1,10 +1,10 @@
-"""
+﻿"""
 Custom SpinBox Widget with Chevron Arrows and Drag-to-Change
 """
 
-from PyQt6.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QLabel, QSpinBox, QSizePolicy
-from PyQt6.QtCore import pyqtSignal, Qt, QEvent, QTimer
-from PyQt6.QtGui import QFont, QPixmap, QPainter, QColor, QPen, QCursor
+from PySide6.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QLabel, QSpinBox, QSizePolicy
+from PySide6.QtCore import Signal, Qt, QEvent, QTimer
+from PySide6.QtGui import QFont, QPixmap, QPainter, QColor, QPen, QCursor
 
 
 class IntegerDragOverlay(QWidget):
@@ -71,7 +71,7 @@ class CustomSpinBox(QWidget):
     Supports drag-to-change: click and drag horizontally to adjust value.
     """
     
-    valueChanged = pyqtSignal(int)
+    valueChanged = Signal(int)
     
     def __init__(self, parent=None, default_value=100, on_enter_callback=None):
         super().__init__(parent)
@@ -94,7 +94,7 @@ class CustomSpinBox(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
         
-        from PyQt6.QtWidgets import QAbstractSpinBox
+        from PySide6.QtWidgets import QAbstractSpinBox
         
         self.spinbox = QSpinBox()
         self.spinbox.setButtonSymbols(QAbstractSpinBox.ButtonSymbols.NoButtons)

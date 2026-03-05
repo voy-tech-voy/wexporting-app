@@ -1,4 +1,4 @@
-"""
+﻿"""
 Command Panel Widget (Refactored)
 Container for tab components - delegates all parameter handling to tabs.
 
@@ -9,12 +9,12 @@ This is a CONTAINER, not a controller. It:
 4. Does NOT contain logic about resize modes or codec settings
 """
 
-from PyQt6.QtWidgets import (
+from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
     QTabWidget, QSizePolicy, QStackedWidget
 )
-from PyQt6.QtCore import Qt, pyqtSignal, QTimer
-from PyQt6.QtGui import QIcon
+from PySide6.QtCore import Qt, Signal, QTimer
+from PySide6.QtGui import QIcon
 
 from client.gui.tabs import ImageTab, VideoTab, LoopTab
 from client.gui.custom_widgets import (
@@ -36,10 +36,10 @@ class CommandPanel(QWidget):
         lab_state_changed: Emitted for lab button state updates
     """
     
-    conversion_requested = pyqtSignal(dict)
-    stop_conversion_requested = pyqtSignal()
-    global_mode_changed = pyqtSignal(str)
-    lab_state_changed = pyqtSignal(str, bool)
+    conversion_requested = Signal(dict)
+    stop_conversion_requested = Signal()
+    global_mode_changed = Signal(str)
+    lab_state_changed = Signal(str, bool)
     
     def __init__(self):
         super().__init__()

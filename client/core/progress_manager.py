@@ -1,4 +1,4 @@
-"""
+﻿"""
 ConversionProgressManager - Modular progress tracking for all conversion modes.
 
 Handles:
@@ -68,7 +68,7 @@ from enum import Enum
 from dataclasses import dataclass
 from typing import List, Optional, Dict, Set, TYPE_CHECKING
 import os
-from PyQt6.QtCore import QObject, pyqtSignal
+from PySide6.QtCore import QObject, Signal
 
 if TYPE_CHECKING:
     from client.plugins.presets.logic.models import PresetDefinition
@@ -115,7 +115,7 @@ class ConversionProgressManager(QObject):
     """
     
     # Signal emitted when totals are recalculated
-    totals_changed = pyqtSignal(int, int, int)  # valid_count, skipped_count, total_outputs
+    totals_changed = Signal(int, int, int)  # valid_count, skipped_count, total_outputs
     
     # Format mappings for Lab mode tabs
     TAB_FORMATS: Dict[LabTab, Set[str]] = {

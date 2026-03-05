@@ -1,6 +1,6 @@
-from PyQt6.QtCore import Qt, QTimer, QPoint, QRect, QObject, QPropertyAnimation, pyqtProperty, QEasingCurve
-from PyQt6.QtGui import QPainter, QColor, QRadialGradient, QBrush, QPixmap, QImage, QPen
-from PyQt6.QtWidgets import QWidget, QGraphicsBlurEffect
+﻿from PySide6.QtCore import Qt, QTimer, QPoint, QRect, QObject, QPropertyAnimation, Property, QEasingCurve
+from PySide6.QtGui import QPainter, QColor, QRadialGradient, QBrush, QPixmap, QImage, QPen
+from PySide6.QtWidgets import QWidget, QGraphicsBlurEffect
 import math
 import colorsys
 import random
@@ -296,7 +296,7 @@ class SiriGlowOverlay(QWidget):
         self._master_opacity = opacity
         self.update()
         
-    masterOpacity = pyqtProperty(float, get_master_opacity, set_master_opacity)
+    masterOpacity = Property(float, get_master_opacity, set_master_opacity)
         
     def set_pulse_phase(self, phase):
         """Set the current pulse phase (0.0-1.0)"""
@@ -768,7 +768,7 @@ class GlowEffectManager(QObject):
         self._opacity_anim.finished.connect(self._on_anim_finished)
 
     # Easing Properties
-    @pyqtProperty(str)
+    @Property(str)
     def animationEasing(self):
         return getattr(self, '_easing_style_name', 'InOutQuad')
         
@@ -777,7 +777,7 @@ class GlowEffectManager(QObject):
         self._easing_style_name = name
         self._update_easing()
 
-    @pyqtProperty(float)
+    @Property(float)
     def easingAmplitude(self):
         return getattr(self, '_easing_amp', 1.0)
 
@@ -786,7 +786,7 @@ class GlowEffectManager(QObject):
         self._easing_amp = val
         self._update_easing()
 
-    @pyqtProperty(float)
+    @Property(float)
     def easingPeriod(self):
         return getattr(self, '_easing_period', 0.3)
 

@@ -1,12 +1,12 @@
-"""
+﻿"""
 Presets Plugin - Preset Card Widget
 
 A 3:4 ratio card widget displaying preset information.
 Based on .agent/preset_card_spec.md design specification.
 """
-from PyQt6.QtWidgets import QFrame, QVBoxLayout, QLabel, QGraphicsOpacityEffect
-from PyQt6.QtCore import Qt, pyqtSignal, QPropertyAnimation, QEasingCurve
-from PyQt6.QtGui import QPixmap, QIcon, QColor, QPainter, QTransform
+from PySide6.QtWidgets import QFrame, QVBoxLayout, QLabel, QGraphicsOpacityEffect
+from PySide6.QtCore import Qt, Signal, QPropertyAnimation, QEasingCurve
+from PySide6.QtGui import QPixmap, QIcon, QColor, QPainter, QTransform
 
 from client.plugins.presets.logic.models import PresetDefinition
 from client.utils.resource_path import get_resource_path
@@ -33,7 +33,7 @@ class PresetCard(QFrame):
         clicked: Emitted when card is clicked, passes PresetDefinition
     """
     
-    clicked = pyqtSignal(object)  # Emits PresetDefinition
+    clicked = Signal(object)  # Emits PresetDefinition
     
     # Card dimensions (3:4 ratio)
     CARD_WIDTH = 120
@@ -139,8 +139,8 @@ class PresetCard(QFrame):
         
         try:
             if icon_path:
-                from PyQt6.QtSvg import QSvgRenderer
-                from PyQt6.QtCore import QByteArray, QRectF
+                from PySide6.QtSvg import QSvgRenderer
+                from PySide6.QtCore import QByteArray, QRectF
                 
                 # Read SVG file
                 with open(icon_path, 'r', encoding='utf-8') as f:
@@ -223,8 +223,8 @@ class PresetCard(QFrame):
     
     def _load_lab_mode_icon(self, color: QColor):
         """Render dual icon for Lab Mode reference presets."""
-        from PyQt6.QtSvg import QSvgRenderer
-        from PyQt6.QtCore import QRectF, QByteArray
+        from PySide6.QtSvg import QSvgRenderer
+        from PySide6.QtCore import QRectF, QByteArray
         import re
         
         # Get lab mode type from settings

@@ -1,4 +1,4 @@
-"""
+﻿"""
 Session Manager - Centralized User Session & Entitlements
 
 Manages user identity, authentication tokens, and entitlements (Premium status).
@@ -6,7 +6,7 @@ Implements runtime obfuscation for security-sensitive flags.
 """
 
 import os
-from PyQt6.QtCore import QObject, pyqtSignal
+from PySide6.QtCore import QObject, Signal
 
 
 class SessionManager(QObject):
@@ -21,9 +21,9 @@ class SessionManager(QObject):
     """
     
     # Signals
-    premium_status_changed = pyqtSignal(bool)  # Emitted when premium status changes
-    session_started = pyqtSignal()              # Emitted when user logs in
-    session_ended = pyqtSignal()                # Emitted when user logs out
+    premium_status_changed = Signal(bool)  # Emitted when premium status changes
+    session_started = Signal()              # Emitted when user logs in
+    session_ended = Signal()                # Emitted when user logs out
     
     _instance = None
     

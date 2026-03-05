@@ -1,11 +1,11 @@
-import requests
+﻿import requests
 import time
 import json
 import logging
 import hmac
 import hashlib
 from datetime import datetime, timedelta
-from PyQt6.QtCore import QObject, pyqtSignal, QThread
+from PySide6.QtCore import QObject, Signal, QThread
 
 # Configure logging
 logger = logging.getLogger("EnergyAPIClient")
@@ -21,9 +21,9 @@ class EnergyAPIClient(QObject):
     """
     
     # Signals
-    sync_completed = pyqtSignal(bool, dict) # success, data (balance, max_daily)
-    reservation_completed = pyqtSignal(bool, dict) # success, data (approved, new_balance)
-    report_completed = pyqtSignal(bool, dict) # success, data (new_balance)
+    sync_completed = Signal(bool, dict) # success, data (balance, max_daily)
+    reservation_completed = Signal(bool, dict) # success, data (approved, new_balance)
+    report_completed = Signal(bool, dict) # success, data (new_balance)
     
     def __init__(self, api_base_url, secret_key=None):
         super().__init__()

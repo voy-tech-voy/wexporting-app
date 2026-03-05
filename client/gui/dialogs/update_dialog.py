@@ -1,9 +1,9 @@
-"""
+﻿"""
 Update Dialog
 Shows available updates to the user.
 """
-from PyQt6.QtWidgets import QDialog, QVBoxLayout, QLabel, QPushButton, QHBoxLayout, QTextBrowser
-from PyQt6.QtCore import Qt
+from PySide6.QtWidgets import QDialog, QVBoxLayout, QLabel, QPushButton, QHBoxLayout, QTextBrowser
+from PySide6.QtCore import Qt
 from client.gui.theme_manager import ThemeManager
 
 class UpdateDialog(QDialog):

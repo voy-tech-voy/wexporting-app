@@ -1,4 +1,4 @@
-"""
+﻿"""
 Version Gateway Conductor
 
 Wraps the update_checker module to provide version checking functionality
@@ -6,7 +6,7 @@ following the conductor pattern. Handles app version updates (not content update
 """
 
 import logging
-from PyQt6.QtCore import QObject, QThread, pyqtSignal
+from PySide6.QtCore import QObject, QThread, Signal
 from client.utils.update_checker import check_for_updates, UpdateState, UpdateCheckResult
 
 logger = logging.getLogger(__name__)
@@ -16,7 +16,7 @@ class VersionCheckWorker(QThread):
     """
     Worker thread to execute version check without blocking UI.
     """
-    check_complete = pyqtSignal(object)  # Emits UpdateCheckResult
+    check_complete = Signal(object)  # Emits UpdateCheckResult
     
     def __init__(self, timeout=5):
         super().__init__()
@@ -46,10 +46,10 @@ class VersionGatewayConductor(QObject):
     """
     
     # Signals
-    mandatory_update_required = pyqtSignal(object)  # UpdateCheckResult
-    optional_update_available = pyqtSignal(object)  # UpdateCheckResult
-    up_to_date = pyqtSignal()
-    check_failed = pyqtSignal(str)  # Error message
+    mandatory_update_required = Signal(object)  # UpdateCheckResult
+    optional_update_available = Signal(object)  # UpdateCheckResult
+    up_to_date = Signal()
+    check_failed = Signal(str)  # Error message
     
     def __init__(self):
         super().__init__()

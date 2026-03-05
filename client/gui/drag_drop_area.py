@@ -1,15 +1,15 @@
-"""
+﻿"""
 Drag and Drop Area Widget
 Handles file drag and drop operations for the graphics converter
 """
 
-from PyQt6.QtWidgets import (
+from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QListWidget, QListWidgetItem,
     QLabel, QPushButton, QFileDialog, QMessageBox, QStyledItemDelegate, QAbstractItemView
 )
-from PyQt6.QtCore import Qt, pyqtSignal, QEvent, QSize, QByteArray, QObject
-from PyQt6.QtGui import QDragEnterEvent, QDropEvent, QPixmap, QIcon, QAction, QPainter, QColor, QCursor, QBrush
-from PyQt6.QtSvg import QSvgRenderer
+from PySide6.QtCore import Qt, Signal, QEvent, QSize, QByteArray, QObject
+from PySide6.QtGui import QDragEnterEvent, QDropEvent, QPixmap, QIcon, QAction, QPainter, QColor, QCursor, QBrush
+from PySide6.QtSvg import QSvgRenderer
 import os
 import subprocess
 import tempfile
@@ -46,11 +46,11 @@ class DragDropArea(QWidget):
     - Emits signals for parent coordination
     """
     
-    files_added = pyqtSignal(list)  # Signal emitted when files are added
-    preset_applied = pyqtSignal(object, list)  # Emits (preset, files) when preset selected
-    view_mode_changed = pyqtSignal(str)  # Emits new view mode name
-    go_to_lab_requested = pyqtSignal(dict)  # Emits lab_mode_settings when "Go to Lab" is clicked
-    insufficient_credits_dismissed = pyqtSignal()  # Emits when insufficient credits toast is dismissed
+    files_added = Signal(list)  # Signal emitted when files are added
+    preset_applied = Signal(object, list)  # Emits (preset, files) when preset selected
+    view_mode_changed = Signal(str)  # Emits new view mode name
+    go_to_lab_requested = Signal(dict)  # Emits lab_mode_settings when "Go to Lab" is clicked
+    insufficient_credits_dismissed = Signal()  # Emits when insufficient credits toast is dismissed
     
     # Note: SUPPORTED_EXTENSIONS moved to client.core.file_type_utils
     
@@ -465,7 +465,7 @@ class DragDropArea(QWidget):
         if hasattr(self, 'file_list_widget') and self.file_list_widget.count() == 1:
             item = self.file_list_widget.item(0)
             if item and item.data(Qt.ItemDataRole.UserRole) == "PLACEHOLDER":
-                from PyQt6.QtCore import QTimer
+                from PySide6.QtCore import QTimer
                 QTimer.singleShot(10, self.update_placeholder_size)
 
     def update_placeholder_size(self):
@@ -842,7 +842,7 @@ class DragDropArea(QWidget):
             
     def handle_list_key_press(self, event):
         """Handle keyboard events for the file list"""
-        from PyQt6.QtCore import Qt
+        from PySide6.QtCore import Qt
         
         # Handle Delete and Backspace keys to remove selected items
         if event.key() in (Qt.Key.Key_Delete, Qt.Key.Key_Backspace):

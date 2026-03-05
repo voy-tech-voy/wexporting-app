@@ -1,16 +1,16 @@
-"""
+﻿"""
 Presets Plugin - Parameter Form
 
 Dynamically generates UI widgets from preset parameter definitions.
 Supports visibility rules evaluated via Jinja2.
 """
 from typing import Dict, Any, List, Optional
-from PyQt6.QtWidgets import (
+from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
     QCheckBox, QSlider, QComboBox, QPushButton,
     QButtonGroup, QFrame
 )
-from PyQt6.QtCore import Qt, pyqtSignal
+from PySide6.QtCore import Qt, Signal
 from client.gui.custom_widgets import ThemedCheckBox
 
 from jinja2 import Environment, StrictUndefined
@@ -22,7 +22,7 @@ from client.gui.theme import Theme
 class SegmentedPill(QWidget):
     """Segmented button group for multi-option selection"""
     
-    value_changed = pyqtSignal(str)
+    value_changed = Signal(str)
     
     def __init__(self, options: List[str], default: str = None, parent=None):
         super().__init__(parent)
@@ -119,7 +119,7 @@ class ParameterForm(QWidget):
     Visibility rules are evaluated via Jinja2 expressions.
     """
     
-    values_changed = pyqtSignal(dict)  # Emits current param values
+    values_changed = Signal(dict)  # Emits current param values
     
     def __init__(self, parent=None):
         super().__init__(parent)

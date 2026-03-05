@@ -1,11 +1,11 @@
-"""
+﻿"""
 PresetStatusButton - Advanced Preset Button component.
 Extracted from custom_widgets.py.
 """
 
-from PyQt6.QtCore import Qt, QTimer, pyqtSignal, pyqtProperty, QPropertyAnimation, QRect, QPoint
-from PyQt6.QtWidgets import QWidget, QSizePolicy
-from PyQt6.QtGui import QColor, QPainter, QBrush, QImage, QPixmap, QFont, QPen, QFontMetrics, QPainterPath
+from PySide6.QtCore import Qt, QTimer, Signal, Property, QPropertyAnimation, QRect, QPoint
+from PySide6.QtWidgets import QWidget, QSizePolicy
+from PySide6.QtGui import QColor, QPainter, QBrush, QImage, QPixmap, QFont, QPen, QFontMetrics, QPainterPath
 
 from client.gui.animators.animation_driver import AnimationDriver
 from client.gui.effects.glow_effect import GlowEffectManager, GlowState
@@ -18,7 +18,7 @@ class PresetStatusButton(QWidget):
     Handles dynamic width transitions and styling states (Ghost vs Solid).
     Features a Siri-style pulsating glow effect.
     """
-    clicked = pyqtSignal()
+    clicked = Signal()
     
     # Constants
     MIN_WIDTH = 150  # Minimum to fit "PRESETS" text
@@ -143,7 +143,7 @@ class PresetStatusButton(QWidget):
             event.accept()
             
             # Reset debounce after 300ms
-            from PyQt6.QtCore import QTimer
+            from PySide6.QtCore import QTimer
             QTimer.singleShot(300, self._reset_click_pending)
         else:
             super().mousePressEvent(event)
@@ -152,7 +152,7 @@ class PresetStatusButton(QWidget):
         """Reset the click debounce flag."""
         self._click_pending = False
     
-    @pyqtProperty(float)
+    @Property(float)
     def textCenter(self):
         return self._text_center_x
         
@@ -161,7 +161,7 @@ class PresetStatusButton(QWidget):
         self._text_center_x = x
         self.update()
 
-    @pyqtProperty(float)
+    @Property(float)
     def textOpacity(self):
         return self._text_opacity
 
@@ -177,7 +177,7 @@ class PresetStatusButton(QWidget):
         Generate a static noise texture for the button background.
         Prevents banding on solid/gradient button fills.
         """
-        from PyQt6.QtGui import QImage, QPixmap
+        from PySide6.QtGui import QImage, QPixmap
         import random
         
         size = self.NOISE_TILE_SIZE
@@ -376,7 +376,7 @@ class PresetStatusButton(QWidget):
         elif self._glow_manager:
             self._glow_manager.show()
 
-    @pyqtProperty(int)
+    @Property(int)
     def animWidth(self):
         return self._current_width
     

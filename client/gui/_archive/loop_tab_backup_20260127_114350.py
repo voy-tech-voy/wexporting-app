@@ -1,15 +1,15 @@
-"""
+﻿"""
 LoopTab - Loop conversion tab component (GIF/WebM).
 
 Extracted from CommandPanel as part of the Mediator-Shell refactoring.
 This tab handles GIF and WebM loop conversion with format-specific settings.
 """
 
-from PyQt6.QtWidgets import (
+from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QSlider, 
     QSizePolicy
 )
-from PyQt6.QtCore import Qt, pyqtSignal
+from PySide6.QtCore import Qt, Signal
 
 from client.gui.tabs.base_tab import BaseTab
 from client.gui.command_group import CommandGroup
@@ -38,7 +38,7 @@ class LoopTab(BaseTab):
     """
     
     # Signal when format changes (GIF <-> WebM)
-    format_changed = pyqtSignal(str)
+    format_changed = Signal(str)
     
     def __init__(self, parent=None, focus_callback=None, is_dark_mode=True):
         """

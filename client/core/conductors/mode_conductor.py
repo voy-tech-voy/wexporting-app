@@ -1,11 +1,11 @@
-"""
+﻿"""
 Mode Conductor - Mediator-Shell Architecture
 
 Extracted from MainWindow to handle application mode switching logic.
 Coordinates UI state changes between Preset and Lab modes.
 """
 
-from PyQt6.QtCore import QObject, pyqtSignal, QTimer
+from PySide6.QtCore import QObject, Signal, QTimer
 from enum import Enum
 
 
@@ -30,7 +30,7 @@ class ModeConductor(QObject):
     """
     
     # Signals
-    mode_changed = pyqtSignal(Mode)  # Emitted when mode switches
+    mode_changed = Signal(Mode)  # Emitted when mode switches
     
     def __init__(self, 
                  control_bar,

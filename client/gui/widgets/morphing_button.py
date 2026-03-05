@@ -1,12 +1,12 @@
-"""
+﻿"""
 MorphingButton - Button that transitions between icon and expanded menu.
 Extracted from custom_widgets.py.
 """
 
 import os
-from PyQt6.QtCore import Qt, QTimer, QPoint, pyqtSignal, pyqtProperty, QPropertyAnimation, QRect, QSize
-from PyQt6.QtWidgets import QWidget, QHBoxLayout, QPushButton, QVBoxLayout, QGraphicsOpacityEffect
-from PyQt6.QtGui import QPainter, QPen, QColor, QBrush, QIcon, QPixmap
+from PySide6.QtCore import Qt, QTimer, QPoint, Signal, Property, QPropertyAnimation, QRect, QSize
+from PySide6.QtWidgets import QWidget, QHBoxLayout, QPushButton, QVBoxLayout, QGraphicsOpacityEffect
+from PySide6.QtGui import QPainter, QPen, QColor, QBrush, QIcon, QPixmap
 
 from client.gui.animators.animation_driver import AnimationDriver
 from client.utils.resource_path import get_resource_path
@@ -17,10 +17,10 @@ class MorphingButton(QPushButton):
     Button that morphs between icon-only and expanded menu.
     """
     # Signals
-    toggled_state = pyqtSignal(bool)
-    expanded = pyqtSignal(bool)
-    styleChanged = pyqtSignal(bool)  # Emitted when solid/ghost style changes
-    itemClicked = pyqtSignal(object)  # Emits item ID
+    toggled_state = Signal(bool)
+    expanded = Signal(bool)
+    styleChanged = Signal(bool)  # Emitted when solid/ghost style changes
+    itemClicked = Signal(object)  # Emits item ID
     
     # Constants
     COLLAPSED_SIZE = 48
@@ -91,7 +91,7 @@ class MorphingButton(QPushButton):
         
         self._update_main_icon()
 
-    @pyqtProperty(int)
+    @Property(int)
     def animWidth(self):
         return self.width()
 
@@ -174,7 +174,7 @@ class MorphingButton(QPushButton):
         self._menu_container.setParent(self)
         self._icon_opacity_val = 1.0
         
-    @pyqtProperty(float)
+    @Property(float)
     def iconOpacity(self):
         return self._icon_opacity_val
 

@@ -1,12 +1,12 @@
-"""
+﻿"""
 Session Manager - Handles application session lifecycle.
 
 Extracted from MainWindow to follow the Mediator-Shell pattern.
 Handles logout, login window display, and app restart logic.
 """
 
-from PyQt6.QtWidgets import QApplication, QDialog
-from PyQt6.QtCore import QTimer
+from PySide6.QtWidgets import QApplication, QDialog
+from PySide6.QtCore import QTimer
 
 
 class SessionManager:

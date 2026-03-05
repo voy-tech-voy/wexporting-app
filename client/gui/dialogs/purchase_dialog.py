@@ -1,20 +1,20 @@
-import sys
+﻿import sys
 import json
 from pathlib import Path
-from PyQt6.QtWidgets import (
+from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, 
     QPushButton, QProgressBar, QApplication, QWidget, QScrollArea,
     QSizePolicy, QFrame
 )
-from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QPropertyAnimation, QEasingCurve, pyqtProperty
-from PyQt6.QtGui import QFont, QIcon, QColor, QPainter, QBrush
+from PySide6.QtCore import Qt, QTimer, Signal, QPropertyAnimation, QEasingCurve, Property
+from PySide6.QtGui import QFont, QIcon, QColor, QPainter, QBrush
 
 from client.utils.font_manager import AppFonts
 from client.gui.theme import Theme
 from client.gui.utils.winrt_interop import WinRTInterop
 from client.gui.utils.window_effects import WindowEffects
 from client.core.auth import get_store_auth_provider
-from PyQt6.QtCore import QEvent
+from PySide6.QtCore import QEvent
 
 import logging
 logger = logging.getLogger("PurchaseDialog")
@@ -24,7 +24,7 @@ class PurchaseOptionCard(QWidget):
     """
     Card widget for a single purchase option with smooth hover animations.
     """
-    purchase_requested = pyqtSignal(str)  # Emits product_id
+    purchase_requested = Signal(str)  # Emits product_id
     
     def __init__(self, option_data: dict, parent=None):
         super().__init__(parent)
@@ -286,7 +286,7 @@ class PurchaseOptionCard(QWidget):
         self.text_anim.setEasingCurve(QEasingCurve.Type.InOutCubic)
     
     # Custom properties for animation
-    @pyqtProperty(QColor)
+    @Property(QColor)
     def borderColor(self):
         return self._border_color
     
@@ -301,7 +301,7 @@ class PurchaseOptionCard(QWidget):
             }}
         """)
     
-    @pyqtProperty(float)
+    @Property(float)
     def bgOpacity(self):
         return self._bg_opacity
     
@@ -316,7 +316,7 @@ class PurchaseOptionCard(QWidget):
             }}
         """)
     
-    @pyqtProperty(QColor)
+    @Property(QColor)
     def buttonBgColor(self):
         return self._button_bg_color
     
@@ -325,7 +325,7 @@ class PurchaseOptionCard(QWidget):
         self._button_bg_color = color
         self._update_button_style()
     
-    @pyqtProperty(QColor)
+    @Property(QColor)
     def textColor(self):
         return self._text_color
 

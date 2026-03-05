@@ -1,11 +1,11 @@
-"""
+﻿"""
 Conversion Conductor - Mediator-Shell Architecture
 
 Extracted from MainWindow to handle conversion lifecycle management.
 Coordinates conversion engines, progress tracking, and UI updates.
 """
 
-from PyQt6.QtCore import QObject, pyqtSignal, pyqtSlot
+from PySide6.QtCore import QObject, Signal, Slot
 
 
 class ConversionConductor(QObject):
@@ -24,7 +24,7 @@ class ConversionConductor(QObject):
     """
     
     # Signals
-    status_updated = pyqtSignal(str)  # Forward status messages
+    status_updated = Signal(str)  # Forward status messages
     
     def __init__(self,
                  drag_drop_area,
@@ -400,7 +400,7 @@ class ConversionConductor(QObject):
         # Update the green total_progress_bar in output footer (0.0-1.0 scale)
         self.output_footer.set_total_progress(value / 100.0)
     
-    @pyqtSlot(int, float)
+    @Slot(int, float)
     def on_file_progress(self, file_index, progress):
         """Handle individual file progress update - updates blue file progress bar."""
         # Update file list item progress

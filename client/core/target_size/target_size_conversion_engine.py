@@ -1,10 +1,10 @@
-"""
+﻿"""
 Target Size Conversion Engine - Pure Orchestrator
 Delegates to format-specific estimators for actual conversion.
 """
 from pathlib import Path
 from typing import Dict
-from PyQt6.QtCore import QThread, pyqtSignal
+from PySide6.QtCore import QThread, Signal
 
 from .size_estimator_registry import optimize_gif_params
 from .suffix_manager import get_output_path
@@ -21,14 +21,14 @@ class TargetSizeConversionEngine(QThread):
     """
     
     # Signals
-    progress_updated = pyqtSignal(int)
-    file_progress_updated = pyqtSignal(int, float)
-    status_updated = pyqtSignal(str)
-    file_completed = pyqtSignal(str, str)
-    file_skipped = pyqtSignal(str)
-    file_failed = pyqtSignal(str)
-    file_stopped = pyqtSignal(str)
-    conversion_completed = pyqtSignal(int, int, int, int)  # successful, failed, skipped, stopped
+    progress_updated = Signal(int)
+    file_progress_updated = Signal(int, float)
+    status_updated = Signal(str)
+    file_completed = Signal(str, str)
+    file_skipped = Signal(str)
+    file_failed = Signal(str)
+    file_stopped = Signal(str)
+    conversion_completed = Signal(int, int, int, int)  # successful, failed, skipped, stopped
     
     def __init__(self, files: list, params: Dict, progress_manager: ConversionProgressManager = None):
         super().__init__()

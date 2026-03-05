@@ -1,11 +1,11 @@
-"""
+﻿"""
 TargetSizeSection - Reusable target size UI component.
 
 Provides a consistent target size interface across Image, Video, and Loop tabs.
 """
 
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel
-from PyQt6.QtCore import pyqtSignal
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel
+from PySide6.QtCore import Signal
 
 from client.gui.custom_widgets import CustomTargetSizeSpinBox, ThemedCheckBox, UnifiedVariantInput
 
@@ -22,7 +22,7 @@ class TargetSizeSection(QWidget):
     """
     
     # Signal emitted when any parameter changes
-    paramChanged = pyqtSignal()
+    paramChanged = Signal()
     
     def __init__(
         self, 
