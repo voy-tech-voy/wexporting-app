@@ -62,6 +62,6 @@ class Config:
     # ========================================================================
     # ENERGY SYSTEM
     # ========================================================================
-    DAILY_FREE_ENERGY = int(os.environ.get('DAILY_FREE_ENERGY', 50))  # Free tier daily energy
+    DAILY_FREE_ENERGY = int(os.environ.get('DAILY_FREE_ENERGY', 35))  # Free tier daily energy
     ENERGY_RESET_HOUR_UTC = int(os.environ.get('ENERGY_RESET_HOUR_UTC', 0))  # Midnight UTC
 

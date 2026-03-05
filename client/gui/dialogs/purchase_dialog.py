@@ -699,8 +699,8 @@ class PurchaseDialog(QDialog):
                     em.balance += 500
                     em.save()
                     em.energy_changed.emit(em.balance, em.max_daily_energy)
-                elif product_id == "9NBLGGH42DRJ": # Daily focus pack 150
-                    em.max_daily_energy = 150
+                elif product_id == "9NBLGGH42DRJ": # Daily focus pack +200
+                    em.max_daily_energy += 200
                     em.balance += 100
                     em.save()
                     em.energy_changed.emit(em.balance, em.max_daily_energy)

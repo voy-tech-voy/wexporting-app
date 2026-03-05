@@ -356,7 +356,7 @@ def validate_store_receipt():
         {
             "success": true,
             "is_premium": true,
-            "energy_balance": 50,
+            "energy_balance": 35,
             "jwt_token": "eyJ..."
         }
     """
@@ -471,7 +471,7 @@ def energy_sync():
         {
             "success": true,
             "balance": 45,
-            "max_daily": 50,
+            "max_daily": 35,
             "is_premium": false,
             "signature": "..."
         }
@@ -593,8 +593,8 @@ def energy_reserve():
         user_profile['energy_balance'] = new_balance
         
         # If we dipped below purchased amount, clamp purchased pool
-        # Example: Total 90 (50 Free + 40 Paid). Spend 60. New Total 30.
-        # Paid was 40. Now must be 30. (Used 50 Free + 10 Paid)
+        # Example: Total 75 (35 Free + 40 Paid). Spend 60. New Total 15.
+        # Paid was 40. Now must be 15. (Used 35 Free + 25 Paid)
         current_purchased = user_profile.get('purchased_energy', 0)
         if new_balance < current_purchased:
              user_profile['purchased_energy'] = new_balance

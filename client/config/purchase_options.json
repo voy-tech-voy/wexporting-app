@@ -21,9 +21,9 @@
             }
         },
         {
-            "id": "daily_limit_150",
+            "id": "daily_limit_200",
             "name": "Daily Focus Pack",
-            "description": "Increase daily limit to 150 (Permanently)",
+            "description": "Daily limit +200 (Permanently)",
             "cost": "$5.99",
             "color": "#00E0FF",
             "button_label": "Boost Daily Limit",

@@ -44,7 +44,7 @@ class EnergyManager(QObject):
     _instance = None
     
     # Configuration
-    DEFAULT_DAILY_ENERGY = 50  # Fallback if server doesn't specify
+    DEFAULT_DAILY_ENERGY = 35  # Fallback if server doesn't specify
     STORAGE_FILE = "energy.dat"
     
     # Job-Based Sync Thresholds
