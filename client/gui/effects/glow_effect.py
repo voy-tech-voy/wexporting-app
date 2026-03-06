@@ -380,33 +380,34 @@ class SiriGlowOverlay(QWidget):
 
     def _generate_feathered_mask(self, w, h) -> QPixmap:
         """
-        Generates a true-Gaussian feathered halo mask via off-screen
-        QGraphicsBlurEffect.  A solid 'doughnut' ring is drawn and then
-        blurred so it fades with mathematical smoothness on both inner
-        and outer edges.  The result is cached by size+params.
-
-        If MASK_PADDING=0 or degenerate geometry, returns a fully-opaque
-        mask so the glow remains visible (fail-open, not fail-invisible).
+        Generates a true-Gaussian feathered halo mask.
+        A 'doughnut' ring is drawn and blurred. Then, a perimeter fade (vignette)
+        is explicitly multiplied against it to guarantee the alpha reaches 0 perfectly
+        at the widget bounds, preventing ANY hard cuts/geometric bounding boxes.
         """
         pad = self.MASK_PADDING
         cr  = self.MASK_CORNER_RADIUS
         f   = self.MASK_FEATHER
 
+        # The mask's physical bounds before blurring
         outer_pad = pad - 30   # ring extends 30px outside button edge
         inner_pad = pad + 4    # ring extends 4px inside button edge
 
-        # Guard: degenerate geometry → return fully opaque (show all glow)
+        # Guard: degenerate geometry
         if outer_pad < 0 or inner_pad <= 0 or (w - 2*inner_pad) <= 0 or (h - 2*inner_pad) <= 0:
             full_mask = QPixmap(w, h)
             full_mask.fill(Qt.GlobalColor.white)
             return full_mask
 
+        # 1. Base doughnut shape
         raw_mask = QPixmap(w, h)
         raw_mask.fill(Qt.GlobalColor.transparent)
         p = QPainter(raw_mask)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
 
-        from PySide6.QtGui import QPainterPath
+        from PySide6.QtGui import QPainterPath, QLinearGradient
+        from PySide6.QtCore import QPointF
+        
         outer_path = QPainterPath()
         outer_path.addRoundedRect(outer_pad, outer_pad, w - 2*outer_pad, h - 2*outer_pad, cr + 10, cr + 10)
 
@@ -419,10 +420,11 @@ class SiriGlowOverlay(QWidget):
         p.drawPath(doughnut)
         p.end()
 
+        # No blur scenario (should be rare)
         if f <= 0:
-            return raw_mask  # No blur requested — return hard mask
+            return raw_mask
 
-        # Apply true Gaussian blur via scene (hardware-accelerated)
+        # 2. Apply true Gaussian blur via scene
         from PySide6.QtWidgets import QGraphicsScene, QGraphicsPixmapItem, QGraphicsBlurEffect
         scene = QGraphicsScene()
         scene.setSceneRect(0, 0, w, h)
@@ -437,6 +439,78 @@ class SiriGlowOverlay(QWidget):
         bp = QPainter(blurred_mask)
         scene.render(bp, target=QRectF(0, 0, w, h), source=QRectF(0, 0, w, h))
         bp.end()
+        
+        # 3. Apply perimeter fade (soft vignette limit) to prevent edge clipping
+        # Define the zone where the fade happens on the outer boundaries.
+        fade_thickness = 15  # Pixels from edge to start fading to absolute 0
+        
+        vignette_mask = QPixmap(w, h)
+        vignette_mask.fill(Qt.GlobalColor.transparent)
+        vp = QPainter(vignette_mask)
+        vp.setRenderHint(QPainter.RenderHint.Antialiasing)
+        
+        # Draw a rounded rect that fades at its edges using a stroked path with a gradient,
+        # or simpler: a solid white rect with inner fading.
+        vp.setBrush(Qt.GlobalColor.white)
+        vp.setPen(Qt.PenStyle.NoPen)
+        
+        # We want to draw a shape that is solid white in the middle but fades to transparent
+        # at the exact edges of the (w, h) pixmap.
+        # We can do this efficiently by drawing 4 linear gradients for the borders
+        # onto a fully white center.
+        
+        # Center solid area
+        vp.drawRect(fade_thickness, fade_thickness, w - 2*fade_thickness, h - 2*fade_thickness)
+        
+        # Left edge fade
+        left_grad = QLinearGradient(0, 0, fade_thickness, 0)
+        left_grad.setColorAt(0, Qt.GlobalColor.transparent)
+        left_grad.setColorAt(1, Qt.GlobalColor.white)
+        vp.fillRect(0, fade_thickness, fade_thickness, h - 2*fade_thickness, left_grad)
+        
+        # Right edge fade
+        right_grad = QLinearGradient(w, 0, w - fade_thickness, 0)
+        right_grad.setColorAt(0, Qt.GlobalColor.transparent)
+        right_grad.setColorAt(1, Qt.GlobalColor.white)
+        vp.fillRect(w - fade_thickness, fade_thickness, fade_thickness, h - 2*fade_thickness, right_grad)
+        
+        # Top edge fade
+        top_grad = QLinearGradient(0, 0, 0, fade_thickness)
+        top_grad.setColorAt(0, Qt.GlobalColor.transparent)
+        top_grad.setColorAt(1, Qt.GlobalColor.white)
+        vp.fillRect(fade_thickness, 0, w - 2*fade_thickness, fade_thickness, top_grad)
+        
+        # Bottom edge fade
+        bot_grad = QLinearGradient(0, h, 0, h - fade_thickness)
+        bot_grad.setColorAt(0, Qt.GlobalColor.transparent)
+        bot_grad.setColorAt(1, Qt.GlobalColor.white)
+        vp.fillRect(fade_thickness, h - fade_thickness, w - 2*fade_thickness, fade_thickness, bot_grad)
+        
+        # Corners (radial gradients to marry the edges smoothly)
+        def draw_corner(cx, cy, radius, start_angle):
+            grad = QRadialGradient(cx, cy, radius)
+            grad.setColorAt(0, Qt.GlobalColor.white)
+            grad.setColorAt(1, Qt.GlobalColor.transparent)
+            vp.setBrush(grad)
+            vp.drawPie(int(cx - radius), int(cy - radius), int(radius*2), int(radius*2), int(start_angle * 16), int(90 * 16))
+
+        # Top-Left corner (cx=fade_thickness, cy=fade_thickness, draw pie 90->180)
+        draw_corner(fade_thickness, fade_thickness, fade_thickness, 90)
+        # Top-Right corner
+        draw_corner(w - fade_thickness, fade_thickness, fade_thickness, 0)
+        # Bottom-Right corner
+        draw_corner(w - fade_thickness, h - fade_thickness, fade_thickness, 270)
+        # Bottom-Left corner
+        draw_corner(fade_thickness, h - fade_thickness, fade_thickness, 180)
+        
+        vp.end()
+        
+        # 4. Multiply the blurred mask by the vignette
+        final_bp = QPainter(blurred_mask)
+        final_bp.setCompositionMode(QPainter.CompositionMode.CompositionMode_DestinationIn)
+        final_bp.drawPixmap(0, 0, vignette_mask)
+        final_bp.end()
+        
         return blurred_mask
 
     def paintEvent(self, event):
