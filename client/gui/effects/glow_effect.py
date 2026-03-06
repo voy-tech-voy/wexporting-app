@@ -1,5 +1,5 @@
-﻿from PySide6.QtCore import Qt, QTimer, QPoint, QRect, QObject, QPropertyAnimation, Property, QEasingCurve
-from PySide6.QtGui import QPainter, QColor, QRadialGradient, QBrush, QPixmap, QImage, QPen
+﻿from PySide6.QtCore import Qt, QTimer, QPoint, QRect, QRectF, QObject, QPropertyAnimation, Property, QEasingCurve
+from PySide6.QtGui import QPainter, QColor, QRadialGradient, QLinearGradient, QBrush, QPixmap, QImage, QPen
 from PySide6.QtWidgets import QWidget, QGraphicsBlurEffect
 import math
 import colorsys
@@ -179,21 +179,23 @@ class SiriGlowOverlay(QWidget):
     HOVER_MAX_OPACITY = 1.00             # Max opacity when hovered (1.0 = full strength)
     
     # Interior Masking
-    # Creates a hole in the center so glow only affects edges/outside
+    # Creates a soft hole in the center so glow only affects edges/outside.
+    # MASK_PADDING should be kept in sync with GlowEffectManager.GLOW_PADDING
+    # so the hole aligns with the actual button boundary.
     MASK_INTERIOR = True
-    MASK_PADDING = 23                   # Matches GLOW_PADDING to align with button edge
-    MASK_FEATHER = 24                   # Softness of the cutout edge
-    MASK_CORNER_RADIUS = 16             # Rounder corners to avoid boxy look
+    MASK_PADDING = 0                   # Matches GLOW_PADDING to align with button edge
+    MASK_FEATHER = 0                   # Gaussian Blur radius for the halo cutout
+    MASK_CORNER_RADIUS = 0             # Rounder corners to avoid boxy look
     
     # Blob appearance
-    BLOB_RADIUS = 70                    # Size of each color blob
-    BLOB_OPACITY_CENTER = 119           # Opacity at blob center (0-255) - MAX STRENGTH
+    BLOB_RADIUS = 69                    # Size of each color blob
+    BLOB_OPACITY_CENTER = 255           # Opacity at blob center (0-255) - MAX STRENGTH
     BLOB_OPACITY_MID = 255              # Opacity at blob mid-point (0-255) - STRONGER
     BLOB_OPACITY_EDGE = 0               # Opacity at blob edge (0-255)
     
     # Ellipse orbit
-    ELLIPSE_SCALE_X = 0.66               # Horizontal ellipse size (0.0-1.0, fraction of overlay width)
-    ELLIPSE_SCALE_Y = 0.86               # Vertical ellipse size (0.0-1.0, fraction of overlay height)
+    ELLIPSE_SCALE_X = 0.78               # Horizontal ellipse size (0.0-1.0, fraction of overlay width)
+    ELLIPSE_SCALE_Y = 0.25               # Vertical ellipse size (0.0-1.0, fraction of overlay height)
     
     # Pulsation
     PULSE_OPACITY_MIN = 0.26             # Minimum opacity during pulse (0.0-1.0)
@@ -288,6 +290,8 @@ class SiriGlowOverlay(QWidget):
         self._master_opacity = 0.0  # Start invisible
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self._cached_mask = None
+        self._cached_size = None
 
     def get_master_opacity(self):
         return self._master_opacity
@@ -367,166 +371,209 @@ class SiriGlowOverlay(QWidget):
         painter.end()
         return mask
         
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        w = self.width()
+        h = self.height()
+        if w > 0 and h > 0:
+            self._cached_mask = self._generate_feathered_mask(w, h)
+            self._cached_size = (w, h)
+
+    def _generate_feathered_mask(self, w, h) -> QPixmap:
+        """
+        Generates a flawless, true-Gaussian feathered halo mask.
+        A 'doughnut' shape is drawn, then blurred. The blur makes it fade
+        with perfect mathematical softness on both the inner and outer edges.
+        """
+        raw_mask = QPixmap(w, h)
+        raw_mask.fill(Qt.GlobalColor.transparent)
+        p = QPainter(raw_mask)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+        pad = self.MASK_PADDING
+        cr = self.MASK_CORNER_RADIUS
+
+        # Construct a solid halo ("doughnut") around the button boundary.
+        # Weighted to extend more outside (ambient bleed) than inside.
+        from PySide6.QtGui import QPainterPath
+        outer_path = QPainterPath()
+        outer_pad = pad - 30  # Extends 30px outside the button edge
+        outer_path.addRoundedRect(outer_pad, outer_pad, w - 2*outer_pad, h - 2*outer_pad, cr + 10, cr + 10)
+
+        inner_path = QPainterPath()
+        inner_pad = pad + 4   # Extends 4px inside the button edge
+        inner_path.addRoundedRect(inner_pad, inner_pad, w - 2*inner_pad, h - 2*inner_pad, cr - 2, cr - 2)
+
+        doughnut = outer_path.subtracted(inner_path)
+
+        p.setBrush(Qt.GlobalColor.white)
+        p.setPen(Qt.PenStyle.NoPen)
+        p.drawPath(doughnut)
+        p.end()
+
+        # Apply purely mathematical Gaussian blur via scene (hardware optimized)
+        from PySide6.QtWidgets import QGraphicsScene, QGraphicsPixmapItem, QGraphicsBlurEffect
+        scene = QGraphicsScene()
+        scene.setSceneRect(0, 0, w, h)
+        item = QGraphicsPixmapItem(raw_mask)
+        blur = QGraphicsBlurEffect()
+        blur.setBlurRadius(self.MASK_FEATHER)
+        item.setGraphicsEffect(blur)
+        scene.addItem(item)
+
+        blurred_mask = QPixmap(w, h)
+        blurred_mask.fill(Qt.GlobalColor.transparent)
+        bp = QPainter(blurred_mask)
+        # Ensure we render exactly the widget dimensions 1:1, not the blur-expanded bounds
+        scene.render(bp, target=QRectF(0, 0, w, h), source=QRectF(0, 0, w, h))
+        bp.end()
+
+        return blurred_mask
+
     def paintEvent(self, event):
         w = self.width()
         h = self.height()
-        
-        # Step 1: Render base glow to pixmap
+
+        # ── Step 1: Render glow blobs ──────────────────────────────────────
+        # The widget is already oversized by GLOW_PADDING (50px) on each side,
+        # so blobs orbit the widget centre and fade to alpha=0 well within
+        # the widget bounds. No canvas padding / negative-offset tricks needed.
         glow_pixmap = QPixmap(w, h)
         glow_pixmap.fill(Qt.GlobalColor.transparent)
-        
+
         glow_painter = QPainter(glow_pixmap)
         glow_painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        
+
         phase = self._pulse_phase
-        
-        # Calculate hue shift
+
+        # Hue shift
         if phase < self.HUE_SHIFT_PHASE_START:
             shift_strength = 1.0 - (phase / self.HUE_SHIFT_PHASE_START)
         elif phase > self.HUE_SHIFT_PHASE_END:
             shift_strength = (phase - self.HUE_SHIFT_PHASE_END) / (1.0 - self.HUE_SHIFT_PHASE_END)
         else:
             shift_strength = 0.0
-        
-        hue_shift_deg = self.HUE_SHIFT_DEGREES * shift_strength
-        hue_shift = hue_shift_deg / 360.0
-        
+
+        hue_shift = (self.HUE_SHIFT_DEGREES * shift_strength) / 360.0
+
         def shift_hue(rgb, shift):
             r, g, b = rgb[0]/255.0, rgb[1]/255.0, rgb[2]/255.0
-            h, s, v = colorsys.rgb_to_hsv(r, g, b)
-            h = (h + shift) % 1.0
-            r, g, b = colorsys.hsv_to_rgb(h, s, v)
+            h_val, s, v = colorsys.rgb_to_hsv(r, g, b)
+            h_val = (h_val + shift) % 1.0
+            r, g, b = colorsys.hsv_to_rgb(h_val, s, v)
             return (int(r * 255), int(g * 255), int(b * 255))
-        
-        blue = shift_hue(self.COLOR_BLUE, hue_shift)
-        green = shift_hue(self.COLOR_GREEN, hue_shift)
+
+        blue   = shift_hue(self.COLOR_BLUE,   hue_shift)
+        green  = shift_hue(self.COLOR_GREEN,  hue_shift)
         orange = shift_hue(self.COLOR_ORANGE, hue_shift)
-        
-        pulse_range = self.PULSE_OPACITY_MAX - self.PULSE_OPACITY_MIN
+
+        pulse_range   = self.PULSE_OPACITY_MAX - self.PULSE_OPACITY_MIN
         pulse_opacity = self.PULSE_OPACITY_MIN + pulse_range * (0.5 + 0.5 * math.sin(phase * 2 * math.pi))
         glow_painter.setOpacity(pulse_opacity)
-        
+
         center_x = w / 2
         center_y = h / 2
-        
-        # Force circular orbit for radial glow (ignore aspect ratio)
-        min_dim = min(w, h)
-        orbit_radius = (min_dim / 2) * self.ELLIPSE_SCALE_Y 
-        ellipse_rx = orbit_radius
-        ellipse_ry = orbit_radius
-        
+        min_dim   = min(w, h)
+        orbit_r   = (min_dim / 2) * self.ELLIPSE_SCALE_Y
+
         blobs = [
-            {'color': blue, 'phase_offset': self.BLOB_PHASE_BLUE},
-            {'color': green, 'phase_offset': self.BLOB_PHASE_GREEN},
+            {'color': blue,   'phase_offset': self.BLOB_PHASE_BLUE},
+            {'color': green,  'phase_offset': self.BLOB_PHASE_GREEN},
             {'color': orange, 'phase_offset': self.BLOB_PHASE_ORANGE},
         ]
-        
         glow_painter.setPen(Qt.PenStyle.NoPen)
-        
+
         for blob in blobs:
-            angle = (phase + blob['phase_offset']) * 2 * math.pi
-            blob_x = center_x + ellipse_rx * math.cos(angle)
-            blob_y = center_y + ellipse_ry * math.sin(angle)
-            
-            gradient = QRadialGradient(blob_x, blob_y, self.BLOB_RADIUS)
-            color = blob['color']
-            gradient.setColorAt(0.0, QColor(color[0], color[1], color[2], self.BLOB_OPACITY_CENTER))
-            gradient.setColorAt(0.5, QColor(color[0], color[1], color[2], self.BLOB_OPACITY_MID))
-            gradient.setColorAt(1.0, QColor(color[0], color[1], color[2], self.BLOB_OPACITY_EDGE))
-            
-            glow_painter.setBrush(QBrush(gradient))
+            angle  = (phase + blob['phase_offset']) * 2 * math.pi
+            bx     = center_x + orbit_r * math.cos(angle)
+            by     = center_y + orbit_r * math.sin(angle)
+            grad   = QRadialGradient(bx, by, self.BLOB_RADIUS)
+            c      = blob['color']
+            grad.setColorAt(0.0, QColor(c[0], c[1], c[2], self.BLOB_OPACITY_CENTER))
+            grad.setColorAt(0.5, QColor(c[0], c[1], c[2], self.BLOB_OPACITY_MID))
+            grad.setColorAt(1.0, QColor(c[0], c[1], c[2], self.BLOB_OPACITY_EDGE))
+            glow_painter.setBrush(QBrush(grad))
             glow_painter.drawEllipse(
-                int(blob_x - self.BLOB_RADIUS),
-                int(blob_y - self.BLOB_RADIUS),
-                self.BLOB_RADIUS * 2,
-                self.BLOB_RADIUS * 2
+                int(bx - self.BLOB_RADIUS), int(by - self.BLOB_RADIUS),
+                self.BLOB_RADIUS * 2,       self.BLOB_RADIUS * 2
             )
-        
+
         glow_painter.end()
-        
-        # Step 2: Create final composite
+
+        # ── Step 2: Ripple layer (optional) ───────────────────────────────
         final_pixmap = QPixmap(w, h)
         final_pixmap.fill(Qt.GlobalColor.transparent)
         final_painter = QPainter(final_pixmap)
         final_painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        
-        # Draw base glow
+
         final_painter.drawPixmap(0, 0, glow_pixmap)
-        
-        # Step 3: If ripple active, add masked glow layer on top
+
         if self._ripple_active and self._ripple_phases:
             mask = self._generate_ripple_mask(w, h)
-            
+
             masked_glow = QPixmap(w, h)
             masked_glow.fill(Qt.GlobalColor.transparent)
             masked_painter = QPainter(masked_glow)
-            
             masked_painter.drawPixmap(0, 0, glow_pixmap)
-            
             masked_painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Multiply)
-            
             mask_rgb = QPixmap(w, h)
             mask_rgb.fill(Qt.GlobalColor.white)
-            mask_rgb_painter = QPainter(mask_rgb)
-            mask_rgb_painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
-            mask_rgb_painter.drawPixmap(0, 0, mask)
-            mask_rgb_painter.end()
-            
+            mask_rgb_p = QPainter(mask_rgb)
+            mask_rgb_p.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
+            mask_rgb_p.drawPixmap(0, 0, mask)
+            mask_rgb_p.end()
             masked_painter.drawPixmap(0, 0, mask_rgb)
             masked_painter.end()
-            
+
             final_painter.setOpacity(1.5)
             final_painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Plus)
             final_painter.drawPixmap(0, 0, masked_glow)
             final_painter.setOpacity(1.0)
-            
-        # Step 4: Apply Interior Mask (Cutout center)
+            final_painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
+
+        # ── Step 3: Perfectly Feathered Window Mask ───────────────────────
+        # Use our pre-cached true Gaussian blurred halo as an alpha window
+        # (DestinationIn). This smoothly fades the glow out on the outer edge
+        # (preventing clip) and smoothly fades it out towards the inner center.
         if self.MASK_INTERIOR:
-            final_painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_DestinationOut)
-            final_painter.setBrush(Qt.GlobalColor.black)
-            final_painter.setPen(Qt.PenStyle.NoPen)
-            
-            p = self.MASK_PADDING
-            cutout_rect = QRect(p, p, w - 2*p, h - 2*p)
-            final_painter.drawRoundedRect(cutout_rect, self.MASK_CORNER_RADIUS, self.MASK_CORNER_RADIUS)
+            # Fallback if cache missed (e.g., initial render race condition)
+            if self._cached_mask is None or self._cached_size != (w, h):
+                self._cached_mask = self._generate_feathered_mask(w, h)
+                self._cached_size = (w, h)
+
+            final_painter.setCompositionMode(
+                QPainter.CompositionMode.CompositionMode_DestinationIn
+            )
+            final_painter.drawPixmap(0, 0, self._cached_mask)
+            final_painter.setCompositionMode(
+                QPainter.CompositionMode.CompositionMode_SourceOver
+            )
 
         final_painter.end()
-        
-        # Draw final result with master opacity
-        painter = QPainter(self)
-        painter.setOpacity(self._master_opacity)  # Apply hover fade
-        painter.drawPixmap(0, 0, final_pixmap)
-        
 
-        
-        # DEBUG: Show ripple mask overlay as visible cyan rings
+        # ── Composite with master (hover-fade) opacity ────────────────────
+        painter = QPainter(self)
+        painter.setOpacity(self._master_opacity)
+        painter.drawPixmap(0, 0, final_pixmap)
+
+        # DEBUG: ripple rings
         if self.DEBUG_SHOW_RIPPLE_MASK and self._ripple_active and self._ripple_phases:
             painter.setOpacity(0.7)
-            center_x = w / 2
-            center_y = h / 2
-            max_radius = max(w, h) / 2
-            max_scale = self.RIPPLE_MAX_SCALE
-            thickness = self.RIPPLE_RING_THICKNESS
-            
-            for phase in self._ripple_phases:
-                if phase <= 0.0:
+            c_x = w / 2
+            c_y = h / 2
+            max_r = max(w, h) / 2
+            for ph in self._ripple_phases:
+                if ph <= 0.0:
                     continue
-                radius = phase * max_radius * max_scale
-                opacity = int(255 * (1.0 - phase * phase))
-                if opacity <= 0:
+                r   = ph * max_r * self.RIPPLE_MAX_SCALE
+                opc = int(255 * (1.0 - ph * ph))
+                if opc <= 0:
                     continue
-                    
-                # Draw cyan debug rings so they're visible
-                pen = QPen(QColor(0, 255, 255, opacity))
-                pen.setWidth(int(thickness * (1.0 + phase)))
+                pen = QPen(QColor(0, 255, 255, opc))
+                pen.setWidth(int(self.RIPPLE_RING_THICKNESS * (1.0 + ph)))
                 painter.setPen(pen)
                 painter.setBrush(Qt.BrushStyle.NoBrush)
-                painter.drawEllipse(
-                    int(center_x - radius),
-                    int(center_y - radius),
-                    int(radius * 2),
-                    int(radius * 2)
-                )
+                painter.drawEllipse(int(c_x - r), int(c_y - r), int(r*2), int(r*2))
             painter.setOpacity(1.0)
 
 class GlowNoiseOverlay(QWidget):
@@ -706,8 +753,8 @@ class GlowEffectManager(QObject):
         self._effects = {}  # name -> overlay widget
         
         # Configuration
-        self.GLOW_RADIUS = 55           # Increased to soften rectangular cutout edges
-        self.GLOW_PADDING = 10
+        self.GLOW_RADIUS = 55
+        self.GLOW_PADDING = 50           # Large padding so glow bleeds outward naturally
         self.NOISE_AREA_SCALE = 1.35
         self.PULSE_DURATION_MS = 4000
         
@@ -739,13 +786,11 @@ class GlowEffectManager(QObject):
         if self._top_window is None:
             return
             
-        # Create glow overlay
+        # Create glow overlay.
+        # NOTE: We no longer use QGraphicsBlurEffect here — it clips to the
+        # widget bounding rect in PySide6, producing a hard rectangular box.
+        # Blur is now performed in software inside SiriGlowOverlay.paintEvent.
         self._glow_overlay = SiriGlowOverlay(self._top_window)
-        
-        # Apply blur
-        blur = QGraphicsBlurEffect()
-        blur.setBlurRadius(self.GLOW_RADIUS)
-        self._glow_overlay.setGraphicsEffect(blur)
         
         # Create noise overlay
         self._noise_overlay = GlowNoiseOverlay(self._top_window)
