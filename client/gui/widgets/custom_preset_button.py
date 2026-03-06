@@ -46,8 +46,14 @@ class CustomPresetButton(QWidget):
             QTimer.singleShot(100, self._setup_glow)
             return
             
-        # Initialize the manager
-        self._glow_manager = GlowEffectManager(self, top_window)
+        # Initialize the manager with a tighter, rounder glow for this specific circular button
+        self._glow_manager = GlowEffectManager(
+            self, 
+            top_window, 
+            scale_factor=.6,
+            ellipse_scale_x=0.2,
+            ellipse_scale_y=0.2
+        )
         # Force initial position update
         self._update_glow_position()
     

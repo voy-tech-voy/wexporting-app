@@ -185,20 +185,20 @@ class SiriGlowOverlay(QWidget):
     MASK_INTERIOR = True
     MASK_PADDING = 50                   # Matches GLOW_PADDING — aligns cutout with button edge
     MASK_FEATHER = 35                   # Gaussian blur radius for halo feathering
-    MASK_CORNER_RADIUS = 16             # Corner softness to avoid boxy look
+    MASK_CORNER_RADIUS = 36             # Corner softness to avoid boxy look
     
     # Blob appearance
-    BLOB_RADIUS = 78                    # Size of each color blob
+    BLOB_RADIUS = 118                    # Size of each color blob
     BLOB_OPACITY_CENTER = 255           # Opacity at blob center (0-255) - MAX STRENGTH
     BLOB_OPACITY_MID = 255              # Opacity at blob mid-point (0-255) - STRONGER
     BLOB_OPACITY_EDGE = 0               # Opacity at blob edge (0-255)
     
     # Ellipse orbit
-    ELLIPSE_SCALE_X = 1.47               # Horizontal ellipse size (0.0-1.0, fraction of overlay width)
-    ELLIPSE_SCALE_Y = 0.39               # Vertical ellipse size (0.0-1.0, fraction of overlay height)
+    ELLIPSE_SCALE_X = 0.62               # Horizontal ellipse size (0.0-1.0, fraction of overlay width)
+    ELLIPSE_SCALE_Y = 0.16               # Vertical ellipse size (0.0-1.0, fraction of overlay height)
     
     # Pulsation
-    PULSE_OPACITY_MIN = 0.26             # Minimum opacity during pulse (0.0-1.0)
+    PULSE_OPACITY_MIN = 0.24             # Minimum opacity during pulse (0.0-1.0)
     PULSE_OPACITY_MAX = 1.00             # Maximum opacity during pulse (0.0-1.0)
     
     # Color shifting
@@ -282,8 +282,12 @@ class SiriGlowOverlay(QWidget):
     
     # ===============================================
     
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, scale_factor=1.0, ellipse_x=None, ellipse_y=None):
         super().__init__(parent)
+        self.scale_factor = scale_factor
+        self.ellipse_x = ellipse_x if ellipse_x is not None else self.ELLIPSE_SCALE_X
+        self.ellipse_y = ellipse_y if ellipse_y is not None else self.ELLIPSE_SCALE_Y
+        
         self._pulse_phase = 0.0  # 0.0 to 1.0 for pulse cycle
         self._ripple_phases = []  # Ring phases for ripple mask (0.0 to 1.0 each)
         self._ripple_active = False
@@ -385,13 +389,13 @@ class SiriGlowOverlay(QWidget):
         is explicitly multiplied against it to guarantee the alpha reaches 0 perfectly
         at the widget bounds, preventing ANY hard cuts/geometric bounding boxes.
         """
-        pad = self.MASK_PADDING
-        cr  = self.MASK_CORNER_RADIUS
-        f   = self.MASK_FEATHER
+        pad = int(self.MASK_PADDING * self.scale_factor)
+        cr  = int(self.MASK_CORNER_RADIUS * self.scale_factor)
+        f   = int(self.MASK_FEATHER * self.scale_factor)
 
         # The mask's physical bounds before blurring
-        outer_pad = pad - 30   # ring extends 30px outside button edge
-        inner_pad = pad + 4    # ring extends 4px inside button edge
+        outer_pad = pad - int(30 * self.scale_factor)   # ring extends 30px outside button edge
+        inner_pad = pad + int(4 * self.scale_factor)    # ring extends 4px inside button edge
 
         # Guard: degenerate geometry
         if outer_pad < 0 or inner_pad <= 0 or (w - 2*inner_pad) <= 0 or (h - 2*inner_pad) <= 0:
@@ -442,7 +446,7 @@ class SiriGlowOverlay(QWidget):
         
         # 3. Apply perimeter fade (soft vignette limit) to prevent edge clipping
         # Define the zone where the fade happens on the outer boundaries.
-        fade_thickness = 15  # Pixels from edge to start fading to absolute 0
+        fade_thickness = max(5, int(15 * self.scale_factor))  # Pixels from edge to start fading to absolute 0
         
         vignette_mask = QPixmap(w, h)
         vignette_mask.fill(Qt.GlobalColor.transparent)
@@ -557,7 +561,9 @@ class SiriGlowOverlay(QWidget):
         center_x = w / 2
         center_y = h / 2
         min_dim   = min(w, h)
-        orbit_r   = (min_dim / 2) * self.ELLIPSE_SCALE_Y
+        orbit_rx  = (min_dim / 2) * self.ellipse_x
+        orbit_ry  = (min_dim / 2) * self.ellipse_y
+        blob_radius = int(self.BLOB_RADIUS * self.scale_factor)
 
         blobs = [
             {'color': blue,   'phase_offset': self.BLOB_PHASE_BLUE},
@@ -568,17 +574,17 @@ class SiriGlowOverlay(QWidget):
 
         for blob in blobs:
             angle  = (phase + blob['phase_offset']) * 2 * math.pi
-            bx     = center_x + orbit_r * math.cos(angle)
-            by     = center_y + orbit_r * math.sin(angle)
-            grad   = QRadialGradient(bx, by, self.BLOB_RADIUS)
+            bx     = center_x + orbit_rx * math.cos(angle)
+            by     = center_y + orbit_ry * math.sin(angle)
+            grad   = QRadialGradient(bx, by, blob_radius)
             c      = blob['color']
             grad.setColorAt(0.0, QColor(c[0], c[1], c[2], self.BLOB_OPACITY_CENTER))
             grad.setColorAt(0.5, QColor(c[0], c[1], c[2], self.BLOB_OPACITY_MID))
             grad.setColorAt(1.0, QColor(c[0], c[1], c[2], self.BLOB_OPACITY_EDGE))
             glow_painter.setBrush(QBrush(grad))
             glow_painter.drawEllipse(
-                int(bx - self.BLOB_RADIUS), int(by - self.BLOB_RADIUS),
-                self.BLOB_RADIUS * 2,       self.BLOB_RADIUS * 2
+                int(bx - blob_radius), int(by - blob_radius),
+                blob_radius * 2,       blob_radius * 2
             )
 
         glow_painter.end()
@@ -822,10 +828,14 @@ class GlowEffectManager(QObject):
     # Master toggles for optional effects
     ENABLE_RIPPLE_EFFECT = False
     
-    def __init__(self, parent_widget, top_level_window):
+    def __init__(self, parent_widget, top_level_window, scale_factor=1.0, ellipse_scale_x=None, ellipse_scale_y=None):
         super().__init__(parent_widget)
         self._widget = parent_widget
         self._top_window = top_level_window
+        
+        self._scale_factor = scale_factor
+        self._ellipse_x = ellipse_scale_x
+        self._ellipse_y = ellipse_scale_y
         
         # Core components
         self._glow_overlay = None
@@ -837,8 +847,8 @@ class GlowEffectManager(QObject):
         self._effects = {}  # name -> overlay widget
         
         # Configuration
-        self.GLOW_RADIUS = 55
-        self.GLOW_PADDING = 50           # Large padding so glow bleeds outward naturally
+        self.GLOW_RADIUS = int(55 * self._scale_factor)
+        self.GLOW_PADDING = int(50 * self._scale_factor)  # Scaled padding
         self.NOISE_AREA_SCALE = 1.35
         self.PULSE_DURATION_MS = 4000
         
@@ -874,7 +884,12 @@ class GlowEffectManager(QObject):
         # NOTE: We no longer use QGraphicsBlurEffect here — it clips to the
         # widget bounding rect in PySide6, producing a hard rectangular box.
         # Blur is now performed in software inside SiriGlowOverlay.paintEvent.
-        self._glow_overlay = SiriGlowOverlay(self._top_window)
+        self._glow_overlay = SiriGlowOverlay(
+            self._top_window, 
+            scale_factor=self._scale_factor,
+            ellipse_x=self._ellipse_x,
+            ellipse_y=self._ellipse_y
+        )
         
         # Create noise overlay
         self._noise_overlay = GlowNoiseOverlay(self._top_window)
