@@ -183,19 +183,19 @@ class SiriGlowOverlay(QWidget):
     # MASK_PADDING should be kept in sync with GlowEffectManager.GLOW_PADDING
     # so the hole aligns with the actual button boundary.
     MASK_INTERIOR = True
-    MASK_PADDING = 0                   # Matches GLOW_PADDING to align with button edge
-    MASK_FEATHER = 0                   # Gaussian Blur radius for the halo cutout
-    MASK_CORNER_RADIUS = 0             # Rounder corners to avoid boxy look
+    MASK_PADDING = 50                   # Matches GLOW_PADDING — aligns cutout with button edge
+    MASK_FEATHER = 35                   # Gaussian blur radius for halo feathering
+    MASK_CORNER_RADIUS = 16             # Corner softness to avoid boxy look
     
     # Blob appearance
-    BLOB_RADIUS = 69                    # Size of each color blob
+    BLOB_RADIUS = 78                    # Size of each color blob
     BLOB_OPACITY_CENTER = 255           # Opacity at blob center (0-255) - MAX STRENGTH
     BLOB_OPACITY_MID = 255              # Opacity at blob mid-point (0-255) - STRONGER
     BLOB_OPACITY_EDGE = 0               # Opacity at blob edge (0-255)
     
     # Ellipse orbit
-    ELLIPSE_SCALE_X = 0.78               # Horizontal ellipse size (0.0-1.0, fraction of overlay width)
-    ELLIPSE_SCALE_Y = 0.25               # Vertical ellipse size (0.0-1.0, fraction of overlay height)
+    ELLIPSE_SCALE_X = 1.47               # Horizontal ellipse size (0.0-1.0, fraction of overlay width)
+    ELLIPSE_SCALE_Y = 0.39               # Vertical ellipse size (0.0-1.0, fraction of overlay height)
     
     # Pulsation
     PULSE_OPACITY_MIN = 0.26             # Minimum opacity during pulse (0.0-1.0)
@@ -371,63 +371,72 @@ class SiriGlowOverlay(QWidget):
         painter.end()
         return mask
         
+    def _get_mask_cache_key(self):
+        return (self.width(), self.height(), self.MASK_PADDING, self.MASK_FEATHER, self.MASK_CORNER_RADIUS)
+
     def resizeEvent(self, event):
         super().resizeEvent(event)
-        w = self.width()
-        h = self.height()
-        if w > 0 and h > 0:
-            self._cached_mask = self._generate_feathered_mask(w, h)
-            self._cached_size = (w, h)
+        self._cached_mask = None  # Invalidate — will be rebuilt on next paint
 
     def _generate_feathered_mask(self, w, h) -> QPixmap:
         """
-        Generates a flawless, true-Gaussian feathered halo mask.
-        A 'doughnut' shape is drawn, then blurred. The blur makes it fade
-        with perfect mathematical softness on both the inner and outer edges.
+        Generates a true-Gaussian feathered halo mask via off-screen
+        QGraphicsBlurEffect.  A solid 'doughnut' ring is drawn and then
+        blurred so it fades with mathematical smoothness on both inner
+        and outer edges.  The result is cached by size+params.
+
+        If MASK_PADDING=0 or degenerate geometry, returns a fully-opaque
+        mask so the glow remains visible (fail-open, not fail-invisible).
         """
+        pad = self.MASK_PADDING
+        cr  = self.MASK_CORNER_RADIUS
+        f   = self.MASK_FEATHER
+
+        outer_pad = pad - 30   # ring extends 30px outside button edge
+        inner_pad = pad + 4    # ring extends 4px inside button edge
+
+        # Guard: degenerate geometry → return fully opaque (show all glow)
+        if outer_pad < 0 or inner_pad <= 0 or (w - 2*inner_pad) <= 0 or (h - 2*inner_pad) <= 0:
+            full_mask = QPixmap(w, h)
+            full_mask.fill(Qt.GlobalColor.white)
+            return full_mask
+
         raw_mask = QPixmap(w, h)
         raw_mask.fill(Qt.GlobalColor.transparent)
         p = QPainter(raw_mask)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
 
-        pad = self.MASK_PADDING
-        cr = self.MASK_CORNER_RADIUS
-
-        # Construct a solid halo ("doughnut") around the button boundary.
-        # Weighted to extend more outside (ambient bleed) than inside.
         from PySide6.QtGui import QPainterPath
         outer_path = QPainterPath()
-        outer_pad = pad - 30  # Extends 30px outside the button edge
         outer_path.addRoundedRect(outer_pad, outer_pad, w - 2*outer_pad, h - 2*outer_pad, cr + 10, cr + 10)
 
         inner_path = QPainterPath()
-        inner_pad = pad + 4   # Extends 4px inside the button edge
-        inner_path.addRoundedRect(inner_pad, inner_pad, w - 2*inner_pad, h - 2*inner_pad, cr - 2, cr - 2)
+        inner_path.addRoundedRect(inner_pad, inner_pad, w - 2*inner_pad, h - 2*inner_pad, max(0, cr - 2), max(0, cr - 2))
 
         doughnut = outer_path.subtracted(inner_path)
-
         p.setBrush(Qt.GlobalColor.white)
         p.setPen(Qt.PenStyle.NoPen)
         p.drawPath(doughnut)
         p.end()
 
-        # Apply purely mathematical Gaussian blur via scene (hardware optimized)
+        if f <= 0:
+            return raw_mask  # No blur requested — return hard mask
+
+        # Apply true Gaussian blur via scene (hardware-accelerated)
         from PySide6.QtWidgets import QGraphicsScene, QGraphicsPixmapItem, QGraphicsBlurEffect
         scene = QGraphicsScene()
         scene.setSceneRect(0, 0, w, h)
         item = QGraphicsPixmapItem(raw_mask)
         blur = QGraphicsBlurEffect()
-        blur.setBlurRadius(self.MASK_FEATHER)
+        blur.setBlurRadius(f)
         item.setGraphicsEffect(blur)
         scene.addItem(item)
 
         blurred_mask = QPixmap(w, h)
         blurred_mask.fill(Qt.GlobalColor.transparent)
         bp = QPainter(blurred_mask)
-        # Ensure we render exactly the widget dimensions 1:1, not the blur-expanded bounds
         scene.render(bp, target=QRectF(0, 0, w, h), source=QRectF(0, 0, w, h))
         bp.end()
-
         return blurred_mask
 
     def paintEvent(self, event):
@@ -535,11 +544,12 @@ class SiriGlowOverlay(QWidget):
         # Use our pre-cached true Gaussian blurred halo as an alpha window
         # (DestinationIn). This smoothly fades the glow out on the outer edge
         # (preventing clip) and smoothly fades it out towards the inner center.
-        if self.MASK_INTERIOR:
-            # Fallback if cache missed (e.g., initial render race condition)
-            if self._cached_mask is None or self._cached_size != (w, h):
+        if self.MASK_INTERIOR and self.MASK_PADDING > 0:
+            # Rebuild cache if params or size changed
+            cache_key = self._get_mask_cache_key()
+            if self._cached_mask is None or self._cached_size != cache_key:
                 self._cached_mask = self._generate_feathered_mask(w, h)
-                self._cached_size = (w, h)
+                self._cached_size = cache_key
 
             final_painter.setCompositionMode(
                 QPainter.CompositionMode.CompositionMode_DestinationIn
