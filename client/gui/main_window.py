@@ -78,7 +78,7 @@ class MainWindow(WindowEventMixin, QMainWindow):
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setAcceptDrops(True) # Ensure window accepts drops for the overlay logic
             
-        self.setGeometry(100, 100, 1200, 1000)
+        self.setGeometry(*self._compute_initial_geometry())
         self.setMinimumSize(800, 700)
         self.setMouseTracking(True)  # Enable mouse tracking for edge resize cursors
         
@@ -158,6 +158,31 @@ class MainWindow(WindowEventMixin, QMainWindow):
         
         return super().eventFilter(source, event)
         
+    def _compute_initial_geometry(self):
+        """
+        Return (x, y, w, h) that fits within the usable screen area.
+        Uses QScreen.availableGeometry() which gives logical pixels
+        *after* DPI scaling, excluding the taskbar.
+        Safe at 100%, 125%, 150%, 200%, etc.
+        """
+        from PySide6.QtWidgets import QApplication
+        screen = QApplication.primaryScreen()
+        avail  = screen.availableGeometry()   # logical px, excludes taskbar
+
+        IDEAL_W, IDEAL_H = 1200, 1000
+        MIN_W,   MIN_H   = 800,  700
+        MARGIN = 40  # breathing room on each side
+
+        max_w = avail.width()  - MARGIN * 2
+        max_h = avail.height() - MARGIN * 2
+
+        w = max(MIN_W, min(IDEAL_W, max_w))
+        h = max(MIN_H, min(IDEAL_H, max_h))
+
+        x = avail.x() + (avail.width()  - w) // 2
+        y = avail.y() + (avail.height() - h) // 2
+        return x, y, w, h
+
     def setup_ui(self):
         """Setup the main user interface layout"""
         central_widget = QWidget()

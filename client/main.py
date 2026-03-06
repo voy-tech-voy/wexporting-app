@@ -95,11 +95,11 @@ class ToolLoadingWindow(QWidget):
         # Frameless, always on top
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint)
         
-        # Center on screen
-        screen = QApplication.primaryScreen().geometry()
+        # Centre on the usable screen area (excludes taskbar, DPI-aware)
+        avail = QApplication.primaryScreen().availableGeometry()
         self.move(
-            (screen.width() - width) // 2,
-            (screen.height() - height) // 2
+            avail.x() + (avail.width()  - width)  // 2,
+            avail.y() + (avail.height() - height) // 2
         )
         
         # Create label to display the pixmap

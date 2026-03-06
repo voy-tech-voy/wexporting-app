@@ -45,13 +45,16 @@ class DropPlaceholderWidget(QWidget):
         if svg_path.exists():
             pixmap = QPixmap(str(svg_path))
             pixmap = pixmap.scaledToWidth(150, Qt.TransformationMode.SmoothTransformation)
-            svg_label.setPixmap(pixmap)
             
-            # Apply grey colorize effect
-            colorize_effect = QGraphicsColorizeEffect()
-            colorize_effect.setColor(QColor(128, 128, 128))
-            colorize_effect.setStrength(1.0)
-            svg_label.setGraphicsEffect(colorize_effect)
+            # Recolor the icon to match the text (#888888) reliably
+            # QGraphicsColorizeEffect often fails on purely black/white SVGs
+            from PySide6.QtGui import QPainter
+            painter = QPainter(pixmap)
+            painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceIn)
+            painter.fillRect(pixmap.rect(), QColor("#888888"))
+            painter.end()
+            
+            svg_label.setPixmap(pixmap)
         
         svg_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         container_layout.addWidget(svg_label, alignment=Qt.AlignmentFlag.AlignCenter)
