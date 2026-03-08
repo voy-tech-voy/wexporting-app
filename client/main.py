@@ -346,7 +346,8 @@ def main():
     
     # Check for dev mode - skip login window
     # dev_mode: skips splash screen. False in production (env var never set in frozen build).
-    dev_mode = os.getenv('DEV_MODE', '0') == '1'
+    from client.config.config import Config
+    dev_mode = Config.DEVELOPMENT_MODE
     
     # Set AppUserModelID for Windows taskbar icon
     if os.name == 'nt':
@@ -382,7 +383,7 @@ def main():
                 print(f"Warning: Failed to initialize MessageManager: {e}")
                 if CRASH_REPORTING_AVAILABLE:
                     log_error(e, "message_manager_init")
-        app.setApplicationVersion("1.1.2")
+        app.setApplicationVersion(get_version())
         
         # Set global application font - single point of control
         app.setFont(AppFonts.get_base_font())

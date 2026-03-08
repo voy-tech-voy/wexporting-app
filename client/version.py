@@ -12,7 +12,7 @@ import os
 from pathlib import Path
 from datetime import datetime
 
-APP_NAME = "webatchify"
+APP_NAME = "wexporting"
 AUTHOR = "voy-tech apps"
 __author__ = AUTHOR
 __email__ = "voytechapps@gmail.com"

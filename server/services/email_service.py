@@ -7,7 +7,7 @@ from config.settings import Config
 logger = logging.getLogger(__name__)
 
 # App name constant
-APP_NAME = "webatchify"
+APP_NAME = "wexporting"
 
 class EmailService:
     def __init__(self):

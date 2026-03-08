@@ -5,7 +5,7 @@
   
   <Identity Name="voy-techapps.webatchify"
             Publisher="CN=672001A1-9FF8-433E-B797-9BE6980E341F"
-            Version="1.1.2.0" />
+            Version="1.0.0.0" />
   
   <Properties>
     <DisplayName>webatchify</DisplayName>
@@ -22,7 +22,7 @@
   </Resources>
   
   <Applications>
-    <Application Id="webatchify" Executable="webatchify-v1.1.2.exe" EntryPoint="Windows.FullTrustApplication">
+    <Application Id="webatchify" Executable="webatchify-v1.0.0.exe" EntryPoint="Windows.FullTrustApplication">
       <uap:VisualElements DisplayName="webatchify"
                           Description="Professional image and video conversion tool with AI upscaling"
                           BackgroundColor="transparent"

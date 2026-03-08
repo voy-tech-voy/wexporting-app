@@ -1,20 +1,24 @@
 @echo off
 REM ============================================================================
-REM  webatchify MSIX Packaging Pipeline
+REM  wexporting MSIX Packaging Pipeline
 REM  Run this AFTER PyInstaller build completes.
 REM  Prerequisites:
 REM    - Windows 10/11 SDK installed (MakeAppx.exe + SignTool.exe in PATH)
 REM    - A valid code-signing certificate (.pfx) matching the Publisher CN
-REM    - PyInstaller output in: dist\webatchify-v1.1.2\
+REM    - PyInstaller output in: dist\wexporting-v1.0.0\
 REM ============================================================================
 
 setlocal enabledelayedexpansion
 
 REM ── Configuration ────────────────────────────────────────────────────────────
-set APP_NAME=webatchify
-set VERSION=1.1.2.0
+FOR /F "tokens=* USEBACKQ" %%F IN (`python -c "import sys; sys.path.insert(0, '../client'); from version import APP_NAME; print(APP_NAME)"`) DO (
+SET APP_NAME=%%F
+)
+FOR /F "tokens=* USEBACKQ" %%V IN (`python -c "import sys; sys.path.insert(0, '../client'); from version import get_version; v=get_version(); print(v if v.count('.') == 3 else f'{v}.0')"`) DO (
+SET VERSION=%%V
+)
 set ARCH=x64
-set DIST_DIR=dist\webatchify-v1.1.2
+set DIST_DIR=dist\%APP_NAME%-v%VERSION:~0,-2%
 set ASSETS_DIR=Assets
 set MANIFEST=Package.appxmanifest
 set OUT_DIR=packaging\output
@@ -39,7 +43,7 @@ if errorlevel 1 (
 
 if not exist "%DIST_DIR%\" (
     echo ERROR: PyInstaller output not found at "%DIST_DIR%\"
-    echo        Run PyInstaller first: pyinstaller webatchify-v1.1.2.spec
+    echo        Run PyInstaller first: python build_exe.py
     exit /b 1
 )
 

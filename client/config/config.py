@@ -46,7 +46,7 @@ class Config:
     UPDATE_DOWNLOAD_ESTIMATOR_ENDPOINT = f"{API_PREFIX}/updates/download/estimator"
     
     # Application Configuration
-    APP_VERSION = "1.1.2"
+    APP_VERSION = "1.0.0"
     APP_AUTHOR = AUTHOR
     
     # Development mode detection

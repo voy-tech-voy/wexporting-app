@@ -389,10 +389,13 @@ def validate_store_receipt():
         store_user_id = _extract_user_id_from_receipt(receipt_data, platform)
         
         # Determine if premium based on product type
-        product_type = validation_result['product_type']  # lifetime | energy_pack | day_pass
+        # Use new helper to correctly map product_id to type
+        product_type = _get_product_type_from_id(product_id)
         is_lifetime = product_type == 'lifetime'
         is_day_pass = product_type == 'day_pass'
-        energy_to_add = validation_result.get('energy_amount', 0)
+        
+        # Use new helper to correctly get energy amount
+        energy_to_add = _get_energy_amount_from_id(product_id)
         
         # Get or create user profile
         user_profile = license_manager.get_or_create_user_profile(store_user_id, platform)
@@ -506,10 +509,14 @@ def energy_sync():
             hashlib.sha256
         ).hexdigest()
         
+        # max_daily = free allowance + any permanently purchased energy expansion
+        purchased_energy = user_profile.get('purchased_energy', 0)
+        max_daily = Config.DAILY_FREE_ENERGY + purchased_energy
+        
         return jsonify({
             'success': True,
             'balance': balance,
-            'max_daily': Config.DAILY_FREE_ENERGY,
+            'max_daily': max_daily,
             'is_premium': user_profile.get('is_premium', False),
             'timestamp': timestamp,
             'signature': signature
@@ -724,6 +731,80 @@ def energy_report():
 # ============================================================================
 # HELPER FUNCTIONS
 # ============================================================================
+
+# ============================================================================
+# PRODUCT ID LOOKUP TABLES
+# Maps MS Store product IDs (from purchase_options.json) to their types and amounts
+# ============================================================================
+_PRODUCT_TYPE_MAP = {
+    # MS Store product IDs
+    '9NBLGGH42DRH': 'energy_pack',   # 500 Credits
+    '9NBLGGH42DRJ': 'energy_pack',   # Daily Focus Pack (+200 max energy)
+    '9NBLGGH42DRI': 'lifetime',      # Premium Lifetime
+    # Generic keyword-based fallbacks (for future products)
+}
+
+_PRODUCT_ENERGY_MAP = {
+    '9NBLGGH42DRH': 500,   # 500 Credits
+    '9NBLGGH42DRJ': 200,   # Daily Focus Pack (+200)
+    '9NBLGGH42DRI': 0,     # Premium Lifetime - no energy, grants unlimited
+}
+
+
+def _get_product_type_from_id(product_id: str) -> str:
+    """
+    Determine product type from product ID.
+    
+    First checks explicit MS Store ID lookup table, then falls back to
+    keyword matching for forward-compatibility with future products.
+    
+    Args:
+        product_id: Product identifier
+        
+    Returns:
+        str: "lifetime", "energy_pack", or "day_pass"
+    """
+    # Check explicit lookup table first (MS Store IDs)
+    if product_id in _PRODUCT_TYPE_MAP:
+        return _PRODUCT_TYPE_MAP[product_id]
+    
+    # Keyword-based fallback for future products
+    pid_lower = product_id.lower()
+    if 'lifetime' in pid_lower or 'premium' in pid_lower:
+        return 'lifetime'
+    elif 'day_pass' in pid_lower:
+        return 'day_pass'
+    elif 'energy' in pid_lower or 'credit' in pid_lower:
+        return 'energy_pack'
+    else:
+        logger.warning(f"Unknown product_id '{product_id}', defaulting to 'lifetime'")
+        return 'lifetime'
+
+
+def _get_energy_amount_from_id(product_id: str) -> int:
+    """
+    Extract energy amount from product ID.
+    
+    First checks explicit MS Store ID lookup table (e.g. 9NBLGGH42DRH -> 500),
+    then falls back to regex for forward-compatible future products
+    that encode the amount in their ID string (e.g. 'imgapp_energy_100').
+    
+    Args:
+        product_id: Product identifier
+        
+    Returns:
+        int: Energy amount, or 0 if not found
+    """
+    # Check explicit lookup table first
+    if product_id in _PRODUCT_ENERGY_MAP:
+        return _PRODUCT_ENERGY_MAP[product_id]
+    
+    # Regex-based fallback for future products with amount in ID
+    import re
+    match = re.search(r'(?:energy|credit)[_-](\d+)', product_id.lower())
+    if match:
+        return int(match.group(1))
+    return 0
 
 def _extract_user_id_from_receipt(receipt_data: str, platform: str) -> str:
     """
