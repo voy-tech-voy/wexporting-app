@@ -1,4 +1,4 @@
-﻿"""
+"""
 Energy Manager - Usage-Based Licensing System with Server Validation
 
 Manages the daily "Energy" allowance for Free Tier users.
@@ -142,8 +142,10 @@ class EnergyManager(QObject):
 
     def _get_storage_path(self):
         """Get path to storage file in user app data"""
-        # Ensure directory exists
-        path = Path("client/assets/config")
+        # Ensure directory exists in user profile to prevent UAC PermissionErrors
+        import os
+        app_data = os.environ.get('APPDATA', os.path.expanduser('~'))
+        path = Path(app_data) / 'wexporting' / 'config'
         path.mkdir(parents=True, exist_ok=True)
         return path / self.STORAGE_FILE
 

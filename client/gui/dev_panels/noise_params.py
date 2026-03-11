@@ -38,9 +38,9 @@ class NoiseParams:
     def get_config_path(cls):
         """Get path to config file."""
         import os
-        # Relative to client/gui/dev_panels/noise_params.py -> client/config/noise_params.json
-        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
-        config_dir = os.path.join(base_dir, 'client', 'config')
+        # Store in user's APPDATA folder to avoid UAC permissions issues
+        app_data = os.environ.get('APPDATA', os.path.expanduser('~'))
+        config_dir = os.path.join(app_data, 'wexporting', 'config')
         os.makedirs(config_dir, exist_ok=True)
         return os.path.join(config_dir, 'noise_params.json')
 

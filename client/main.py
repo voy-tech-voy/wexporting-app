@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """
 Graphics Conversion App
 A Qt-based application for converting graphics files using FFmpeg and ImageMagick
@@ -8,6 +8,133 @@ import sys
 import time
 import os
 import shutil
+
+# ── Frozen-app PySide6 DLL fix (Windows / PyInstaller) ───────────────────────
+# When PyInstaller bundles the app, Qt DLLs live in _internal/PySide6/.
+# Python ≥ 3.8 no longer uses PATH to find DLLs on Windows, so we must
+# register the directories explicitly *before* the first PySide6 import.
+#
+# KEY FIX (v1.0.5): os.add_dll_directory() can silently fail under UAC-
+# protected paths (e.g. C:\Program Files) because the handle it returns is
+# dropped immediately. Instead we call AddDllDirectory() via ctypes at the
+# Win32 API level, which persists for the lifetime of the process regardless
+# of the calling directory or user privilege level.
+#
+# We also write a qt.conf next to the EXE so Qt's own plugin loader knows
+# the prefix path without relying on PATH at all.
+if getattr(sys, 'frozen', False) and sys.platform == 'win32':
+    import pathlib
+    import ctypes
+    import ctypes.wintypes
+
+    _log_path = pathlib.Path(os.environ.get('TEMP', '')) / 'imgapp_startup_debug.txt'
+
+    def log_startup(message: str) -> None:
+        """Emergency logging to %TEMP% - survives crashes that kill stdout."""
+        try:
+            with open(_log_path, 'a', encoding='utf-8') as _f:
+                _f.write(f"{time.strftime('%H:%M:%S')} - {message}\n")
+        except Exception:
+            pass  # Absolute last resort - never crash the crash logger
+
+    # ── 1. Locate _MEIPASS (always the _internal folder in PyInstaller 6+) ──
+    _meipass = pathlib.Path(sys._MEIPASS)
+    # The exe itself lives one level above _internal
+    _exe_dir = pathlib.Path(sys.executable).parent
+
+    log_startup(f"=== wexporting startup ===")
+    log_startup(f"sys.executable : {sys.executable}")
+    log_startup(f"sys._MEIPASS   : {_meipass}")
+    log_startup(f"exe dir        : {_exe_dir}")
+
+    # ── 2. Build ordered list of DLL search directories ──────────────────────
+    _dll_dirs: list[pathlib.Path] = []
+    for _base in [_meipass, _exe_dir / '_internal', _exe_dir]:
+        for _sub in ['PySide6', 'shiboken6', '']:
+            _candidate = (_base / _sub) if _sub else _base
+            if _candidate.is_dir() and _candidate not in _dll_dirs:
+                _dll_dirs.append(_candidate)
+
+    log_startup(f"DLL search dirs: {[str(d) for d in _dll_dirs]}")
+
+    # ── 3. Register via Win32 AddDllDirectory (works under Program Files) ────
+    # We keep the returned cookies alive in a list so the directories stay
+    # registered for the entire process lifetime.
+    _kernel32 = ctypes.WinDLL('kernel32', use_last_error=True)
+    _AddDllDirectory = _kernel32.AddDllDirectory
+    _AddDllDirectory.restype = ctypes.c_void_p   # DLL_DIRECTORY_COOKIE (PVOID)
+    _AddDllDirectory.argtypes = [ctypes.c_wchar_p]
+
+    _dll_cookies: list = []
+    for _d in _dll_dirs:
+        try:
+            _cookie = _AddDllDirectory(str(_d))
+            if _cookie:
+                _dll_cookies.append(_cookie)
+                log_startup(f"[OK] AddDllDirectory: {_d}")
+            else:
+                _err = ctypes.get_last_error()
+                log_startup(f"[WARN] AddDllDirectory returned NULL for {_d} (error {_err})")
+        except Exception as _ex:
+            log_startup(f"[WARN] AddDllDirectory exception for {_d}: {_ex}")
+        # Also update PATH for any legacy loaders that still use it
+        os.environ['PATH'] = str(_d) + os.pathsep + os.environ.get('PATH', '')
+
+    # ── 4. Set Qt environment variables before any import ────────────────────
+    # QT_PLUGIN_PATH tells Qt where to look for platform/imageformat plugins.
+    # This is the most important env var - without it Qt can't find qwindows.dll.
+    _pyside6_dir = None
+    for _d in _dll_dirs:
+        if (_d / 'Qt6Core.dll').exists():
+            _pyside6_dir = _d
+            break
+
+    if _pyside6_dir:
+        _plugins_dir = _pyside6_dir / 'plugins'
+        if _plugins_dir.is_dir():
+            os.environ['QT_PLUGIN_PATH'] = str(_plugins_dir)
+            os.environ['QT_QPA_PLATFORM_PLUGIN_PATH'] = str(_plugins_dir / 'platforms')
+            log_startup(f"[OK] QT_PLUGIN_PATH = {_plugins_dir}")
+        log_startup(f"[OK] PySide6 dir: {_pyside6_dir}")
+    else:
+        log_startup("[ERROR] Could not locate Qt6Core.dll in any search dir!")
+
+    # ── 5. Write qt.conf next to the EXE ─────────────────────────────────────
+    # qt.conf tells Qt's internal loader the prefix path relative to the exe.
+    # This is a belt-and-suspenders measure on top of QT_PLUGIN_PATH.
+    try:
+        _internal_rel = '_internal'  # PyInstaller 6+ always uses this name
+        _qt_conf_path = _exe_dir / 'qt.conf'
+        _qt_conf_content = (
+            '[Paths]\n'
+            f'Prefix = ./{_internal_rel}/PySide6\n'
+            f'Plugins = ./{_internal_rel}/PySide6/plugins\n'
+            f'Libraries = ./{_internal_rel}/PySide6\n'
+        )
+        _qt_conf_path.write_text(_qt_conf_content, encoding='utf-8')
+        log_startup(f"[OK] Wrote qt.conf to {_qt_conf_path}")
+    except Exception as _ex:
+        log_startup(f"[WARN] Could not write qt.conf: {_ex}")
+
+    # ── 6. Pre-load Qt6Core so dependent DLLs resolve before Python imports ──
+    if _pyside6_dir:
+        for _dll_name in ['Qt6Core.dll', 'Qt6Network.dll', 'Qt6Gui.dll', 'Qt6Widgets.dll']:
+            _dll_file = _pyside6_dir / _dll_name
+            if _dll_file.exists():
+                try:
+                    ctypes.WinDLL(str(_dll_file))
+                    log_startup(f"[OK] Pre-loaded {_dll_name}")
+                except Exception as _ex:
+                    log_startup(f"[ERROR] Pre-load failed for {_dll_name}: {_ex}")
+
+    log_startup("DLL bootstrap complete — proceeding to PySide6 import")
+# ─────────────────────────────────────────────────────────────────────────────
+
+try:
+    import shiboken6
+except ImportError:
+    pass
+
 from PySide6.QtWidgets import QApplication, QWidget, QVBoxLayout, QLabel, QMessageBox, QDialog
 from PySide6.QtGui import QPixmap, QColor, QPainter, QFont
 from PySide6.QtCore import Qt, QRect, QTimer
@@ -477,7 +604,7 @@ def main():
 
         # Use extracted initialization function
         # is_trial is now managed by EnergyManager state, so we pass False here
-        window = initialize_main_window(is_trial=False, skip_splash=dev_mode)
+        window = initialize_main_window(is_trial=False, skip_splash=True)
         
         # --------------------------------------------------------------------
         # Version Gateway Pattern - Check for Updates

@@ -1,4 +1,4 @@
-﻿"""
+"""
 Login Window for ImgApp
 Simple authentication dialog that appears before the main application
 Supports both Gumroad and Microsoft Store distribution.
@@ -65,7 +65,7 @@ class LoginWindow(QDialog):
             else:
                 app_data = os.path.expanduser('~/.config')
                 
-            config_dir = os.path.join(app_data, 'ImageWave', 'config')
+            config_dir = os.path.join(app_data, APP_NAME, 'config')
             os.makedirs(config_dir, exist_ok=True)
             return os.path.join(config_dir, 'user_session.json')
         except Exception:
@@ -1253,7 +1253,7 @@ class LoginWindow(QDialog):
             if is_trial:
                 return
             
-            app_data_dir = os.path.join(os.getenv('APPDATA', '.'), 'ImageWave')
+            app_data_dir = os.path.join(os.getenv('APPDATA', '.'), APP_NAME)
             os.makedirs(app_data_dir, exist_ok=True)
             
             token_file = os.path.join(app_data_dir, 'license.dat')

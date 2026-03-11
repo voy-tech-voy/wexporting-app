@@ -1,4 +1,4 @@
-﻿"""
+"""
 Credit Bar Component
 Procedural geometry visualization for Energy credits.
 Vertical bars with sine-wave modulated Y-position.
@@ -45,7 +45,9 @@ class CreditBarArchive(QWidget):
         self._gain = 1.0  # 0.0-2.0: Overall brightness multiplier
         
         # Persistence
-        self._config_file = "v:\\_MY_APPS\\ImgApp_1\\client\\config\\credit_bar.json"
+        import os
+        app_data = os.environ.get('APPDATA', os.path.expanduser('~'))
+        self._config_file = os.path.join(app_data, 'wexporting', 'config', 'credit_bar.json')
         
         # Visuals
         # Visuals
@@ -556,7 +558,9 @@ class CreditBar(QWidget):
         self._gain = 1.0
         
         # Persistence
-        self._config_file = "v:\\_MY_APPS\\ImgApp_1\\client\\config\\credit_bar.json"
+        import os
+        app_data = os.environ.get('APPDATA', os.path.expanduser('~'))
+        self._config_file = os.path.join(app_data, 'wexporting', 'config', 'credit_bar.json')
         
         # Dev panel
         self._dev_panel = None
