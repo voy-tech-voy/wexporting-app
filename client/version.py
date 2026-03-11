@@ -38,7 +38,7 @@ class VersionManager:
                 print(f"Error loading version.json: {e}")
         
         return {
-            "version": "7.4",
+            "version": "1.0.0.7",
             "build": 1,
             "last_build": datetime.now().isoformat() + "Z",
             "changelog": {}
@@ -67,7 +67,7 @@ class VersionManager:
     
     def get_current_version(self):
         """Get current version string."""
-        return self.version_data.get('version', '7.4')
+        return self.version_data.get('version', '1.0.0.7')
     
     def get_version_info(self):
         """Get full version information."""

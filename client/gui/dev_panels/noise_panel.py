@@ -1,4 +1,4 @@
-﻿"""
+"""
 Noise Gradient Dev Panel (F11)
 Provides real-time control over noise gradient parameters for file list items.
 """
@@ -117,6 +117,12 @@ class NoiseDevPanel(BaseDevPanel):
             behavior_layout
         )
         
+        self.flat_completed_checkbox = self._create_checkbox_row(
+            "Flat Completed Status",
+            NoiseParams.flat_completed_enabled,
+            behavior_layout
+        )
+        
         behavior_group.setLayout(behavior_layout)
         self.content_layout.addWidget(behavior_group)
         
@@ -223,6 +229,7 @@ class NoiseDevPanel(BaseDevPanel):
         
         # Behavior parameters
         NoiseParams.persistence_enabled = self.persistence_checkbox.isChecked()
+        NoiseParams.flat_completed_enabled = self.flat_completed_checkbox.isChecked()
         
         # Invalidate cache and notify
         NoiseParams.invalidate_cache()
@@ -247,6 +254,7 @@ class NoiseDevPanel(BaseDevPanel):
         self.mask_peak_alpha_slider.setValue(255)
         
         self.persistence_checkbox.setChecked(False)
+        self.flat_completed_checkbox.setChecked(True)
         
         self.params_changed.emit()
 

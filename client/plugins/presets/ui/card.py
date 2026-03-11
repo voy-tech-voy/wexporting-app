@@ -1,4 +1,4 @@
-﻿"""
+"""
 Presets Plugin - Preset Card Widget
 
 A 3:4 ratio card widget displaying preset information.
@@ -314,16 +314,17 @@ class PresetCard(QFrame):
         accent = self._preset.style.accent_color
         
         if self._is_selected:
-            # Selected state: accent border + subtle background tint
+            # Selected state: green border + subtle background tint
+            selected_color = Theme.success()
             self.setStyleSheet(f"""
                 QFrame#PresetCard {{
                     background-color: {Theme.color('surface_hover')};
-                    border: 2px solid {accent};
+                    border: 2px solid {selected_color};
                     border-radius: {Theme.RADIUS_LG}px;
                 }}
                 QFrame#PresetCard:hover {{
                     background-color: {Theme.color('surface_hover')};
-                    border: 2px solid {accent};
+                    border: 2px solid {selected_color};
                 }}
                 QLabel#CardIcon {{
                     background-color: transparent;

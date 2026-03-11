@@ -99,7 +99,15 @@ class PresetManager:
                 print(f"[PresetManager] Warning: {e}")
         
         # Scan user custom presets
-        user_presets_path = presets_path.parent / "user_custom_presets"
+        # Scan user custom presets from APPDATA safely
+        import os
+        try:
+            from client.version import APP_NAME
+            app_name = APP_NAME
+        except ImportError:
+            app_name = "wexporting"
+            
+        user_presets_path = Path(os.environ.get('APPDATA', os.path.expanduser('~'))) / app_name / "user_custom_presets"
         if user_presets_path.exists():
             user_yaml_files = list(user_presets_path.glob("**/*.yaml")) + list(user_presets_path.glob("**/*.yml"))
             

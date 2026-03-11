@@ -30,10 +30,13 @@ class CustomPresetGenerator:
         if user_presets_dir:
             self._user_presets_dir = Path(user_presets_dir)
         else:
-            # Default: client/plugins/presets/assets/user_custom_presets/
-            plugin_dir = Path(__file__).parent.parent
-            self._user_presets_dir = plugin_dir / "assets" / "user_custom_presets"
-        
+            import os
+            try:
+                from client.version import APP_NAME
+                app_name = APP_NAME
+            except ImportError:
+                app_name = "wexporting"
+            self._user_presets_dir = Path(os.environ.get('APPDATA', os.path.expanduser('~'))) / app_name / "user_custom_presets"
         # Ensure directory exists
         self._user_presets_dir.mkdir(parents=True, exist_ok=True)
     

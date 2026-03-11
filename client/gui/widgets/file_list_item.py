@@ -1,4 +1,4 @@
-﻿"""
+"""
 FileListItemWidget - Custom widget for file list items with thumbnails.
 
 Extracted from custom_widgets.py for better organization.
@@ -344,9 +344,6 @@ class FileListItemWidget(QWidget):
                 
             base_color = QColor(color_hex)
             
-            # 1. Base Gradient: Color -> Transparent (dynamic from dev panel)
-            gradient = QLinearGradient(0, 0, self.width(), 0)
-            
             # Calculate progress width for sequences
             progress_ratio = 1.0
             if getattr(self, 'is_sequence', False) and hasattr(self, 'completed_files'):
@@ -354,22 +351,6 @@ class FileListItemWidget(QWidget):
                 # If status IS 'success', show full (ratio 1.0)
                 if self._status != 'success': 
                     progress_ratio = len(self.completed_files) / max(1, self.sequence_count)
-            
-            c1 = QColor(base_color)
-            c1.setAlpha(NoiseParams.gradient_start_alpha)
-            
-            c_mid = QColor(base_color)
-            c_mid.setAlpha(NoiseParams.gradient_mid_alpha)
-            
-            c2 = QColor(base_color)
-            c2.setAlpha(0)
-            
-            # Adjust gradient stops??? No, gradient is the "style". 
-            # We want to CLIP the gradient to the progress width.
-            
-            gradient.setColorAt(0.0, c1)
-            gradient.setColorAt(NoiseParams.gradient_mid_position, c_mid)
-            gradient.setColorAt(1.0, c2)
             
             path = QPainterPath()
             path.addRoundedRect(0, 0, self.width(), self.height(), Theme.RADIUS_MD, Theme.RADIUS_MD)
@@ -381,41 +362,68 @@ class FileListItemWidget(QWidget):
                 progress_path = QPainterPath()
                 progress_path.addRect(progress_rect)
                 path = path.intersected(progress_path)
-            
-            # Fill base gradient
-            painter.fillPath(path, QBrush(gradient))
-            
-            # 2. Apply Noise Dithering
-            # Draw noise into a temporary pixmap, apply gradient mask, then overlay
-            noise_tex = self._get_noise_texture()
-            if noise_tex:
-                # Create noise layer
-                noise_pix = QPixmap(self.size())
-                noise_pix.fill(Qt.GlobalColor.transparent)
+
+            # Check if we should use flat color for completed items
+            is_completed = self._status in ['success', 'failed', 'skipped', 'stopped']
+            use_flat = is_completed and getattr(NoiseParams, 'flat_completed_enabled', False)
+
+            if use_flat:
+                # 1. Flat fill for completed status
+                fill_color = QColor(base_color)
+                # Use a specific alpha for the flat look (softer than gradient start)
+                fill_color.setAlpha(NoiseParams.gradient_start_alpha // 2)
+                painter.fillPath(path, QBrush(fill_color))
+            else:
+                # 1. Base Gradient: Color -> Transparent (dynamic from dev panel)
+                gradient = QLinearGradient(0, 0, self.width(), 0)
                 
-                np = QPainter(noise_pix)
-                np.setRenderHint(QPainter.RenderHint.Antialiasing)
+                c1 = QColor(base_color)
+                c1.setAlpha(NoiseParams.gradient_start_alpha)
                 
-                # Tile the noise
-                np.setClipPath(path)
-                np.drawTiledPixmap(self.rect(), noise_tex)
+                c_mid = QColor(base_color)
+                c_mid.setAlpha(NoiseParams.gradient_mid_alpha)
                 
-                # Apply Gradient Mask to Noise (DestinationIn)
-                # Keep noise only where the gradient fades to reduce banding
-                np.setCompositionMode(QPainter.CompositionMode.CompositionMode_DestinationIn)
+                c2 = QColor(base_color)
+                c2.setAlpha(0)
                 
-                mask_grad = QLinearGradient(0, 0, self.width(), 0)
-                # Mask Alpha: dynamic from dev panel
-                mask_grad.setColorAt(NoiseParams.mask_start_pos, QColor(0, 0, 0, 0))  # Clean start
-                mask_grad.setColorAt(NoiseParams.mask_ramp_pos, QColor(0, 0, 0, NoiseParams.mask_ramp_alpha))  # Noise starts
-                mask_grad.setColorAt(NoiseParams.mask_peak_pos, QColor(0, 0, 0, NoiseParams.mask_peak_alpha))  # Max noise
-                mask_grad.setColorAt(NoiseParams.mask_end_pos, QColor(0, 0, 0, 0))  # Clean end
+                gradient.setColorAt(0.0, c1)
+                gradient.setColorAt(NoiseParams.gradient_mid_position, c_mid)
+                gradient.setColorAt(1.0, c2)
                 
-                np.fillRect(self.rect(), mask_grad)
-                np.end()
+                # Fill base gradient
+                painter.fillPath(path, QBrush(gradient))
                 
-                # Overlay masked noise
-                painter.drawPixmap(0, 0, noise_pix)
+                # 2. Apply Noise Dithering
+                # Draw noise into a temporary pixmap, apply gradient mask, then overlay
+                noise_tex = self._get_noise_texture()
+                if noise_tex:
+                    # Create noise layer
+                    noise_pix = QPixmap(self.size())
+                    noise_pix.fill(Qt.GlobalColor.transparent)
+                    
+                    np = QPainter(noise_pix)
+                    np.setRenderHint(QPainter.RenderHint.Antialiasing)
+                    
+                    # Tile the noise
+                    np.setClipPath(path)
+                    np.drawTiledPixmap(self.rect(), noise_tex)
+                    
+                    # Apply Gradient Mask to Noise (DestinationIn)
+                    # Keep noise only where the gradient fades to reduce banding
+                    np.setCompositionMode(QPainter.CompositionMode.CompositionMode_DestinationIn)
+                    
+                    mask_grad = QLinearGradient(0, 0, self.width(), 0)
+                    # Mask Alpha: dynamic from dev panel
+                    mask_grad.setColorAt(NoiseParams.mask_start_pos, QColor(0, 0, 0, 0))  # Clean start
+                    mask_grad.setColorAt(NoiseParams.mask_ramp_pos, QColor(0, 0, 0, NoiseParams.mask_ramp_alpha))  # Noise starts
+                    mask_grad.setColorAt(NoiseParams.mask_peak_pos, QColor(0, 0, 0, NoiseParams.mask_peak_alpha))  # Max noise
+                    mask_grad.setColorAt(NoiseParams.mask_end_pos, QColor(0, 0, 0, 0))  # Clean end
+                    
+                    np.fillRect(self.rect(), mask_grad)
+                    np.end()
+                    
+                    # Overlay masked noise
+                    painter.drawPixmap(0, 0, noise_pix)
         
         # 3. Paint Background (if hovered) - already handled by stylesheet in update_background_style?
         # No, stylesheet handles it.

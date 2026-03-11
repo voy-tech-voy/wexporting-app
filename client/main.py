@@ -604,7 +604,7 @@ def main():
 
         # Use extracted initialization function
         # is_trial is now managed by EnergyManager state, so we pass False here
-        window = initialize_main_window(is_trial=False, skip_splash=True)
+        window = initialize_main_window(is_trial=False, skip_splash=False)
         
         # --------------------------------------------------------------------
         # Version Gateway Pattern - Check for Updates

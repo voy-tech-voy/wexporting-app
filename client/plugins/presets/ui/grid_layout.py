@@ -1,4 +1,4 @@
-﻿"""
+"""
 Grid Layout Manager
 
 Manages responsive card grid layout for preset gallery.
@@ -28,16 +28,18 @@ class GridLayoutManager:
     MIN_CARDS_PER_ROW = 2
     MAX_CARDS_PER_ROW = 6
     
-    def __init__(self, scroll_area: QScrollArea, on_card_clicked_callback):
+    def __init__(self, scroll_area: QScrollArea, on_card_clicked_callback, card_registered_callback=None):
         """
         Initialize grid layout manager.
         
         Args:
             scroll_area: QScrollArea containing the card container
             on_card_clicked_callback: Callback function for card clicks
+            card_registered_callback: Optional callback called with each new card (for tracking)
         """
         self._scroll = scroll_area
         self._on_card_clicked = on_card_clicked_callback
+        self._card_registered_callback = card_registered_callback
     
     def calculate_cards_per_row(self) -> int:
         """Calculate how many cards fit per row based on available width."""
@@ -70,6 +72,8 @@ class GridLayoutManager:
         for preset in presets:
             card = PresetCard(preset)
             card.clicked.connect(self._on_card_clicked)
+            if self._card_registered_callback:
+                self._card_registered_callback(card)
             layout.addWidget(card)
         layout.addStretch()
         

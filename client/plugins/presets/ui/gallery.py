@@ -1,4 +1,4 @@
-﻿"""
+"""
 Presets Plugin - Preset Gallery
 
 Overlay widget displaying a responsive grid of preset cards.
@@ -68,7 +68,7 @@ class PresetGallery(BlurBackgroundMixin, QWidget):
         self._setup_ui()
         
         # Initialize extracted components AFTER UI setup
-        self._grid_layout = GridLayoutManager(self._scroll, self._on_card_clicked)
+        self._grid_layout = GridLayoutManager(self._scroll, self._on_card_clicked, self._register_card)
         self._social_nav = SocialNavigator(self)
         
         self._apply_styles()
@@ -77,28 +77,61 @@ class PresetGallery(BlurBackgroundMixin, QWidget):
         self.hide()
     
     def eventFilter(self, obj, event):
-        """Monitor parent resize events and catch double-clicks on scroll area."""
+        """Monitor parent resize events and handle background clicks to deselect cards."""
         from PySide6.QtCore import QEvent
+        from PySide6.QtCore import QPoint
         
         # Handle parent resize
         if obj == self.parent() and event.type() == QEvent.Type.Resize:
-            # Expand slightly to cover drop area dashed outline
             rect = obj.rect()
-            rect.adjust(-2, -2, 2, 2)  # Expand by 2px on all sides
+            rect.adjust(-2, -2, 2, 2)
             self.setGeometry(rect)
             self._position_filter_bar()
             if self.isVisible():
                 self.capture_blur_background()
             return super().eventFilter(obj, event)
         
-        # Handle double-click on scroll viewport or card container
+        # Geometry-based card deselection on viewport clicks
+        # Only act on the scroll viewport — card clicks never arrive here as background
+        # because the card widget itself receives them first (Qt does not forward to viewport).
+        # Wait — actually they DO arrive at the viewport too via event propagation.
+        # So we use global coordinates to check if the click landed on a card.
+        if event.type() == QEvent.Type.MouseButtonPress:
+            if obj == self._scroll.viewport():
+                has_selection = (
+                    self._selected_card is not None or
+                    (hasattr(self, '_param_panel') and self._param_panel.isVisible())
+                )
+                if has_selection:
+                    global_pos = event.globalPosition().toPoint()
+                    # Check if the click is geometrically inside any card
+                    click_on_card = False
+                    for card in self._cards:
+                        try:
+                            if shiboken6.isValid(card) and card.isVisible():
+                                card_tl = card.mapToGlobal(QPoint(0, 0))
+                                from PySide6.QtCore import QRect
+                                card_rect = QRect(card_tl, card.size())
+                                if card_rect.contains(global_pos):
+                                    click_on_card = True
+                                    break
+                        except Exception:
+                            pass
+                    # Also check param panel
+                    if not click_on_card and hasattr(self, '_param_panel') and self._param_panel.isVisible():
+                        panel_tl = self._param_panel.mapToGlobal(QPoint(0, 0))
+                        from PySide6.QtCore import QRect
+                        panel_rect = QRect(panel_tl, self._param_panel.size())
+                        if panel_rect.contains(global_pos):
+                            click_on_card = True
+                    if not click_on_card:
+                        self.deselect_card()
+        
+        # Handle double-click on scroll viewport to dismiss gallery
         if event.type() == QEvent.Type.MouseButtonDblClick:
             if obj == self._scroll.viewport() or obj == self._card_container:
-                # Check if double-click is on empty space (not on a child widget like a card)
                 child = obj.childAt(event.pos())
-                # If child is None OR child is the card container layout (not a card itself)
                 if child is None or child == self._card_container:
-                    print("[PresetGallery] Double-click on background detected - dismissing")
                     self.dismissed.emit()
                     return True
         
@@ -228,18 +261,15 @@ class PresetGallery(BlurBackgroundMixin, QWidget):
         self._filter_bar.set_categories(presets)
         self._rebuild_cards()
     
+    def _register_card(self, card):
+        """Called by GridLayoutManager each time it creates a new displayed card."""
+        self._cards.append(card)
+
     def _rebuild_cards(self):
         """Recreate all cards and layout them."""
-        # Clean up existing cards and rows
+        # Clean up existing cards and rows (also clears self._cards)
         self._cleanup_layout()
-        
-        # Create new cards
-        for preset in self._presets:
-            card = PresetCard(preset)
-            card.clicked.connect(self._on_card_clicked)
-            self._cards.append(card)
-        
-        # Layout based on filter
+        # GridLayoutManager will create and register cards via _register_card
         self._apply_filter()
     
     def _cleanup_layout(self):
@@ -278,6 +308,9 @@ class PresetGallery(BlurBackgroundMixin, QWidget):
         # Reset drill-down state when filter changes
         self._social_nav._current_ratio_view = None
         self._filter_bar.show()
+        
+        # Clear tracked cards — GridLayoutManager will re-register them below
+        self._cards.clear()
 
         # Remove rows from layout but don't delete cards yet - safely
         for row in self._row_widgets:
@@ -427,7 +460,23 @@ class PresetGallery(BlurBackgroundMixin, QWidget):
         print(f"[PresetGallery] Go to Lab requested with {len(lab_settings)} settings")
         self.go_to_lab_requested.emit(lab_settings)
     
-
+    def deselect_card(self):
+        """Deselect current card and hide parameter window."""
+        if self._selected_card is not None:
+            try:
+                if shiboken6.isValid(self._selected_card):
+                    self._selected_card.set_selected(False)
+            except RuntimeError:
+                pass
+            self._selected_card = None
+            
+        if hasattr(self, '_param_panel') and self._param_panel.isVisible():
+            self._param_panel.hide_animated()
+            
+    def mousePressEvent(self, event):
+        """Absorb direct clicks on the gallery background (between scroll and param panel)."""
+        # The global filter handles deselection - just call super
+        super().mousePressEvent(event)
     
     def mouseDoubleClickEvent(self, event):
         """Handle double-click on gallery background - dismiss gallery."""

@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """
 Windows Error Reporter
 Handles error reporting and logging for Windows ImgApp
@@ -33,14 +33,15 @@ class WindowsErrorReporter:
             
             # Set up logging configuration
             logging.basicConfig(
-                level=logging.WARNING,
+                level=logging.DEBUG,
                 format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
                 handlers=[
                     logging.FileHandler(str(self.log_file), encoding='utf-8')
                 ]
             )
             
-            self.logger = logging.getLogger('ImgApp')
+            # Use root logger so that all modules in the app are captured
+            self.logger = logging.getLogger()
             self.logger.info(f"Logging initialized: {self.log_file}")
             
         except Exception as e:
@@ -48,54 +49,27 @@ class WindowsErrorReporter:
             self.logger = None
     
     def get_log_directory(self):
-        """Get the appropriate log directory for Windows"""
-        possible_dirs = []
-        
-        # PRIORITY 1: Same directory as .exe (for production builds)
+        """Get the appropriate user-writable log directory for Windows"""
         try:
-            if getattr(sys, 'frozen', False):
-                exe_path = Path(sys.executable)
-                log_dir = exe_path.parent / "ImgApp_Logs"
-                possible_dirs.append(log_dir)
+            from client.version import APP_NAME
+            app_name = APP_NAME
+        except Exception:
+            app_name = "wexporting"
+
+        try:
+            # Always use AppData to ensure write permissions, especially for MSI installations
+            log_dir = Path(os.environ.get('APPDATA', os.path.expanduser('~'))) / app_name / "Logs"
+            log_dir.mkdir(parents=True, exist_ok=True)
+            # Test write access
+            test_file = log_dir / "test_write.tmp"
+            test_file.write_text("test")
+            test_file.unlink()
+            return log_dir
         except Exception:
             pass
-        
-        # PRIORITY 2: Same directory as main.py (for development)
-        try:
-            main_script = Path(__file__).parent
-            log_dir = main_script / "ImgApp_Logs"
-            possible_dirs.append(log_dir)
-        except Exception:
-            pass
-        
-        # PRIORITY 3: User Documents folder
-        try:
-            docs_path = Path.home() / "Documents" / "ImgApp_Logs"
-            possible_dirs.append(docs_path)
-        except Exception:
-            pass
-        
-        # PRIORITY 4: AppData Local
-        try:
-            appdata = Path(os.environ.get('LOCALAPPDATA', '')) / "ImgApp" / "Logs"
-            possible_dirs.append(appdata)
-        except Exception:
-            pass
-        
-        # Try each directory until one works
-        for log_dir in possible_dirs:
-            try:
-                log_dir.mkdir(parents=True, exist_ok=True)
-                # Test write access
-                test_file = log_dir / "test_write.tmp"
-                test_file.write_text("test")
-                test_file.unlink()
-                return log_dir
-            except Exception:
-                continue
         
         # Last resort - current directory
-        return Path.cwd() / "ImgApp_Logs"
+        return Path.cwd() / f"{app_name}_Logs"
     
     def gather_app_info(self):
         """Gather comprehensive application information"""

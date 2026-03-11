@@ -33,6 +33,7 @@ class NoiseParams:
     
     # Behavior
     persistence_enabled = False  # If True, clicking items won't clear status gradient
+    flat_completed_enabled = True # If True, completed items use flat color instead of noise gradient
     
     @classmethod
     def get_config_path(cls):
@@ -59,7 +60,8 @@ class NoiseParams:
             'mask_ramp_alpha': cls.mask_ramp_alpha,
             'mask_peak_pos': cls.mask_peak_pos,
             'mask_peak_alpha': cls.mask_peak_alpha,
-            'persistence_enabled': cls.persistence_enabled
+            'persistence_enabled': cls.persistence_enabled,
+            'flat_completed_enabled': cls.flat_completed_enabled
         }
         try:
             with open(cls.get_config_path(), 'w') as f:
@@ -94,6 +96,7 @@ class NoiseParams:
             cls.mask_peak_pos = data.get('mask_peak_pos', cls.mask_peak_pos)
             cls.mask_peak_alpha = data.get('mask_peak_alpha', cls.mask_peak_alpha)
             cls.persistence_enabled = data.get('persistence_enabled', cls.persistence_enabled)
+            cls.flat_completed_enabled = data.get('flat_completed_enabled', cls.flat_completed_enabled)
             
             cls.invalidate_cache()
         except Exception as e:
@@ -128,5 +131,6 @@ class NoiseParams:
         cls.mask_end_pos = 1.0
         
         cls.persistence_enabled = False
+        cls.flat_completed_enabled = True
         
         cls.invalidate_cache()
