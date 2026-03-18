@@ -232,7 +232,7 @@ client/config/local_config.py
 # Heavy binaries and tools
 Dependencies/
 deps.zip
-tools/archive/
-tools/ffmpeg/
-tools/models/
-tools/realesrgan/models/
+
+# Ignore entire tools folder
+tools/
+!tools/checksums.json
