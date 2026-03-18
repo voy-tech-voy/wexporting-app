@@ -228,3 +228,11 @@ test_server_crash.py
 # Local config
 client/config/local_config.json
 client/config/local_config.py
+
+# Heavy binaries and tools
+Dependencies/
+deps.zip
+tools/archive/
+tools/ffmpeg/
+tools/models/
+tools/realesrgan/models/
