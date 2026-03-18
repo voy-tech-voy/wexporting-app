@@ -1,0 +1,110 @@
+{
+  "forgot": {
+    "forgot_not_found": {
+      "action": "Check your email or contact support",
+      "message": "No license was found for this email address.",
+      "title": "No License Found"
+    },
+    "forgot_rate_limit": {
+      "action": "Try again later",
+      "message": "Please wait a few minutes before trying again.",
+      "title": "Too Many Requests"
+    },
+    "forgot_success": {
+      "action": null,
+      "message": "Your license key has been sent to your email address.",
+      "title": "Email Sent"
+    }
+  },
+  "login": {
+    "email_mismatch": {
+      "action": "Check your email",
+      "message": "This license key is registered to a different email address.",
+      "title": "Email Mismatch"
+    },
+    "license_expired": {
+      "action": "Visit store to renew",
+      "message": "Your license has expired. Please renew to continue.",
+      "title": "License Expired"
+    },
+    "login_invalid": {
+      "action": "Please try again",
+      "message": "The email or license key you entered is incorrect.",
+      "title": "Invalid Credentials"
+    },
+    "login_success": {
+      "action": null,
+      "message": "Welcome back!",
+      "title": "Login Successful"
+    }
+  },
+  "server": {
+    "circuit_open": {
+      "action": "Wait and try again",
+      "message": "The app has stopped trying to connect after multiple failures.\n\nThis protects both your computer and the server.",
+      "title": "🔌 Connection Failed"
+    },
+    "maintenance": {
+      "action": "Retry in 5 minutes",
+      "message": "The server is currently under maintenance.\n\nThis usually takes only a few minutes.",
+      "title": "🔧 Maintenance Mode"
+    },
+    "offline": {
+      "action": "Check internet connection and try again",
+      "message": "Cannot connect to the license server.\n\nPossible reasons:\n• Server maintenance\n• Your internet connection is down\n• Temporary server overload\n• Firewall blocking connection",
+      "title": "❌ Server Offline"
+    },
+    "online": {
+      "action": null,
+      "message": "Server is online and responsive.",
+      "title": "✅ Connected"
+    },
+    "overloaded": {
+      "action": "Retry in 30 seconds",
+      "message": "The server is handling many requests right now.\n\nPlease wait a moment and try again.",
+      "title": "🚦 Server Busy"
+    },
+    "slow": {
+      "action": "Continue anyway",
+      "message": "Your request may take longer than usual.\n\nPlease be patient.",
+      "title": "⚠️ Slow Connection"
+    },
+    "timeout": {
+      "action": "Try again in a moment",
+      "message": "The server is not responding.\n\nThis may be temporary. Please check:\n• Your internet connection\n• Firewall settings",
+      "title": "⏱️ Connection Timeout"
+    },
+    "unknown": {
+      "action": "Please contact support if this persists",
+      "message": "An unexpected error occurred.",
+      "title": "⚠️ Unknown Error"
+    }
+  },
+  "trial": {
+    "trial_already_used_email": {
+      "action": null,
+      "message": "You have used your free trial with this email address.",
+      "title": "Trial Already Used"
+    },
+    "trial_already_used_hardware": {
+      "action": null,
+      "message": "This device has been used for a free trial.",
+      "title": "Trial Already Used"
+    },
+    "trial_no_internet": {
+      "action": null,
+      "message": "An internet connection is required to activate a trial.\n\nPlease check your connection and try again.",
+      "title": "No Internet Connection"
+    },
+    "trial_not_eligible": {
+      "action": null,
+      "message": "You are not eligible for a trial at this time.",
+      "title": "Not Eligible"
+    },
+    "trial_success": {
+      "action": "Continue",
+      "message": "Your trial license has been activated successfully!",
+      "title": "Trial Activated"
+    }
+  }
+}

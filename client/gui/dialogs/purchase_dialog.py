@@ -1,4 +1,4 @@
-﻿import sys
+import sys
 import json
 from pathlib import Path
 from PySide6.QtWidgets import (
@@ -685,37 +685,6 @@ class PurchaseDialog(QDialog):
         QApplication.processEvents()
         
         try:
-            from client.config.config import Config
-            if Config.DEVELOPMENT_MODE:
-                logger.info(f"DEV MODE: Simulating purchase for {product_id}")
-                self.lbl_status.setText(f"DEV: Simulating purchase...")
-                QApplication.processEvents()
-                
-                from client.core.energy_manager import EnergyManager
-                from client.core.session_manager import SessionManager
-                em = EnergyManager.instance()
-                
-                if product_id == "9NBLGGH42DRH": # 500 Credits
-                    em.balance += 500
-                    em.save()
-                    em.energy_changed.emit(em.balance, em.max_daily_energy)
-                elif product_id == "9NBLGGH42DRJ": # Daily focus pack +200
-                    em.max_daily_energy += 200
-                    em.balance += 100
-                    em.save()
-                    em.energy_changed.emit(em.balance, em.max_daily_energy)
-                elif product_id == "9NBLGGH42DRI": # Premium Lifetime
-                    SessionManager.instance()._set_premium_status(True)
-                else: # Generic fallback for testing like credits 100
-                    em.balance += 100
-                    em.save()
-                    em.energy_changed.emit(em.balance, em.max_daily_energy)
-                
-                self.lbl_status.setText("DEV: Simulated Successfully!")
-                self.progress.setVisible(False)
-                QTimer.singleShot(1000, self.accept)
-                return
-
             # Get Provider
             provider = get_store_auth_provider()
             
@@ -729,6 +698,16 @@ class PurchaseDialog(QDialog):
             if success:
                 self.lbl_status.setText("Purchase Successful!")
                 self.progress.setVisible(False)
+                
+                # Sync energy balance from server — the provider has stored a real JWT
+                # in SessionManager, so this call will succeed and update the credit bar.
+                try:
+                    from client.core.energy_manager import EnergyManager
+                    EnergyManager.instance().sync_with_server_jwt()
+                    logger.info("PurchaseDialog: Energy sync triggered after purchase")
+                except Exception as sync_err:
+                    logger.warning(f"PurchaseDialog: Post-purchase sync failed (non-critical): {sync_err}")
+                
                 # Auto-close after short delay
                 QTimer.singleShot(1500, self.accept)
             else:

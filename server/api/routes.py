@@ -413,9 +413,17 @@ def validate_store_receipt():
             user_profile['premium_expiry'] = expiry.isoformat()
             
         if energy_to_add > 0:
-            # Add to BOTH total balance and purchased pool (Dual Pool Strategy)
-            user_profile['energy_balance'] = user_profile.get('energy_balance', 0) + energy_to_add
-            user_profile['purchased_energy'] = user_profile.get('purchased_energy', 0) + energy_to_add
+            if product_id in _PRODUCT_LIMIT_PACKS:
+                # Durable limit pack: permanently increases daily max.
+                # Only update purchased_energy — balance is NOT changed.
+                # The higher max becomes available from the next daily refresh.
+                user_profile['purchased_energy'] = user_profile.get('purchased_energy', 0) + energy_to_add
+                logger.info(f"Limit pack: purchased_energy += {energy_to_add} (new max: {35 + user_profile['purchased_energy']})")
+            else:
+                # Consumable pack: one-time balance addition.
+                # Max daily stays unchanged; only the available balance increases.
+                user_profile['energy_balance'] = user_profile.get('energy_balance', 0) + energy_to_add
+                logger.info(f"Consumable pack: energy_balance += {energy_to_add}")
         
         license_manager.save_user_profile(store_user_id, user_profile)
         
@@ -738,15 +746,19 @@ def energy_report():
 # ============================================================================
 _PRODUCT_TYPE_MAP = {
     # MS Store product IDs
-    '9NBLGGH42DRH': 'energy_pack',   # 500 Credits
-    '9NBLGGH42DRJ': 'energy_pack',   # Daily Focus Pack (+200 max energy)
+    '9NBLGGH42DRH': 'energy_pack',   # 500 Credits (consumable)
+    '9NBLGGH42DRJ': 'limit_pack',    # Daily Focus Pack (+200 permanent max)
     '9NBLGGH42DRI': 'lifetime',      # Premium Lifetime
     # Generic keyword-based fallbacks (for future products)
 }
 
+# Products that increase the daily LIMIT permanently (durable).
+# All other energy_pack products are consumable one-time balance additions.
+_PRODUCT_LIMIT_PACKS = {'9NBLGGH42DRJ'}
+
 _PRODUCT_ENERGY_MAP = {
     '9NBLGGH42DRH': 500,   # 500 Credits
-    '9NBLGGH42DRJ': 200,   # Daily Focus Pack (+200)
+    '9NBLGGH42DRJ': 200,   # Daily Focus Pack (+200 max)
     '9NBLGGH42DRI': 0,     # Premium Lifetime - no energy, grants unlimited
 }
 
@@ -824,6 +836,9 @@ def _extract_user_id_from_receipt(receipt_data: str, platform: str) -> str:
     import xml.etree.ElementTree as ET
     
     if platform == "msstore":
+        # DEV MOCK: return a stable user ID so all mock purchases hit the same profile
+        if receipt_data and receipt_data.startswith("DEV_MOCK_TX_"):
+            return "msstore_DEV_MOCK_USER_001"
         try:
             # MS Store receipts are XML
             receipt_xml = base64.b64decode(receipt_data).decode('utf-8')

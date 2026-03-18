@@ -216,7 +216,18 @@ class MSStoreProvider(IStoreAuthProvider):
                 if result.get('success'):
                     self._is_premium = result.get('is_premium', False)
                     self._jwt_token = result.get('jwt_token')
-                    logger.info(f"Receipt validated successfully (premium: {self._is_premium})")
+                    energy_balance = result.get('energy_balance')
+
+                    # Update session with the real JWT returned by the server
+                    from client.core.session_manager import SessionManager
+                    if self._store_user_id:
+                        SessionManager.instance().start_session(
+                            store_user_id=self._store_user_id,
+                            jwt_token=self._jwt_token or "",
+                            is_premium=self._is_premium
+                        )
+
+                    logger.info(f"Receipt validated successfully (premium: {self._is_premium}, balance: {energy_balance})")
                     return True
             
             logger.warning(f"Receipt validation failed: {response.status_code}")
@@ -269,7 +280,7 @@ class MSStoreProvider(IStoreAuthProvider):
             return False
     
     
-    def purchase_add_on(self, store_id: str, window_handle: int = None) -> bool:
+    def purchase_add_on(self, store_id: str, window_handle: Optional[int] = None) -> bool:
         """
         Purchase an add-on (consumable or durable).
         
@@ -282,7 +293,7 @@ class MSStoreProvider(IStoreAuthProvider):
         """
         return self.request_purchase(store_id, window_handle)
 
-    def request_purchase(self, product_id: str, window_handle: int = None) -> bool:
+    def request_purchase(self, product_id: str, window_handle: Optional[int] = None) -> bool:
         """
         Trigger native MS Store purchase UI.
         
@@ -305,8 +316,6 @@ class MSStoreProvider(IStoreAuthProvider):
             if window_handle:
                 try:
                     # Attempt to use IInitializeWithWindow
-                    # Note: specific implementation depends on winrt projection details.
-                    # Here we try a standard pattern or the user's requested syntax helper.
                     WinRTInterop.InitializeWithWindow.Initialize(self._store_context, window_handle)
                 except Exception as ex:
                     logger.warning(f"Failed to initialize with window handle: {ex}")
@@ -314,9 +323,6 @@ class MSStoreProvider(IStoreAuthProvider):
             
             async def _purchase_flow():
                 # 2. Fetch Product (to ensure validity)
-                # Note: GetStoreProductsAsync expects list of specific Store IDs
-                # 'product_id' here should be the StoreID (12 chars)
-                
                 logger.info(f"Fetching product details for {product_id}...")
                 products_result = await self._store_context.get_store_products_async(
                     ["Product"], [product_id]
@@ -345,8 +351,6 @@ class MSStoreProvider(IStoreAuthProvider):
                     is_consumable = 'energy' in product_id.lower() or 'day_pass' in product_id.lower()
 
                     if is_consumable:
-                        # Safe recovery: the Store may be holding unfulfilled units from a
-                        # previous interrupted session. Check and fulfill any owed quantity.
                         try:
                             balance_result = await self._store_context.get_consumable_balance_remaining_async(
                                 product_id
@@ -536,13 +540,14 @@ class MockStoreProvider(IStoreAuthProvider):
         logger.warning(f"[DEV MOCK] report_fulfillment({product_id}, {transaction_id}) — no-op")
         return True
 
-    def purchase_add_on(self, store_id: str, window_handle: int = None) -> bool:
+    def purchase_add_on(self, store_id: str, window_handle: Optional[int] = None) -> bool:
         """
         Simulate a full purchase flow:
         1. Fake 1.5s delay (Store dialog simulation)
         2. Generate a DEV_MOCK_TX_ transaction ID
         3. POST to server validate-receipt — server has a matching bypass
-        4. Return True if server responds with success
+        4. Update SessionManager with real JWT returned by server
+        5. Return True if server responds with success
         """
         import time
         import requests
@@ -567,7 +572,20 @@ class MockStoreProvider(IStoreAuthProvider):
                 timeout=15
             )
             if resp.status_code == 200 and resp.json().get("success"):
-                logger.info(f"[DEV MOCK] Server validated successfully: {resp.json()}")
+                data = resp.json()
+                jwt_token = data.get("jwt_token")
+                is_premium = data.get("is_premium", False)
+                energy_balance = data.get("energy_balance")
+                logger.info(f"[DEV MOCK] Server validated. JWT received, Balance: {energy_balance}")
+
+                # Update session with the real JWT returned by the server
+                from client.core.session_manager import SessionManager
+                SessionManager.instance().start_session(
+                    store_user_id=self._store_user_id,
+                    jwt_token=jwt_token,
+                    is_premium=is_premium
+                )
+                self._jwt_token = jwt_token
                 return True
             else:
                 logger.error(f"[DEV MOCK] Server rejected: {resp.status_code} {resp.text}")
@@ -576,5 +594,5 @@ class MockStoreProvider(IStoreAuthProvider):
             logger.error(f"[DEV MOCK] Server call failed: {e}")
             return False
 
-    def request_purchase(self, product_id: str, window_handle: int = None) -> bool:
+    def request_purchase(self, product_id: str, window_handle: Optional[int] = None) -> bool:
         return self.purchase_add_on(product_id, window_handle)

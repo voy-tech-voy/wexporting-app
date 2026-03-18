@@ -536,42 +536,7 @@ class EnergyManager(QObject):
         self.api_client.sync_balance()
         print(f"[EnergyManager] Syncing with server using JWT authentication...")
     
-    def _on_sync_completed(self, success, data):
-        """Handle sync response from server."""
-        if success:
-            self.balance = data.get('balance', self.balance)
-            self.max_daily_energy = data.get('max_daily_energy', self.DEFAULT_DAILY_ENERGY)
-            self.server_signature = data.get('signature')
-            print(f"[EnergyManager] Sync successful - Balance: {self.balance}, Max: {self.max_daily_energy}")
-            self.save()
-            self.energy_changed.emit(self.balance, self.max_daily_energy)
-        else:
-            error = data.get('error', 'unknown')
-            print(f"[EnergyManager] Sync failed: {error}")
-    
-    def _on_reservation_completed(self, success, data):
-        """Handle reservation response from server."""
-        if success:
-            self.balance = data.get('balance', self.balance)
-            self.max_daily_energy = data.get('max_daily_energy', self.max_daily_energy)
-            self.server_signature = data.get('signature')
-            print(f"[EnergyManager] Reservation successful - New balance: {self.balance}")
-            self.save()
-            self.energy_changed.emit(self.balance, self.max_daily_energy)
-        else:
-            error = data.get('error', 'unknown')
-            print(f"[EnergyManager] Reservation failed: {error}")
-    
-    def _on_report_completed(self, success, data):
-        """Handle usage report response from server."""
-        if success:
-            self.unsynced_usage = 0  # Clear accumulated usage
-            self.server_signature = data.get('signature')
-            print(f"[EnergyManager] Usage report successful")
-            self.save()
-        else:
-            error = data.get('error', 'unknown')
-            print(f"[EnergyManager] Usage report failed: {error}")
+
     
     def set_premium_status(self, is_premium):
         """DEPRECATED: Use SessionManager.instance()._set_premium_status() instead."""
@@ -583,15 +548,17 @@ class EnergyManager(QObject):
     def _on_sync_completed(self, success, data):
         """Handle sync response from server"""
         if success:
-            self.balance = data.get('balance', self.max_daily_energy)
-            self.max_daily_energy = data.get('max_daily_energy', self.DEFAULT_DAILY_ENERGY)
+            self.balance = data.get('balance', self.balance)
+            # Server returns 'max_daily' (free allowance + purchased_energy)
+            self.max_daily_energy = data.get('max_daily', self.DEFAULT_DAILY_ENERGY)
             self.server_signature = data.get('signature')
-            
-            # Update premium status from server
+
+            # Update premium status from server's is_premium field
             from client.core.session_manager import SessionManager
-            is_premium = data.get('user_tier') == 'premium'
+            is_premium = data.get('is_premium', False)
             SessionManager.instance()._set_premium_status(is_premium)
-            
+
+            print(f"[EnergyManager] Sync successful - Balance: {self.balance}, Max: {self.max_daily_energy}, Premium: {is_premium}")
             self.unsynced_usage = 0
             self.save()
             self.energy_changed.emit(self.balance, self.max_daily_energy)

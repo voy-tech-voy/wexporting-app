@@ -10,7 +10,7 @@ DEVELOPMENT_MODE = True
 USE_LOCAL_VALIDATION_ONLY = True
 
 # API override for local testing
-API_BASE_URL = "http://localhost:5001"
+API_BASE_URL = "https://wavyvoy.pythonanywhere.com"
 
 # Force Premium Status (None = use real consistent state, True/False = force override)
 PREMIUM_OVERRIDE = False
