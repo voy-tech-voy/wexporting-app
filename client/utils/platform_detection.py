@@ -184,7 +184,7 @@ def get_platform_purchase_url(platform: AppPlatform = None) -> str:
     
     urls = {
         AppPlatform.GUMROAD: "https://voytechapps.gumroad.com/l/imgwave",
-        AppPlatform.MSSTORE: "ms-windows-store://pdp/?ProductId=YOUR_APP_ID",  # Update with real ID
+        AppPlatform.MSSTORE: "ms-windows-store://pdp/?ProductId=9N6WKVSXSRCN",  # Update with real ID
         AppPlatform.DIRECT: "https://voytechapps.com/buy",
     }
     return urls.get(platform, urls[AppPlatform.GUMROAD])

@@ -46,7 +46,12 @@ def get_store_auth_provider() -> IStoreAuthProvider:
     global _provider_instance
     
     if _provider_instance is None:
-        if sys.platform == "win32":
+        # --- DEV MODE: Use Mock Provider (runs from source, never in frozen build) ---
+        from client.config.config import Config
+        if Config.DEVELOPMENT_MODE:
+            from .ms_store_provider import MockStoreProvider
+            _provider_instance = MockStoreProvider()
+        elif sys.platform == "win32":
             from .ms_store_provider import MSStoreProvider
             _provider_instance = MSStoreProvider()
         elif sys.platform == "darwin":  # macOS/iOS

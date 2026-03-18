@@ -68,6 +68,25 @@ def _validate_msstore_receipt(receipt_data: str, product_id: str) -> Dict[str, A
     client_id = Config.MSSTORE_CLIENT_ID
     client_secret = Config.MSSTORE_CLIENT_SECRET
     
+    # ==========================================================================
+    # DEV MOCK BYPASS
+    # If receipt_data starts with DEV_MOCK_TX_, skip all Azure validation.
+    # Real MS Store transaction IDs are GUIDs and can NEVER match this prefix.
+    # Safe to leave in production — will never trigger on a real receipt.
+    # ==========================================================================
+    if receipt_data and receipt_data.startswith("DEV_MOCK_TX_"):
+        logger.warning(f"[DEV MOCK] Bypassing Azure validation for mock receipt: {receipt_data}")
+        product_type = _get_product_type_from_id(product_id)
+        energy_amount = _get_energy_amount_from_id(product_id) if product_type == "energy_pack" else 0
+        return {
+            'valid': True,
+            'product_type': product_type,
+            'energy_amount': energy_amount,
+            'transaction_id': receipt_data,
+            'platform': 'msstore',
+            'is_dev_mock': True
+        }
+
     if not all([tenant_id, client_id, client_secret]):
         logger.error("MS Store credentials not configured")
         raise StoreValidationError("MS Store validation not configured")

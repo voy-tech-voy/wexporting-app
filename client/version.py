@@ -38,7 +38,7 @@ class VersionManager:
                 print(f"Error loading version.json: {e}")
         
         return {
-            "version": "1.0.0.7",
+            "version": "1.0.1.0",
             "build": 1,
             "last_build": datetime.now().isoformat() + "Z",
             "changelog": {}

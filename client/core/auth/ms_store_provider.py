@@ -473,3 +473,108 @@ class WinRTInterop:
                 logger.warning(f"IInitializeWithWindow: failed: {e}")
                 return False
 
+
+# ==============================================================================
+# DEV ONLY: Mock Store Provider
+# Used automatically when Config.DEVELOPMENT_MODE is True (running from source).
+# Never runs inside a frozen PyInstaller build.
+# ==============================================================================
+
+class MockStoreProvider(IStoreAuthProvider):
+    """
+    DEV ONLY: Simulates MS Store purchases without real Windows Store APIs.
+
+    Generates a fake DEV_MOCK_TX_... transaction ID and sends it to the
+    PythonAnywhere server, which has a matching bypass for this prefix.
+    """
+
+    def __init__(self):
+        self._store_user_id = "DEV_MOCK_USER_001"
+        self._is_premium = False
+        self._jwt_token = None
+        logger.warning("[DEV MOCK] MockStoreProvider initialized — NOT using real Windows Store APIs")
+
+    def login(self) -> AuthResult:
+        from client.core.session_manager import SessionManager
+        self._is_premium = False
+        session = SessionManager.instance()
+        session.start_session(
+            store_user_id=self._store_user_id,
+            jwt_token="DEV_MOCK_JWT",
+            is_premium=self._is_premium
+        )
+        logger.warning("[DEV MOCK] login() called — simulating successful Store login")
+        return AuthResult(
+            success=True,
+            store_user_id=self._store_user_id,
+            jwt_token="DEV_MOCK_JWT",
+            is_premium=self._is_premium
+        )
+
+    def get_store_user_id(self) -> Optional[str]:
+        return self._store_user_id
+
+    def get_credentials(self) -> dict:
+        return {
+            'token': self._jwt_token,
+            'store_token': None,
+            'user_id': self._store_user_id,
+            'is_premium': self._is_premium
+        }
+
+    def get_receipt(self) -> Optional[str]:
+        return "DEV_MOCK_RECEIPT"
+
+    def validate_receipt(self, receipt_data) -> bool:
+        logger.warning("[DEV MOCK] validate_receipt() — always True in dev mode")
+        return True
+
+    def is_authenticated(self) -> bool:
+        return True
+
+    def report_fulfillment(self, product_id: str, transaction_id: str) -> bool:
+        logger.warning(f"[DEV MOCK] report_fulfillment({product_id}, {transaction_id}) — no-op")
+        return True
+
+    def purchase_add_on(self, store_id: str, window_handle: int = None) -> bool:
+        """
+        Simulate a full purchase flow:
+        1. Fake 1.5s delay (Store dialog simulation)
+        2. Generate a DEV_MOCK_TX_ transaction ID
+        3. POST to server validate-receipt — server has a matching bypass
+        4. Return True if server responds with success
+        """
+        import time
+        import requests
+        from client.config.config import API_BASE_URL
+
+        logger.warning(f"[DEV MOCK] Simulating purchase for product: {store_id}")
+        time.sleep(1.5)  # Simulate Store overlay appearing and processing
+
+        tx_id = f"DEV_MOCK_TX_{store_id}_{int(time.time())}"
+        logger.info(f"[DEV MOCK] Generated transaction ID: {tx_id}")
+
+        try:
+            resp = requests.post(
+                f"{API_BASE_URL}/api/v1/store/validate-receipt",
+                json={
+                    "transaction_id": tx_id,
+                    "receipt_data": tx_id,   # Server reads receipt_data field
+                    "product_id": store_id,
+                    "platform": "msstore",
+                    "is_dev_mock": True       # Extra hint for logging on server
+                },
+                timeout=15
+            )
+            if resp.status_code == 200 and resp.json().get("success"):
+                logger.info(f"[DEV MOCK] Server validated successfully: {resp.json()}")
+                return True
+            else:
+                logger.error(f"[DEV MOCK] Server rejected: {resp.status_code} {resp.text}")
+                return False
+        except Exception as e:
+            logger.error(f"[DEV MOCK] Server call failed: {e}")
+            return False
+
+    def request_purchase(self, product_id: str, window_handle: int = None) -> bool:
+        return self.purchase_add_on(product_id, window_handle)

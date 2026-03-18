@@ -25,7 +25,7 @@ print(f"✅ Added server directory to path: {server_dir}")
 # 2. ACTIVATE VIRTUAL ENVIRONMENT
 # ============================================================================
 # This ensures all imports use the venv's installed packages
-venv_dir = '/home/wavyvoy/apps/wbf/venv'
+venv_dir = '/home/wavyvoy/apps/wexporting-app/venv'
 activate_this = os.path.join(venv_dir, 'bin', 'activate_this.py')
 try:
     with open(activate_this) as f:

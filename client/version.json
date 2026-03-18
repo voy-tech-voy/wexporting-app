@@ -1,17 +1,6 @@
 {
-  "version": "1.0.0.7",
+  "version": "1.0.1.0",
   "build": 11,
   "last_build": "2026-03-10T19:54:12.000000Z",
-  "changelog": {
-    "1.0.0": "Initial Microsoft Store Release - Store-native authentication, energy system, Azure AD integration",
-    "test-sim": "Build 2026-02-13",
-    "1.1.1": "Build 2026-02-13",
-    "1.1.2": "Build 2026-02-13",
-    "1.0.0.0": "Build 2026-03-08",
-    "1.0.1": "Build 2026-03-09",
-    "1.0.2": "Build 2026-03-09",
-    "1.0.3": "Build 2026-03-09",
-    "1.0.4": "Build 2026-03-10",
-    "1.0.5": "Build 2026-03-10 - Fix: Win32 AddDllDirectory + qt.conf for MSI install under Program Files"
-  }
+  "changelog": {}
 }

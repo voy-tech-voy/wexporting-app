@@ -38,7 +38,7 @@ class Config:
     
     # Version Gateway Configuration (NEW)
     APP_CONFIG_ENDPOINT = f"{API_PREFIX}/app-config"
-    MSSTORE_PRODUCT_ID = "9PN056NK952D"  # MS Store Product ID
+    MSSTORE_PRODUCT_ID = "9N6WKVSXSRCN"  # MS Store Product ID
     
     # Content Update Configuration (NEW)
     UPDATE_MANIFEST_ENDPOINT = f"{API_PREFIX}/updates/manifest"

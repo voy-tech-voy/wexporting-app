@@ -1,19 +1,19 @@
 {
     "windows": {
-        "latest_version": "1.0.0.6",
-        "min_required_version": "1.0.0.6",
-        "update_url": "ms-windows-store://pdp/?productid=YOUR_APP_ID",
+        "latest_version": "1.0.1.0",
+        "min_required_version": "1.0.1.0",
+        "update_url": "ms-windows-store://pdp/?productid=9N6WKVSXSRCN",
         "release_notes": "Fix: Win32 AddDllDirectory + qt.conf for MSI install under Program Files"
     },
     "ios": {
-        "latest_version": "1.0.0.6",
-        "min_required_version": "1.0.0.6",
+        "latest_version": "1.0.1.0",
+        "min_required_version": "1.0.1.0",
         "update_url": "itms-apps://itunes.apple.com/app/id123456789",
         "release_notes": "Fix: Win32 AddDllDirectory + qt.conf for MSI install under Program Files"
     },
     "macos": {
-        "latest_version": "1.0.0.6",
-        "min_required_version": "1.0.0.6",
+        "latest_version": "1.0.1.0",
+        "min_required_version": "1.0.1.0",
         "update_url": "itms-apps://itunes.apple.com/app/id123456789",
         "release_notes": "Fix: Win32 AddDllDirectory + qt.conf for MSI install under Program Files"
     }
