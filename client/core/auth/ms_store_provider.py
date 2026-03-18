@@ -503,35 +503,30 @@ class MockStoreProvider(IStoreAuthProvider):
     """
 
     def __init__(self):
-        self._store_user_id = "DEV_MOCK_USER_001"
+        import time
+        self._store_user_id = f"DEV_MOCK_USER_{int(time.time())}"
         self._is_premium = False
         self._jwt_token = None
-        logger.warning("[DEV MOCK] MockStoreProvider initialized — NOT using real Windows Store APIs")
+        logger.warning(f"[DEV MOCK] MockStoreProvider initialized — user_id: {self._store_user_id}")
 
     def login(self) -> AuthResult:
         from client.core.session_manager import SessionManager
         self._is_premium = False
         session = SessionManager.instance()
-        
-        # Load persisted JWT from a previous session (e.g. after a mock purchase)
-        # Must do this BEFORE start_session() so we pass the real token in.
-        persisted_jwt = session.load_persisted_jwt()
-        
+
+        # DEV: always start clean — no persisted JWT carryover between runs
         session.start_session(
             store_user_id=self._store_user_id,
-            jwt_token=persisted_jwt or "",   # Real JWT if available, otherwise empty
-            is_premium=self._is_premium
+            jwt_token="",
+            is_premium=False
         )
-        
-        if persisted_jwt:
-            logger.info("[DEV MOCK] Loaded persisted JWT for server sync")
-        
-        logger.warning("[DEV MOCK] login() called — simulating successful Store login")
+
+        logger.warning("[DEV MOCK] login() called — fresh session, no JWT carryover")
         return AuthResult(
             success=True,
             store_user_id=self._store_user_id,
-            jwt_token=persisted_jwt or "",
-            is_premium=self._is_premium
+            jwt_token="",
+            is_premium=False
         )
 
     def get_store_user_id(self) -> Optional[str]:
@@ -583,10 +578,11 @@ class MockStoreProvider(IStoreAuthProvider):
                 f"{API_BASE_URL}/api/v1/store/validate-receipt",
                 json={
                     "transaction_id": tx_id,
-                    "receipt_data": tx_id,   # Server reads receipt_data field
+                    "receipt_data": tx_id,
                     "product_id": store_id,
                     "platform": "msstore",
-                    "is_dev_mock": True       # Extra hint for logging on server
+                    "is_dev_mock": True,
+                    "store_user_id": self._store_user_id  # So server creates a fresh profile per run
                 },
                 timeout=15
             )

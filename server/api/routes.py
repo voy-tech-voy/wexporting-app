@@ -384,9 +384,12 @@ def validate_store_receipt():
             }), 400
         
         # Extract store user ID from receipt (platform-specific)
-        # For MS Store: extract from receipt XML
-        # For App Store: extract from receipt JSON
-        store_user_id = _extract_user_id_from_receipt(receipt_data, platform)
+        # For dev mocks the client sends its per-run user ID explicitly; use it
+        # so each run gets a fresh profile instead of hitting the stale shared one.
+        if data.get('is_dev_mock') and data.get('store_user_id'):
+            store_user_id = data['store_user_id']
+        else:
+            store_user_id = _extract_user_id_from_receipt(receipt_data, platform)
         
         # Determine if premium based on product type
         # Use new helper to correctly map product_id to type
