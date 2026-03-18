@@ -542,7 +542,8 @@ class CreditBar(QWidget):
         
         self._current_credits = 750
         self._max_credits = 1000
-        
+        self._preview_cost: int | None = None
+
         self._fixed_font = QFont(Theme.FONT_BODY, Theme.FONT_SIZE_BASE)
         self._fixed_font.setBold(True)
         self.setFont(self._fixed_font)
@@ -664,6 +665,16 @@ class CreditBar(QWidget):
         self._max_credits = value
         self.update()
         
+    def set_preview_cost(self, cost: int):
+        """Show a deduction preview on the credit text (hover state)."""
+        self._preview_cost = cost
+        self.update()
+
+    def clear_preview_cost(self):
+        """Restore normal credit display."""
+        self._preview_cost = None
+        self.update()
+
     def set_credits(self, current, max_credits):
         """Update credit values"""
         self._current_credits = current
@@ -680,9 +691,9 @@ class CreditBar(QWidget):
         
     def sizeHint(self):
         # Calculate width dynamically based on MAX POSSIBLE TEXT
-        # This matches the fixed width logic in paintEvent
-        max_text_str = "9999/9999"
-        
+        # This matches the fixed width logic in paintEvent (includes preview format)
+        max_text_str = "9999-999/9999"
+
         from PySide6.QtGui import QFontMetrics
         fm = QFontMetrics(self.font())
         text_w = fm.horizontalAdvance(max_text_str)
@@ -700,30 +711,51 @@ class CreditBar(QWidget):
         w = self.width()
         h = self.height()
         
-        # Text
-        text_str = f"{self._current_credits}/{self._max_credits}"
         painter.setFont(self.font())
-        painter.setPen(QColor(self._color_text))
-        
+
         # Layout
         icon_w = 22  # Slightly wider for better proportions
         icon_h = 28
         spacing = 10
-        
+
         fm = painter.fontMetrics()
-        
-        # Calculate FIXED text width based on maximum possible text
-        # This prevents the icon from jumping when numbers change
-        # Assume max credits could be up to 9999 (4 digits)
-        max_text_str = "9999/9999"
+
+        # Fixed text width accommodates both normal ("9999/9999") and preview
+        # ("9999-999/9999") formats so the thunderbolt icon never shifts.
+        max_text_str = "9999-999/9999"
         fixed_text_w = fm.horizontalAdvance(max_text_str)
-        
-        text_h = fm.height()
-        text_y = (h - text_h) / 2 + fm.ascent() - 1
-        
-        # Draw Text (right-aligned within fixed width area)
-        text_rect = QRectF(0, 0, fixed_text_w, h)
-        painter.drawText(text_rect, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter, text_str)
+
+        is_preview = self._preview_cost is not None
+
+        if is_preview:
+            prefix_str = f"{self._current_credits}"
+            deduct_str = f"-{self._preview_cost}"
+            suffix_str = f"/{self._max_credits}"
+
+            prefix_w = fm.horizontalAdvance(prefix_str)
+            deduct_w = fm.horizontalAdvance(deduct_str)
+            suffix_w = fm.horizontalAdvance(suffix_str)
+            total_w = prefix_w + deduct_w + suffix_w
+
+            # Right-align the composite text within fixed_text_w
+            x = fixed_text_w - total_w
+
+            painter.setPen(QColor(self._color_text))
+            painter.drawText(QRectF(x, 0, prefix_w, h),
+                             Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, prefix_str)
+
+            painter.setPen(QColor("#FF6B35"))
+            painter.drawText(QRectF(x + prefix_w, 0, deduct_w, h),
+                             Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, deduct_str)
+
+            painter.setPen(QColor(self._color_text))
+            painter.drawText(QRectF(x + prefix_w + deduct_w, 0, suffix_w, h),
+                             Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, suffix_str)
+        else:
+            text_str = f"{self._current_credits}/{self._max_credits}"
+            painter.setPen(QColor(self._color_text))
+            text_rect = QRectF(0, 0, fixed_text_w, h)
+            painter.drawText(text_rect, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter, text_str)
         
         # Icon position (fixed, based on fixed text width)
         icon_x = fixed_text_w + spacing

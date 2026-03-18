@@ -658,6 +658,30 @@ class ConversionConductor(QObject):
             return 'image'
     
     
+    def get_preview_cost(self, files: list, params: dict) -> int:
+        """
+        Calculate the total credit cost for the given files+params without consuming credits.
+        Returns 0 if premium, no files, or on error.
+        """
+        try:
+            from client.core.session_manager import SessionManager
+            if SessionManager.instance().is_premium:
+                return 0
+
+            from client.core.energy_manager import EnergyManager
+            energy_mgr = EnergyManager.instance()
+
+            result = self.progress_manager.calculate_from_params(files, params)
+            total_outputs = result.total_outputs
+            if total_outputs == 0:
+                return 0
+
+            conversion_type = self._detect_conversion_type(params)
+            per_output_cost = energy_mgr.calculate_cost(conversion_type, params)
+            return total_outputs * per_output_cost
+        except Exception:
+            return 0
+
     def _show_insufficient_energy_dialog(self, required, available):
         """Show toast when user has insufficient energy (replaces old dialog)."""
         # Call the new toast method in drag_drop_area

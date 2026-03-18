@@ -349,6 +349,22 @@ class MainWindow(WindowEventMixin, QMainWindow):
         # Inject ConversionConductor into PresetOrchestrator (for lab mode preset execution)
         # This must be done after conductor is created
         self.drag_drop_area._setup_preset_plugin(self.conversion_conductor)
+
+        # Clear ConversionConductor preset when switching to Lab mode
+        self.mode_conductor.mode_changed.connect(
+            lambda mode: self.conversion_conductor.clear_active_preset()
+            if mode == Mode.LAB else None
+        )
+
+        # Wire start-button hover → credit preview
+        self.output_footer.hover_preview_requested.connect(
+            lambda: self.output_footer.show_cost_preview(
+                self.conversion_conductor.get_preview_cost(
+                    self.drag_drop_area.get_files(),
+                    self.command_panel.get_conversion_params()
+                )
+            )
+        )
     
     # =========================================================================
     # MODE CONDUCTOR DELEGATION

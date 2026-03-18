@@ -8,7 +8,7 @@ from PySide6.QtWidgets import (
     QWidget, QHBoxLayout, QVBoxLayout, QPushButton, QLabel,
     QSizePolicy, QGraphicsOpacityEffect, QGraphicsDropShadowEffect
 )
-from PySide6.QtCore import Qt, Signal, QPropertyAnimation, QEasingCurve, QTimer
+from PySide6.QtCore import Qt, Signal, QPropertyAnimation, QEasingCurve, QTimer, QEvent
 from PySide6.QtGui import QColor, QFont
 
 from client.utils.font_manager import FONT_FAMILY, FONT_FAMILY_APP_NAME, FONT_SIZE_BUTTON
@@ -28,6 +28,7 @@ class OutputFooter(QWidget):
     start_conversion = Signal()
     stop_conversion = Signal()
     output_mode_changed = Signal(str)  # "source", "organized", "custom"
+    hover_preview_requested = Signal()  # emitted on start_btn mouse-enter
     
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -123,6 +124,7 @@ class OutputFooter(QWidget):
         self.start_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.start_btn.clicked.connect(self._on_start_clicked)
         self.start_btn.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        self.start_btn.installEventFilter(self)
         layout.addWidget(self.start_btn)
         
         # Add controls widget to main layout
@@ -139,7 +141,20 @@ class OutputFooter(QWidget):
             self.stop_conversion.emit()
         else:
             self.start_conversion.emit()
-    
+
+    def eventFilter(self, obj, event):
+        if obj is self.start_btn:
+            if event.type() == QEvent.Type.Enter:
+                if self._has_files and not self._is_converting and self.credit_bar.isVisible():
+                    self.hover_preview_requested.emit()
+            elif event.type() == QEvent.Type.Leave:
+                self.credit_bar.clear_preview_cost()
+        return super().eventFilter(obj, event)
+
+    def show_cost_preview(self, total_cost: int):
+        """Display a deduction preview on the credit bar."""
+        self.credit_bar.set_preview_cost(total_cost)
+
     def set_converting(self, is_converting):
         """Set the conversion state"""
         self._is_converting = is_converting

@@ -176,16 +176,19 @@ class ModeConductor(QObject):
             "client/assets/icons/vid_icon.svg",
             "client/assets/icons/loop_icon3.svg"
         ]
-        
-        # 1. Update lab button appearance and control bar state
+
+        # 1. Clear active preset (Lab mode has no active preset)
+        self._active_preset = None
+
+        # 2. Update lab button appearance and control bar state
         if 0 <= lab_tab < len(icons):
             self.lab_btn.set_main_icon(icons[lab_tab])
             self.lab_btn.set_style_solid(True)
-        
+
         # Highlight lab mode in control bar (shows custom preset button)
         self.control_bar.highlight_lab()
-        
-        # 2. Reset Preset button to default state
+
+        # 3. Reset Preset button to default state
         self.preset_status_btn.set_active(False)
         
         # 3. Notify CommandPanel
