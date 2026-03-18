@@ -9,7 +9,7 @@
             "cost": "$1.99",
             "color": "blue",
             "button_label": "Buy 500 Credits",
-            "product_id": "9NBLGGH42DRH",
+            "product_id": "9PFHR7GMBT0T",
             "type": "consumable",
             "style": {
                 "outline_active": "#3B82F6",
@@ -27,7 +27,7 @@
             "cost": "$5.99",
             "color": "#00E0FF",
             "button_label": "Boost Daily Limit",
-            "product_id": "9NBLGGH42DRJ",
+            "product_id": "9NNK6Q3WZN2M",
             "type": "durable",
             "style": {
                 "outline_active": "#00E0FF",
@@ -45,7 +45,7 @@
             "cost": "$15.00",
             "color": "green",
             "button_label": "Buy Premium",
-            "product_id": "9NBLGGH42DRI",
+            "product_id": "9P4WCMTCH89V",
             "type": "durable",
             "style": {
                 "outline_active": "#22C55E",

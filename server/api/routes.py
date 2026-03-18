@@ -746,20 +746,20 @@ def energy_report():
 # ============================================================================
 _PRODUCT_TYPE_MAP = {
     # MS Store product IDs
-    '9NBLGGH42DRH': 'energy_pack',   # 500 Credits (consumable)
-    '9NBLGGH42DRJ': 'limit_pack',    # Daily Focus Pack (+200 permanent max)
-    '9NBLGGH42DRI': 'lifetime',      # Premium Lifetime
+    '9PFHR7GMBT0T': 'energy_pack',   # 500 Credits (consumable)
+    '9NNK6Q3WZN2M': 'limit_pack',    # Daily Focus Pack (+200 permanent max)
+    '9P4WCMTCH89V': 'lifetime',      # Premium Lifetime
     # Generic keyword-based fallbacks (for future products)
 }
 
 # Products that increase the daily LIMIT permanently (durable).
 # All other energy_pack products are consumable one-time balance additions.
-_PRODUCT_LIMIT_PACKS = {'9NBLGGH42DRJ'}
+_PRODUCT_LIMIT_PACKS = {'9NNK6Q3WZN2M'}
 
 _PRODUCT_ENERGY_MAP = {
-    '9NBLGGH42DRH': 500,   # 500 Credits
-    '9NBLGGH42DRJ': 200,   # Daily Focus Pack (+200 max)
-    '9NBLGGH42DRI': 0,     # Premium Lifetime - no energy, grants unlimited
+    '9PFHR7GMBT0T': 500,   # 500 Credits
+    '9NNK6Q3WZN2M': 200,   # Daily Focus Pack (+200 max)
+    '9P4WCMTCH89V': 0,     # Premium Lifetime - no energy, grants unlimited
 }
 
 
