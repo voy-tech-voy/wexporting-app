@@ -1,4 +1,4 @@
-﻿"""
+"""
 Main Window for Graphics Conversion App
 Implements the layout: Top Bar | Mid Section (Drag-Drop + Commands) | Bottom Bar
 """
@@ -157,6 +157,14 @@ class MainWindow(WindowEventMixin, QMainWindow):
                 self.drag_drop_area.clear_all_statuses()
         
         return super().eventFilter(source, event)
+    
+    def nativeEvent(self, eventType, message):
+        """Pass native events to window behavior handling to enable Windows native snapping/resizing"""
+        if hasattr(self, 'window_behavior'):
+            handled, result = self.window_behavior.native_event(eventType, message)
+            if handled:
+                return True, result
+        return super().nativeEvent(eventType, message)
         
     def _compute_initial_geometry(self):
         """
@@ -174,7 +182,9 @@ class MainWindow(WindowEventMixin, QMainWindow):
         MARGIN = 40  # breathing room on each side
 
         max_w = avail.width()  - MARGIN * 2
-        max_h = avail.height() - MARGIN * 2
+        
+        # Max height is 75% of available screen height
+        max_h = int(avail.height() * 0.75)
 
         w = max(MIN_W, min(IDEAL_W, max_w))
         h = max(MIN_H, min(IDEAL_H, max_h))
@@ -710,6 +720,19 @@ class MainWindow(WindowEventMixin, QMainWindow):
     
     def on_preset_applied(self, preset, files):
         """Handle preset applied from DragDropArea overlay"""
+        if preset is None:
+            print("[Smart Drop] Clearing preset selection")
+            if self.mode_conductor:
+                self.mode_conductor.clear_active_preset()
+            if self.conversion_conductor:
+                self.conversion_conductor.clear_active_preset()
+            
+            if hasattr(self, 'preset_status_btn'):
+                self.preset_status_btn.set_active(False)
+            
+            self.update_status("Preset cleared")
+            return
+            
         file_count = len(files) if files else 0
         print(f"[Smart Drop] Applying preset: {preset.name} to {file_count} files")
         

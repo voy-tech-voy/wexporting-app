@@ -1,4 +1,4 @@
-﻿"""
+"""
 Custom PyQt6 Widgets with Dark Mode Support
 Provides TimeRangeSlider, ResizeFolder, and Rotation classes
 """
@@ -425,6 +425,14 @@ class OutputDestinationSelector(GenericSegmentedControl):
         self.add_segment("organized", "Organized")
         self.add_segment("custom", "Custom...")
         
+        # Organized folder input
+        self.organized_input = UnifiedVariantInput()
+        self.organized_input.setPlaceholderText("Folder name...")
+        self.organized_input.setText("output")
+        self.organized_input.setMaximumWidth(120)
+        self.organized_input.setVisible(False)
+        self.layout.addWidget(self.organized_input)
+        
         # Custom path label
         self.path_label = QLabel("")
         self.path_label.setVisible(False)
@@ -453,14 +461,20 @@ class OutputDestinationSelector(GenericSegmentedControl):
                 display = self._truncate_path(folder)
                 self.path_label.setText(display)
                 self.path_label.setVisible(True)
+                self.organized_input.setVisible(False)
                 self.path_label.setToolTip(folder)
                 self.selectionChanged.emit("custom")
             else:
                 # Revert to previous or default (Source) if cancelled
                 self.set_selected("source")
                 # set_selected emits signal, so we are good.
+        elif seg_id == "organized":
+            self.path_label.setVisible(False)
+            self.organized_input.setVisible(True)
+            self.selectionChanged.emit(seg_id)
         else:
             self.path_label.setVisible(False)
+            self.organized_input.setVisible(False)
             self.selectionChanged.emit(seg_id)
             
     def update_theme(self, is_dark):
@@ -481,7 +495,8 @@ class OutputDestinationSelector(GenericSegmentedControl):
         return self._custom_path if self.get_selected() == "custom" else None
         
     def get_organized_name(self):
-        return "output"
+        name = self.organized_input.text().strip()
+        return name if name else "output"
 
 # Backward compatibility alias
 SegmentedControl = OutputDestinationSelector

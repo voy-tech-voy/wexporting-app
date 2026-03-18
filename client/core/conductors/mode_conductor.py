@@ -1,4 +1,4 @@
-﻿"""
+"""
 Mode Conductor - Mediator-Shell Architecture
 
 Extracted from MainWindow to handle application mode switching logic.
@@ -134,6 +134,12 @@ class ModeConductor(QObject):
         # 3. Notify CommandPanel state
         self.command_panel.set_lab_mode_active(False)
         self.command_panel.set_top_bar_preset_mode(True)
+        
+        # Restore preset button state based on active preset
+        if self._active_preset is not None:
+            self.preset_status_btn.set_active(True, self._active_preset.name)
+        else:
+            self.preset_status_btn.set_active(False)
         
         # 4. Show Preset Overlay AFTER panel animation completes
         # Delay to allow drop area to expand to full width first

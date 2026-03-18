@@ -78,8 +78,8 @@ class PresetGallery(BlurBackgroundMixin, QWidget):
     
     def eventFilter(self, obj, event):
         """Monitor parent resize events and handle background clicks to deselect cards."""
-        from PySide6.QtCore import QEvent
-        from PySide6.QtCore import QPoint
+        from PySide6.QtCore import QEvent, QPoint, QRect
+        import shiboken6
         
         # Handle parent resize
         if obj == self.parent() and event.type() == QEvent.Type.Resize:
@@ -91,41 +91,55 @@ class PresetGallery(BlurBackgroundMixin, QWidget):
                 self.capture_blur_background()
             return super().eventFilter(obj, event)
         
-        # Geometry-based card deselection on viewport clicks
-        # Only act on the scroll viewport — card clicks never arrive here as background
-        # because the card widget itself receives them first (Qt does not forward to viewport).
-        # Wait — actually they DO arrive at the viewport too via event propagation.
-        # So we use global coordinates to check if the click landed on a card.
+        # Geometry-based card deselection on global viewport clicks
         if event.type() == QEvent.Type.MouseButtonPress:
-            if obj == self._scroll.viewport():
-                has_selection = (
-                    self._selected_card is not None or
-                    (hasattr(self, '_param_panel') and self._param_panel.isVisible())
-                )
-                if has_selection:
+            # We intercept globally, but only process if gallery is visible
+            if self.isVisible() and hasattr(self, '_param_panel') and self._param_panel.isVisible():
+                try:
                     global_pos = event.globalPosition().toPoint()
-                    # Check if the click is geometrically inside any card
-                    click_on_card = False
-                    for card in self._cards:
-                        try:
-                            if shiboken6.isValid(card) and card.isVisible():
-                                card_tl = card.mapToGlobal(QPoint(0, 0))
-                                from PySide6.QtCore import QRect
-                                card_rect = QRect(card_tl, card.size())
-                                if card_rect.contains(global_pos):
-                                    click_on_card = True
-                                    break
-                        except Exception:
-                            pass
-                    # Also check param panel
-                    if not click_on_card and hasattr(self, '_param_panel') and self._param_panel.isVisible():
-                        panel_tl = self._param_panel.mapToGlobal(QPoint(0, 0))
-                        from PySide6.QtCore import QRect
-                        panel_rect = QRect(panel_tl, self._param_panel.size())
-                        if panel_rect.contains(global_pos):
-                            click_on_card = True
-                    if not click_on_card:
-                        self.deselect_card()
+                except AttributeError:
+                    global_pos = event.globalPos()
+                
+                # 1. Did we click the parameter panel itself?
+                panel_tl = self._param_panel.mapToGlobal(QPoint(0, 0))
+                panel_rect = QRect(panel_tl, self._param_panel.size())
+                
+                if panel_rect.contains(global_pos):
+                    # Clicking the minimized panel expands it
+                    if getattr(self._param_panel, '_is_minimized', False):
+                        self._param_panel.show_animated()
+                        return True  # Consume the event
+                    return super().eventFilter(obj, event)
+                
+                # 2. Did we click a card?
+                click_on_card = False
+                for card in self._cards:
+                    try:
+                        if shiboken6.isValid(card) and card.isVisible():
+                            card_tl = card.mapToGlobal(QPoint(0, 0))
+                            card_rect = QRect(card_tl, card.size())
+                            if card_rect.contains(global_pos):
+                                click_on_card = True
+                                break
+                    except Exception:
+                        pass
+                
+                if not click_on_card:
+                    # 3. We clicked outside the panel AND outside any card
+                    is_gallery_bg = (obj == self._scroll.viewport() or obj == self._scroll or obj == self or obj == self._card_container)
+                    
+                    if not getattr(self._param_panel, '_is_minimized', False):
+                        # Minimize the parameter panel
+                        self._param_panel.minimize_animated()
+                        
+                        # Consume click so we don't ALSO deselect immediately if it's the gallery bg
+                        if is_gallery_bg:
+                            return True
+                    else:
+                        # Already minimized. If we click gallery bg, we deselect.
+                        if is_gallery_bg:
+                            self.deselect_card()
+                            return True
         
         # Handle double-click on scroll viewport to dismiss gallery
         if event.type() == QEvent.Type.MouseButtonDblClick:
@@ -191,9 +205,14 @@ class PresetGallery(BlurBackgroundMixin, QWidget):
         self._filter_bar.filterChanged.connect(self._apply_filter)
         self._filter_bar.raise_()  # Ensure filter bar is on top
         
-        # Install event filters to catch background clicks
-        self._scroll.viewport().installEventFilter(self)
-        self._card_container.installEventFilter(self)
+        # Install global event filter to catch clicks anywhere in the app
+        from PySide6.QtWidgets import QApplication
+        qapp = QApplication.instance()
+        if qapp:
+            qapp.installEventFilter(self)
+        else:
+            self._scroll.viewport().installEventFilter(self)
+            self._card_container.installEventFilter(self)
         
         # Parameter panel - use new dynamic component
         from client.plugins.presets.ui.parameter_form import ParameterForm
@@ -412,15 +431,22 @@ class PresetGallery(BlurBackgroundMixin, QWidget):
         
         # Update card selection states
         # Deselect previous card (if it still exists)
+        clicked_already_selected = False
         if self._selected_card is not None:
             try:
                 # Check if the card still exists and is valid
                 if shiboken6.isValid(self._selected_card):
+                    if self._selected_card.preset.id == preset.id:
+                        clicked_already_selected = True
                     self._selected_card.set_selected(False)
             except RuntimeError:
                 # Card was deleted, ignore
                 pass
             self._selected_card = None
+            
+        if clicked_already_selected:
+            self.deselect_card()
+            return
         
         # Find and select the clicked card
         for card in self._cards:
@@ -451,6 +477,7 @@ class PresetGallery(BlurBackgroundMixin, QWidget):
             self._param_panel.show_animated()
         
         # Restore scroll position after layout changes
+        from PySide6.QtCore import QTimer
         QTimer.singleShot(0, lambda: self._scroll.verticalScrollBar().setValue(scroll_pos))
         
         self.preset_selected.emit(preset)
@@ -461,7 +488,9 @@ class PresetGallery(BlurBackgroundMixin, QWidget):
         self.go_to_lab_requested.emit(lab_settings)
     
     def deselect_card(self):
-        """Deselect current card and hide parameter window."""
+        """Deselect current card, hide parameter window, and emit deselection."""
+        had_selection = self._selected_card is not None
+        
         if self._selected_card is not None:
             try:
                 if shiboken6.isValid(self._selected_card):
@@ -472,6 +501,10 @@ class PresetGallery(BlurBackgroundMixin, QWidget):
             
         if hasattr(self, '_param_panel') and self._param_panel.isVisible():
             self._param_panel.hide_animated()
+            
+        # Always emit reset signal if we had a selection or panel was visible
+        # to ensure the control bar resets properly
+        self.preset_selected.emit(None)
             
     def mousePressEvent(self, event):
         """Absorb direct clicks on the gallery background (between scroll and param panel)."""

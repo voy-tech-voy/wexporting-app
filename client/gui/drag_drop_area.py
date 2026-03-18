@@ -1,4 +1,4 @@
-﻿"""
+"""
 Drag and Drop Area Widget
 Handles file drag and drop operations for the graphics converter
 """
@@ -273,7 +273,10 @@ class DragDropArea(QWidget):
     
     def _on_preset_selected(self, preset):
         """Handle preset selection from the gallery."""
-        print(f"[DragDropArea] Preset selected: {preset.name}")
+        if preset is None:
+            print("[DragDropArea] Preset deselected")
+        else:
+            print(f"[DragDropArea] Preset selected: {preset.name}")
         # Emit signal for parent to handle
         self.preset_applied.emit(preset, self.file_list)
     

@@ -1,4 +1,4 @@
-﻿"""
+"""
 Title Bar Window - Separate OS window for blur effect
 Visually docks above the main window, enables blur only on this small area.
 """
@@ -9,7 +9,7 @@ from PySide6.QtWidgets import (
     QMainWindow, QWidget, QHBoxLayout, QLabel, QPushButton, QFrame, QMenu, QApplication
 )
 from PySide6.QtGui import QIcon, QMouseEvent, QAction, QFont
-from PySide6.QtCore import Qt, Signal, QPoint, QSize
+from PySide6.QtCore import Qt, Signal, QPoint, QSize, QRect
 
 from client.utils.font_manager import AppFonts, FONT_FAMILY_APP_NAME, FONT_FAMILY
 from client.utils.resource_path import get_app_icon_path, get_resource_path
@@ -328,9 +328,59 @@ class TitleBarWindow(QMainWindow):
             super().mousePressEvent(event)
     
     def mouseMoveEvent(self, event: QMouseEvent):
-        """Move both windows when dragging"""
+        """Move both windows when dragging and emulate Windows Snap when hitting edges"""
         if event.buttons() == Qt.MouseButton.LeftButton and self._drag_position is not None and self._main_window:
             new_pos = event.globalPosition().toPoint() - self._drag_position
+            
+            # --- Custom Emulated Windows Snap Logic ---
+            screen = QApplication.screenAt(event.globalPosition().toPoint())
+            if screen:
+                screen_geom = screen.availableGeometry()
+                mouse_pos = event.globalPosition().toPoint()
+                
+                # Check for screen edges (5px threshold)
+                snap_threshold = 5
+                
+                is_top_edge = mouse_pos.y() <= screen_geom.top() + snap_threshold
+                is_left_edge = mouse_pos.x() <= screen_geom.left() + snap_threshold
+                is_right_edge = mouse_pos.x() >= screen_geom.right() - snap_threshold
+                
+                # We need to account for the title bar height so it doesn't get pushed off screen
+                tb_h = self.TITLE_BAR_HEIGHT
+                
+                # A snapped window needs to start LOWER by tb_h, and be SHORTER by tb_h
+                snap_top = screen_geom.top() + tb_h
+                snap_height = screen_geom.height() - tb_h
+                
+                snapped = False
+                
+                if is_top_edge:
+                    # Snap Maximize
+                    self._main_window.setGeometry(screen_geom.left(), snap_top, screen_geom.width(), snap_height)
+                    snapped = True
+                elif is_left_edge:
+                    # Snap Left Half
+                    half_width = screen_geom.width() // 2
+                    self._main_window.setGeometry(screen_geom.left(), snap_top, half_width, snap_height)
+                    snapped = True
+                elif is_right_edge:
+                    # Snap Right Half
+                    half_width = screen_geom.width() // 2
+                    self._main_window.setGeometry(screen_geom.left() + half_width, snap_top, half_width, snap_height)
+                    snapped = True
+                    
+                if snapped:
+                    self._sync_position()
+                    self._sync_width()
+                    
+                    # Fix: User reported persistent resize pointer
+                    self.setCursor(Qt.CursorShape.ArrowCursor)
+                    if self._main_window:
+                        self._main_window.setCursor(Qt.CursorShape.ArrowCursor)
+                        
+                    return
+            
+            # Standard move if not snapping
             self._main_window.move(new_pos)
             self._sync_position()
             event.accept()
@@ -340,4 +390,10 @@ class TitleBarWindow(QMainWindow):
     def mouseReleaseEvent(self, event: QMouseEvent):
         """End dragging"""
         self._drag_position = None
+        
+        # Ensure cursor resets completely on release
+        self.unsetCursor()
+        if self._main_window:
+            self._main_window.unsetCursor()
+            
         super().mouseReleaseEvent(event)

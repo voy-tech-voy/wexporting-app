@@ -1,4 +1,4 @@
-﻿from PySide6.QtWidgets import QFrame, QVBoxLayout, QLabel, QApplication, QPushButton
+from PySide6.QtWidgets import QFrame, QVBoxLayout, QLabel, QApplication, QPushButton
 from PySide6.QtCore import QPropertyAnimation, QEasingCurve, Signal, QTimer, Property, Qt
 from PySide6.QtGui import QPixmap, QPainter, QIcon
 from PySide6.QtSvg import QSvgRenderer
@@ -48,6 +48,7 @@ class DynamicParameterPanel(QFrame):
         self._last_height = 0  # Track last stable height for smooth transitions
         self._current_animated_height = 0  # Track current height during animation
         self._is_animating = False
+        self._is_minimized = False
         self._pending_height_update = False
         
         # Layout with proper padding
@@ -273,6 +274,10 @@ class DynamicParameterPanel(QFrame):
             description: Description text to display below title
             preset: PresetDefinition object (optional, for Lab Mode detection)
         """
+        # Reset minimized state when content changes significantly (like selecting a new card)
+        if getattr(self, '_is_minimized', False):
+            self._is_minimized = False
+            
         self._title_label.setText(title)
         
         # Always show description (or default message if empty)
@@ -550,6 +555,63 @@ class DynamicParameterPanel(QFrame):
                 pass
         self._is_animating = False
     
+    def minimize_animated(self, minimize_height=44):
+        """Animate panel to slide down, leaving only the top portion (title) visible."""
+        if not self.isVisible():
+            # If not visible, we can't minimize it properly, but let's just show it minimized
+            self.setFixedHeight(minimize_height)
+            self._last_height = minimize_height
+            self._current_animated_height = minimize_height
+            self._is_minimized = True
+            self.show()
+            return
+            
+        if getattr(self, '_is_minimized', False):
+            # Already minimized
+            return
+            
+        # Get current height for smooth transition BEFORE stopping animation
+        if self._is_animating:
+            current_height = self._current_animated_height
+        else:
+            current_height = max(self.height(), self._last_height, 1)
+            
+        # If we're already smaller or equal to the target height, no need to shrink
+        if current_height <= minimize_height:
+            self._is_minimized = True
+            return
+            
+        # Stop any existing animation
+        self._stop_current_animation()
+        self._is_animating = True
+        self._is_minimized = True
+        self._current_animated_height = current_height
+        
+        # Set immediate height to start value
+        self.setFixedHeight(current_height)
+        
+        # Create animation targeting our custom property
+        self._anim = QPropertyAnimation(self, b"animatedHeight", self)
+        
+        close_duration = int(self.ANIM_DURATION * 0.8)
+        easing_name = self.CLOSE_EASING
+        
+        self._anim.setDuration(close_duration)
+        self._anim.setStartValue(current_height)
+        self._anim.setEndValue(minimize_height)
+        
+        curve_type = AnimationDriver.EASING_MAP.get(easing_name, QEasingCurve.Type.InQuad)
+        self._anim.setEasingCurve(QEasingCurve(curve_type))
+        
+        def on_finished():
+            self._is_animating = False
+            self._last_height = minimize_height
+            self._current_animated_height = minimize_height
+            # Do NOT hide(), it remains visible but short
+            
+        self._anim.finished.connect(on_finished)
+        self._anim.start()
+    
     def hide_animated(self):
         """Animate panel to hide with smooth easing."""
         if not self.isVisible():
@@ -589,6 +651,7 @@ class DynamicParameterPanel(QFrame):
         # Hide and reset when animation finishes
         def on_finished():
             self._is_animating = False
+            self._is_minimized = False
             self._last_height = 0
             self._current_animated_height = 0
             self.hide()

@@ -1,4 +1,4 @@
-﻿"""
+"""
 Presets Plugin - Orchestrator
 
 Entry point that connects the logic layer with the UI layer.
@@ -260,8 +260,14 @@ class PresetOrchestrator(QObject):
         """Check if gallery is currently visible."""
         return self._gallery.isVisible()
     
-    def _on_preset_selected(self, preset: PresetDefinition):
+    def _on_preset_selected(self, preset: Optional[PresetDefinition]):
         """Handle preset selection from gallery - gallery stays open to show parameters."""
+        if preset is None:
+            print("[PresetOrchestrator] Preset deselected")
+            self._selected_preset = None
+            self.preset_selected.emit(None)
+            return
+            
         print(f"[PresetOrchestrator] Preset selected: {preset.name}")
         self._selected_preset = preset  # Track selected preset
         # Gallery stays open - user can adjust parameters

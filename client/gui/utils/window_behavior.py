@@ -1,4 +1,4 @@
-﻿"""
+"""
 Frameless Window Behavior - Mediator-Shell Architecture Utility
 
 Encapsulates frameless window dragging, resizing, and OS blur effects.
@@ -41,112 +41,84 @@ class FramelessWindowBehavior:
         self.window = window
         self.border_width = border_width
         
-        # Resize state
-        self.resize_edge = ""
-        self.resize_start_pos = None
-        self.resize_start_geo = None
+        # We no longer track manual resize edges here, as Windows natively handles it via WM_NCHITTEST
     
     def handle_mouse_press(self, event) -> bool:
-        """
-        Handle mouse press event for resize detection.
-        
-        Args:
-            event: QMouseEvent
-            
-        Returns:
-            True if event was handled (resize started), False otherwise
-        """
-        if event.button() != Qt.MouseButton.LeftButton:
-            return False
-        
-        pos = event.pos()
-        border = self.border_width
-        w = self.window.width()
-        h = self.window.height()
-        
-        left = pos.x() < border
-        right = pos.x() > w - border
-        top = pos.y() < border
-        bottom = pos.y() > h - border
-        
-        self.resize_edge = ""
-        if top: self.resize_edge += "top"
-        if bottom: self.resize_edge += "bottom"
-        if left: self.resize_edge += "left"
-        if right: self.resize_edge += "right"
-        
-        if self.resize_edge:
-            self.resize_start_pos = event.globalPosition().toPoint()
-            self.resize_start_geo = self.window.geometry()
-            event.accept()
-            return True
-        
+        """Deprecated: Returns False so Qt routes events normally."""
         return False
-    
+        
     def handle_mouse_release(self, event):
-        """Reset resize state on mouse release."""
-        self.resize_edge = ""
-    
+        """Deprecated."""
+        pass
+        
     def handle_mouse_move(self, event) -> bool:
-        """
-        Handle mouse move event for resize and cursor updates.
-        
-        Args:
-            event: QMouseEvent
-            
-        Returns:
-            True if resize was handled, False if only cursor update
-        """
-        # Handle resizing if active
-        if self.resize_edge:
-            bg = self.resize_start_geo
-            delta = event.globalPosition().toPoint() - self.resize_start_pos
-            
-            new_geo = QRect(bg)
-            
-            if "top" in self.resize_edge:
-                new_geo.setTop(bg.top() + delta.y())
-            if "bottom" in self.resize_edge:
-                new_geo.setBottom(bg.bottom() + delta.y())
-            if "left" in self.resize_edge:
-                new_geo.setLeft(bg.left() + delta.x())
-            if "right" in self.resize_edge:
-                new_geo.setRight(bg.right() + delta.x())
-            
-            # Respect minimum size
-            if new_geo.width() >= self.window.minimumWidth() and \
-               new_geo.height() >= self.window.minimumHeight():
-                self.window.setGeometry(new_geo)
-            
-            event.accept()
-            return True
-        
-        # Update cursor based on position
-        self._update_cursor(event.pos())
+        """Deprecated: Returns False so Qt routes events normally."""
         return False
     
-    def _update_cursor(self, pos):
-        """Update cursor shape based on position near edges."""
-        border = self.border_width
-        w = self.window.width()
-        h = self.window.height()
+    def native_event(self, eventType, message) -> tuple[bool, int]:
+        """
+        Handle Windows native events for frameless window resizing edges.
         
-        left = pos.x() < border
-        right = pos.x() > w - border
-        top = pos.y() < border
-        bottom = pos.y() > h - border
-        
-        # Set appropriate cursor
-        if (top and left) or (bottom and right):
-            self.window.setCursor(Qt.CursorShape.SizeFDiagCursor)
-        elif (top and right) or (bottom and left):
-            self.window.setCursor(Qt.CursorShape.SizeBDiagCursor)
-        elif left or right:
-            self.window.setCursor(Qt.CursorShape.SizeHorCursor)
-        elif top or bottom:
-            self.window.setCursor(Qt.CursorShape.SizeVerCursor)
-        else:
-            self.window.unsetCursor()
+        Args:
+            eventType: Type of event
+            message: Windows message pointer
+            
+        Returns:
+            Tuple of (handled, result). result should be an int.
+        """
+        try:
+            import ctypes.wintypes
+            # Only intercept for Windows messages
+            if eventType == b"windows_generic_MSG" or eventType == b"windows_dispatcher_MSG":
+                msg = ctypes.wintypes.MSG.from_address(message.__int__())
+                
+                # WM_NCHITTEST = 0x0084
+                if msg.message == 0x0084:
+                    # Parse mouse coordinates using QCursor for precise logical DPI scaling
+                    # msg.lParam contains physical coordinates which mismatch Qt's logical mapFromGlobal
+                    from PySide6.QtGui import QCursor
+                    global_pos = QCursor.pos()
+                    
+                    # Convert to window-local coordinates
+                    local_pos = self.window.mapFromGlobal(global_pos)
+                    
+                    w = self.window.width()
+                    h = self.window.height()
+                    border = self.border_width
+                    
+                    left = local_pos.x() < border
+                    right = local_pos.x() >= w - border
+                    top = local_pos.y() < border
+                    bottom = local_pos.y() >= h - border
+                    
+                    # Windows HT* constants
+                    HTTOPLEFT = 13
+                    HTTOP = 12
+                    HTTOPRIGHT = 14
+                    HTLEFT = 10
+                    HTRIGHT = 11
+                    HTBOTTOMLEFT = 16
+                    HTBOTTOM = 15
+                    HTBOTTOMRIGHT = 17
+                    HTCLIENT = 1
+                    
+                    if top and left: return True, HTTOPLEFT
+                    if top and right: return True, HTTOPRIGHT
+                    if bottom and left: return True, HTBOTTOMLEFT
+                    if bottom and right: return True, HTBOTTOMRIGHT
+                    if left: return True, HTLEFT
+                    if right: return True, HTRIGHT
+                    if top: return True, HTTOP
+                    if bottom: return True, HTBOTTOM
+                    
+                    # If not on border, return unhandled (let Qt decide)
+                    # We MUST return True, HTCLIENT to tell windows it's the client area usually natively
+                    # BUT doing so might block Qt's click events.
+                    # Returning False, 0 is usually correct for Qt to handle widgets itself
+        except Exception as e:
+            print(f"Error in native event handling: {e}")
+            
+        return False, 0
     
     def enable_blur(self):
         """

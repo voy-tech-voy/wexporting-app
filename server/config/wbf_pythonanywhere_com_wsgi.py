@@ -10,8 +10,8 @@ import os
 # 1. ADD SERVER DIRECTORY TO PYTHON PATH
 # ============================================================================
 # Add BOTH the project root and the server directory to ensure all imports work
-project_dir = '/home/wavyvoy/apps/wbf'
-server_dir = '/home/wavyvoy/apps/wbf/server'
+project_dir = '/home/wavyvoy/apps/wexporting-app'
+server_dir = '/home/wavyvoy/apps/wexporting-app/server'
 
 if project_dir not in sys.path:
     sys.path.insert(0, project_dir)
