@@ -48,7 +48,8 @@ class EnergyManager(QObject):
     STORAGE_FILE = "energy.dat"
     
     # Job-Based Sync Thresholds
-    SYNC_THRESHOLD_COST = 5  # Sync with server if job cost > 5
+    SYNC_THRESHOLD_FREE    = 10  # Free users: reserve with server if job cost > 10
+    SYNC_THRESHOLD_PREMIUM = 30  # Premium users: reserve with server if job cost > 30
     
     # Configuration Paths
     CONFIG_DIR = "client/config"
@@ -277,18 +278,21 @@ class EnergyManager(QObject):
         
         Returns: True if approved, False if insufficient
         """
-        # Premium users bypass
         from client.core.session_manager import SessionManager
-        if SessionManager.instance().is_premium:
-            return True
-            
-        # Small job: deduct locally
-        if cost <= self.SYNC_THRESHOLD_COST:
+        session = SessionManager.instance()
+        is_premium = session.is_premium
+
+        # Choose threshold by tier
+        threshold = self.SYNC_THRESHOLD_PREMIUM if is_premium else self.SYNC_THRESHOLD_FREE
+
+        # Small job: deduct locally (premium jobs under 30, free jobs under 10)
+        if cost <= threshold:
+            if is_premium:
+                return True  # Premium small jobs — no local balance tracking needed
             return self.consume(cost)
-        
+
         # Large job: reserve with server using JWT
-        from client.core.session_manager import SessionManager
-        jwt_token = SessionManager.instance().jwt_token
+        jwt_token = session.jwt_token
         
         if not jwt_token:
             print("[EnergyManager] No JWT token - falling back to local balance check for large job")

@@ -385,15 +385,13 @@ class StartupWorker(QThread):
 
 # ----------------------------------------------------------------------------
 
-def initialize_main_window(is_trial=False, skip_splash=False):
+def initialize_main_window(skip_splash=False):
     """
     Initialize the main window with splash screen and tool validation.
-    This logic is extracted so it can be reused during re-login.
-    
+
     Args:
-        is_trial (bool): Whether to start in trial mode
         skip_splash (bool): Whether to skip the splash screen (e.g. in dev mode)
-        
+
     Returns:
         MainWindow: The initialized main window (not yet shown)
     """
@@ -435,7 +433,7 @@ def initialize_main_window(is_trial=False, skip_splash=False):
     
     # Create main window in background while splash is still visible
     print("[BUILD] Creating main window in background...")
-    window = MainWindow(is_trial=is_trial)
+    window = MainWindow()
     set_dark_title_bar(window)  # Apply dark title bar to main window
     QApplication.processEvents()  # Process events during window creation
     print("[OK] Main window created")
@@ -608,8 +606,7 @@ def main():
             log_info("Launching main application", "startup")
 
         # Use extracted initialization function
-        # is_trial is now managed by EnergyManager state, so we pass False here
-        window = initialize_main_window(is_trial=False, skip_splash=False)
+        window = initialize_main_window(skip_splash=False)
         
         # --------------------------------------------------------------------
         # Version Gateway Pattern - Check for Updates

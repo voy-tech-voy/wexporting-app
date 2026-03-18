@@ -21,7 +21,6 @@ from .title_bar import TitleBarWindow
 from client.core.tool_manager import ToolChecker  # Only for tool status checking
 from client.core.progress_manager import ConversionProgressManager
 from client.gui.custom_widgets import PresetStatusButton
-from client.utils.trial_manager import TrialManager
 from client.utils.font_manager import AppFonts, FONT_FAMILY_APP_NAME
 from client.utils.resource_path import get_app_icon_path, get_resource_path
 from client.version import APP_NAME, AUTHOR
@@ -50,23 +49,19 @@ from client.gui.mixins import WindowEventMixin
 
 
 class MainWindow(WindowEventMixin, QMainWindow):
-    def __init__(self, is_trial=False):
+    def __init__(self):
         super().__init__()
-        
+
         # Install interactive debugger
         if DEBUG_INTERACTIVITY:
             self._debug_filter = EventDebugFilter()
             QApplication.instance().installEventFilter(self._debug_filter)
             print("[DEBUG] Interactive Debug Filter Installed")
-            
-        self.is_trial = is_trial
-        
+
         # Development mode detection
         self.DEVELOPMENT_MODE = getattr(sys, '_called_from_test', False) or __debug__ and not getattr(sys, 'frozen', False)
-        
+
         title = APP_NAME
-        if self.is_trial:
-            title += " [TRIAL]"  # Shortened for title bar consistency
         if self.DEVELOPMENT_MODE:
             title += " [DEV]"
             
@@ -81,13 +76,6 @@ class MainWindow(WindowEventMixin, QMainWindow):
         self.setGeometry(*self._compute_initial_geometry())
         self.setMinimumSize(800, 700)
         self.setMouseTracking(True)  # Enable mouse tracking for edge resize cursors
-        
-        if self.is_trial:
-            self.trial_manager = TrialManager()
-            # Auto-reset trial in development mode
-            if self.DEVELOPMENT_MODE:
-                print("[DEV] Resetting trial usage...")
-                self.trial_manager.reset_trial_usage()
         
         # Set window icon if available
         try:
@@ -221,7 +209,6 @@ class MainWindow(WindowEventMixin, QMainWindow):
         # Parent=self ensures z-order follows main window
         self.title_bar_window = TitleBarWindow(
             parent=self,
-            is_trial=self.is_trial,
             is_dev_mode=self.DEVELOPMENT_MODE
         )
         self._connect_title_bar_signals()
@@ -340,10 +327,10 @@ class MainWindow(WindowEventMixin, QMainWindow):
         self.version_gateway.check_failed.connect(lambda msg: self.update_status(f"Version check failed: {msg}"))
 
         
-        # Start version check immediately on startup (critical for mandatory updates)
-        QTimer.singleShot(500, self.version_gateway.check_version)
-        
-        # Start content update check after version check completes
+        # Version check already ran in main.py before window opened (mandatory update gate).
+        # VersionGatewayConductor is kept for manual "Check for updates" only.
+
+        # Content update check (presets/estimators) — different endpoint, run once at startup
         QTimer.singleShot(3000, self.update_conductor.check_for_updates)
         
         # Inject ConversionConductor into PresetOrchestrator (for lab mode preset execution)

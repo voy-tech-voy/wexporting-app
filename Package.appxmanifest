@@ -32,7 +32,12 @@
                          Square71x71Logo="Assets\Square71x71Logo.scale-100.png"
                          Square310x310Logo="Assets\Square310x310Logo.scale-100.png" />
         <uap:SplashScreen Image="Assets\SplashScreen.scale-100.png" />
+        <uap:InitialRotationPreference />
       </uap:VisualElements>
+      <uap:ApplicationContentUriRules>
+        <uap:Rule Type="include" Match="https://wexporting.com/" />
+        <uap:Rule Type="include" Match="https://wexporting.com/privacy" />
+      </uap:ApplicationContentUriRules>
     </Application>
   </Applications>
   

@@ -48,11 +48,10 @@ class TitleBarWindow(QMainWindow):
     
     TITLE_BAR_HEIGHT = 45
     
-    def __init__(self, parent=None, is_trial=False, is_dev_mode=False):
+    def __init__(self, parent=None, is_dev_mode=False):
         # Pass parent to QMainWindow for proper z-order grouping
         super().__init__(parent)
-        
-        self.is_trial = is_trial
+
         self.is_dev_mode = is_dev_mode
         self._main_window = None
         self._drag_position = None
@@ -128,8 +127,6 @@ class TitleBarWindow(QMainWindow):
         from client.utils.font_manager import FONT_FAMILY
         title_text = f'<span style="font-family: \'{FONT_FAMILY_APP_NAME}\'; font-weight: bold;">{APP_NAME}</span>'
         
-        if self.is_trial:
-            title_text += f'&nbsp;&nbsp;<span style="font-family: \'{FONT_FAMILY}\'; font-weight: normal; font-size: 10pt;">[ TRIAL ]</span>'
         if self.is_dev_mode:
             title_text += f'&nbsp;&nbsp;<span style="font-family: \'{FONT_FAMILY}\'; font-weight: normal; font-size: 10pt;">[ DEV ]</span>'
         

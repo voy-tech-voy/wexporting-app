@@ -66,6 +66,3 @@ class SessionManager:
         subprocess.Popen([sys.executable] + sys.argv)
         app.quit()
     
-    def _show_login_window(self, app):
-        """Deprecated - Login window removed in Phase 4"""
-        pass

@@ -16,17 +16,7 @@ class Config:
     # API Version Prefix
     API_PREFIX = "/api/v1"
     
-    # License Configuration
-    LICENSE_VALIDATION_ENDPOINT = f"{API_PREFIX}/license/validate"
-    LICENSE_TRANSFER_ENDPOINT = f"{API_PREFIX}/license/transfer"
-    LICENSE_FORGOT_ENDPOINT = f"{API_PREFIX}/license/forgot"
-    
-    # Trial Configuration
-    TRIAL_CHECK_ELIGIBILITY_ENDPOINT = f"{API_PREFIX}/trial/check-eligibility"
-    TRIAL_CREATE_ENDPOINT = f"{API_PREFIX}/trial/create"
-    TRIAL_STATUS_ENDPOINT = f"{API_PREFIX}/trial/status"
-    
-    # Energy System Configuration (NEW)
+    # Energy System Configuration
     ENERGY_SYNC_ENDPOINT = f"{API_PREFIX}/energy/sync"
     ENERGY_RESERVE_ENDPOINT = f"{API_PREFIX}/energy/reserve"
     ENERGY_REPORT_ENDPOINT = f"{API_PREFIX}/energy/report"
@@ -94,16 +84,7 @@ except ImportError:
 
 # Export commonly used values
 API_BASE_URL = current_config.API_BASE_URL
-VALIDATE_URL = f"{API_BASE_URL}{current_config.LICENSE_VALIDATION_ENDPOINT}"
-TRANSFER_URL = f"{API_BASE_URL}{current_config.LICENSE_TRANSFER_ENDPOINT}"
-FORGOT_LICENSE_URL = f"{API_BASE_URL}{current_config.LICENSE_FORGOT_ENDPOINT}"
-
-# Trial System URLs
-TRIAL_CHECK_ELIGIBILITY_URL = f"{API_BASE_URL}{current_config.TRIAL_CHECK_ELIGIBILITY_ENDPOINT}"
-TRIAL_CREATE_URL = f"{API_BASE_URL}{current_config.TRIAL_CREATE_ENDPOINT}"
-TRIAL_STATUS_URL = f"{API_BASE_URL}{current_config.TRIAL_STATUS_ENDPOINT}"
-
-# Energy System URLs (NEW)
+# Energy System URLs
 ENERGY_SYNC_URL = f"{API_BASE_URL}{current_config.ENERGY_SYNC_ENDPOINT}"
 ENERGY_RESERVE_URL = f"{API_BASE_URL}{current_config.ENERGY_RESERVE_ENDPOINT}"
 ENERGY_REPORT_URL = f"{API_BASE_URL}{current_config.ENERGY_REPORT_ENDPOINT}"

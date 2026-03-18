@@ -1,11 +1,10 @@
 from flask import jsonify, request
 from functools import wraps
 from . import api_bp
-from services.trial_manager import TrialManager
 from services.license_manager import LicenseManager
 from services.email_service import EmailService
 from services.rate_limiter import rate_limiter
-from services.validation import validate_email, validate_license_key, validate_hardware_id, sanitize_string
+from services.validation import validate_email
 from services.store_validation import validate_receipt, StoreValidationError
 from auth.jwt_auth import create_jwt_token, require_jwt, get_current_user_id, is_premium_user
 from config.settings import Config
@@ -13,7 +12,6 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-trial_manager = TrialManager()
 license_manager = LicenseManager()
 email_service = EmailService()
 
@@ -52,59 +50,6 @@ def require_admin_key(f):
 def status():
     return jsonify({'status': 'ok'}), 200
 
-@api_bp.route('/trial/check', methods=['GET'])
-def check_trial():
-    count = trial_manager.get_trial_count()
-    return jsonify({'trial_count': count}), 200
-
-@api_bp.route('/trial/increment', methods=['POST'])
-def increment_trial():
-    trial_manager.increment_trial()
-    count = trial_manager.get_trial_count()
-    return jsonify({'trial_count': count}), 200
-
-@api_bp.route('/trial/reset', methods=['POST'])
-def reset_trial():
-    trial_manager.reset_trial()
-    return jsonify({'trial_count': 0}), 200
-
-@api_bp.route('/licenses/validate', methods=['POST'])
-def validate_license():
-    data = request.get_json()
-    email = data.get('email')
-    license_key = data.get('license_key')
-    hardware_id = data.get('hardware_id')
-    device_name = data.get('device_name', '')
-    is_offline = data.get('is_offline', False)
-    
-    if not validate_email(email) or not validate_license_key(license_key) or not validate_hardware_id(hardware_id):
-        return jsonify({'success': False, 'error': 'invalid_input'}), 400
-    
-    result = license_manager.validate_license(email, license_key, hardware_id, device_name, is_offline)
-    
-    if result['success']:
-        return jsonify(result), 200
-    else:
-        return jsonify(result), 400
-
-@api_bp.route('/licenses/transfer', methods=['POST'])
-def transfer_license():
-    data = request.get_json()
-    email = data.get('email')
-    license_key = data.get('license_key')
-    new_hardware_id = data.get('new_hardware_id')
-    new_device_name = data.get('new_device_name', '')
-    
-    if not validate_email(email) or not validate_license_key(license_key) or not validate_hardware_id(new_hardware_id):
-        return jsonify({'success': False, 'error': 'invalid_input'}), 400
-    
-    result = license_manager.transfer_license(email, license_key, new_hardware_id, new_device_name)
-    
-    if result['success']:
-        return jsonify(result), 200
-    else:
-        return jsonify(result), 400
-
 @api_bp.route('/licenses/create', methods=['POST'])
 @require_admin_key
 def create_license():
@@ -125,81 +70,6 @@ def create_license():
         logger.error(f"Failed to send email: {e}")
     
     return jsonify({'success': True, 'license_key': license_key}), 201
-
-@api_bp.route('/licenses/forgot', methods=['POST'])
-def forgot_license():
-    # Find and return a license key for a user who forgot it
-    data = request.get_json()
-    email = data.get('email')
-    
-    if not validate_email(email):
-        return jsonify({'success': False, 'error': 'invalid_email'}), 400
-    
-    licenses = license_manager.load_licenses()
-    user_licenses = [key for key, lic in licenses.items() if lic.get('email') == email and lic.get('is_active', True)]
-    
-    if not user_licenses:
-        return jsonify({'success': False, 'error': 'no_license_found'}), 404
-    
-    # Send email with license keys
-    try:
-        email_service.send_forgot_license_email(email, user_licenses)
-        return jsonify({'success': True, 'message': 'License keys sent to email'}), 200
-    except Exception as e:
-        logger.error(f"Failed to send email: {e}")
-        return jsonify({'success': False, 'error': 'email_failed'}), 500
-
-@api_bp.route('/trial/create', methods=['POST'])
-def create_trial():
-    # Create a trial license for a user
-    data = request.get_json()
-    email = data.get('email')
-    hardware_id = data.get('hardware_id')
-    device_name = data.get('device_name', '')
-    
-    if not validate_email(email) or not validate_hardware_id(hardware_id):
-        return jsonify({'success': False, 'error': 'invalid_input'}), 400
-    
-    result = license_manager.create_trial_license(email, hardware_id, device_name)
-    
-    if result['success']:
-        return jsonify(result), 201
-    else:
-        return jsonify(result), 400
-
-@api_bp.route('/trial/check-eligibility', methods=['POST'])
-def check_trial_eligibility():
-    # Check if a user is eligible for a trial
-    data = request.get_json()
-    email = data.get('email')
-    hardware_id = data.get('hardware_id')
-    
-    if not validate_email(email) or not validate_hardware_id(hardware_id):
-        return jsonify({'success': False, 'error': 'invalid_input'}), 400
-    
-    result = license_manager.check_trial_eligibility(email, hardware_id)
-    return jsonify(result), 200
-
-
-@api_bp.route('/trial/status/<license_key>', methods=['GET'])
-def trial_status(license_key):
-    # Get trial status for a license key
-    if not validate_license_key(license_key):
-        return jsonify({'success': False, 'error': 'invalid_license_key'}), 400
-    
-    is_trial = license_manager.is_trial_license(license_key)
-    
-    if not is_trial:
-        return jsonify({'success': False, 'error': 'not_a_trial'}), 400
-    
-    trials = license_manager.load_trials()
-    trial_data = trials.get(license_key)
-    
-    if not trial_data:
-        return jsonify({'success': False, 'error': 'trial_not_found'}), 404
-    
-    return jsonify({'success': True, **trial_data}), 200
-
 
 # ============================================================================
 # ADMIN ENDPOINTS - PLATFORM MIGRATION

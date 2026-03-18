@@ -95,50 +95,6 @@ class MessageManager:
                     "action": "Try again later."
                 }
             },
-            "trial": {
-                "eligible": {
-                    "title": "Free Trial Available",
-                    "message": "Start your free trial to explore all features.",
-                    "action": "Click 'Start Trial' to begin."
-                },
-                "created": {
-                    "title": "Trial Activated!",
-                    "message": "Your trial has been activated successfully.\n\nACTION: You can now access all features. Trial details have been sent to your email.",
-                    "action": "Check your email for details."
-                },
-                "already_used": {
-                    "title": "Trial Already Used",
-                    "message": "You've already used your free trial on this device.\n\nACTION: Purchase a license to continue using the app.",
-                    "action": "Purchase a license."
-                },
-                "already_used_email": {
-                    "title": "Trial Already Used",
-                    "message": "This email address has already been used for a free trial.\n\nACTION: Each user can only claim one free trial. Purchase a license to continue.",
-                    "action": "Purchase a license."
-                },
-                "ineligible": {
-                    "title": "Trial Not Available",
-                    "message": "You are not eligible for a free trial.\n\nACTION: Purchase a license to access all features.",
-                    "action": "Purchase a license."
-                }
-            },
-            "forgot_license": {
-                "success": {
-                    "title": "Email Sent",
-                    "message": "Your license key has been sent to {email}.\n\nACTION: Please check your inbox (and spam folder).",
-                    "action": "Check your email."
-                },
-                "not_found": {
-                    "title": "Email Not Found",
-                    "message": "We couldn't find a license associated with {email}.\n\nACTION: Please check the email address or contact support.",
-                    "action": "Check your email address."
-                },
-                "rate_limit": {
-                    "title": "Too Many Requests",
-                    "message": "You've requested too many emails recently.\n\nACTION: Please wait a few minutes before trying again.",
-                    "action": "Wait a few minutes."
-                }
-            },
             "general": {
                 "error": {
                     "title": "Error",
