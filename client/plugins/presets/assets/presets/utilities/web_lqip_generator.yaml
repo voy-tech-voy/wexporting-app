@@ -3,26 +3,33 @@
 # ============================================================================
 meta:
   id: "web_lqip_generator"
-  name: "LQIP"
+  name: "Low-Quality\nImage Placeholder"
   category: "web"
   description: "Creates a tiny 20px blurred placeholder for lazy-loading web logic."
   version: "1.0"
+  output_extension: ".jpg"
 
 style:
   accent_color: "#E91E63"         # Design Pink
-  icon: "blur"
+  icon: "text:LQIP"
   glow_strength: "weak"
+
+constraints:
+  accepted_types: ["image"]
+  accepted_extensions: [".exr", ".png", ".jpg", ".jpeg", ".tiff", ".bmp", ".webp"]
+  min_duration: 0.0
 
 pipeline:
   - tool: "magick"
     description: "Creating tiny blurred placeholder"
+    filename_suffix: "_lqip"
     command_template: |
-      "tools/magick.exe" "{{ input_path }}" 
-      -resize 20x20 
-      -strip 
-      -blur 0x8 
-      -quality 20 
-      "{{ output_path_no_ext }}_placeholder.jpg"
+      "tools/magick.exe" "{{ input_path }}"
+      -resize 20x20
+      -strip
+      -blur 0x8
+      -quality 20
+      "{{ output_path_no_ext }}.jpg"
 
 # ============================================================================
 # CHECKLIST

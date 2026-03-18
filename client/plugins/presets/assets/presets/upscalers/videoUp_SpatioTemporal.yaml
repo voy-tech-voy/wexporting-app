@@ -66,7 +66,7 @@ pipeline:
   # STEP 1: LOSSLESS FRAME EXTRACTION TO DIRECTORY
   # --------------------------------------------------------------------------
   - tool: "ffmpeg"
-    description: "Step 1/4: Extracting Frames..."
+    description: "Step 1/5: Extracting Frames..."
     filename_suffix: "_ST_{{ scale }}{% if model_type == 'Anime (Fast)' %}_Anime{% else %}_Gen{% endif %}{% if rife_model == 'v4.6 (Best)' %}_v4.6{% else %}_v4{% endif %}{% if output_fps == 'Smooth (2x FPS)' %}_2xFPS{% else %}_OrigFPS{% endif %}"
     command_template: |
       {# Create frames directory first (Windows PowerShell) #}
@@ -78,7 +78,7 @@ pipeline:
   # STEP 2: SPATIAL UPSCALING (REALESRGAN)
   # --------------------------------------------------------------------------
   - tool: "ffmpeg"
-    description: "Step 2/4: Spatial Upscaling (RealESRGAN)..."
+    description: "Step 2/5: Spatial Upscaling (RealESRGAN)..."
     command_template: |
       {# --- MODEL LOGIC --- #}
       {% if model_type == 'Anime (Fast)' %}
@@ -107,7 +107,7 @@ pipeline:
   # STEP 3: TEMPORAL SMOOTHING (RIFE)
   # --------------------------------------------------------------------------
   - tool: "ffmpeg"
-    description: "Step 3/4: Temporal Smoothing (RIFE)..."
+    description: "Step 3/5: Temporal Smoothing (RIFE)..."
     command_template: |
       {# --- RIFE MODEL LOGIC --- #}
       {% if rife_model == 'v4.6 (Best)' %}
@@ -134,12 +134,12 @@ pipeline:
   # STEP 4: REASSEMBLY & AUDIO MERGE
   # --------------------------------------------------------------------------
   - tool: "ffmpeg"
-    description: "Step 4/4: Reassembling Video..."
+    description: "Step 4/5: Reassembling Video..."
     command_template: |
       {# --- FPS LOGIC --- #}
       {# RIFE doubles the frame count, so we need to handle 2x FPS #}
       {% set doubled_fps = (meta.fps * 2) | int %}
-      
+
       {# --- OUTPUT MODE LOGIC --- #}
       {% if output_fps == 'Smooth (2x FPS)' %}
         {# Option A: Smooth 2x FPS - Use all RIFE frames for ultra-smooth motion #}
@@ -149,4 +149,12 @@ pipeline:
         {# tblend averages adjacent frames, fps filter reduces back to original framerate #}
         {{ tool_exe }} -y -framerate {{ doubled_fps }} -i "{{ output_path_no_ext }}_final/%08d.png" -i "{{ input_path }}" -vf "tblend=all_mode=average,fps={{ meta.fps }}" -map 0:v -map 1:a? -c:v libx264 -preset slow -crf 17 -pix_fmt yuv420p -movflags +faststart "{{ output_path }}"
       {% endif %}
+
+  # --------------------------------------------------------------------------
+  # STEP 5: CLEANUP INTERMEDIATE FRAME DIRECTORIES
+  # --------------------------------------------------------------------------
+  - tool: "ffmpeg"
+    description: "Step 5/5: Cleaning up intermediate files..."
+    command_template: |
+      powershell -Command "Remove-Item -Recurse -Force '{{ output_path_no_ext }}_frames', '{{ output_path_no_ext }}_upscaled', '{{ output_path_no_ext }}_final'"
 

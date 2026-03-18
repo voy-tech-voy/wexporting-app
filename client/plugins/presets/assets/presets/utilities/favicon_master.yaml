@@ -31,7 +31,9 @@ pipeline:
     description: "Packing multi-resolution icon container"
     filename_suffix: "_{{ icon_sizes.replace(',', '_') }}"
     command_template: |
-      "tools/magick.exe" "{{ input_path }}" 
-      -background none 
-      -define icon:auto-resize={{ icon_sizes }} 
+      "tools/magick.exe"
+      {% if input_path.lower().endswith('.svg') %}-density 300 {% endif %}-background none
+      "{{ input_path }}"
+      -alpha on
+      -define icon:auto-resize={{ icon_sizes }}
       "{{ output_path }}"

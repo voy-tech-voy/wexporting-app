@@ -97,7 +97,9 @@ class TargetSizeConversionEngine(QThread):
                 else:  # 'video' or default
                     success = self._convert_video(file_path)
                 
-                if success:
+                if success == 'skipped':
+                    pass  # Already counted in _convert_image via skipped_files
+                elif success:
                     self.successful_conversions += 1
                     # file_completed is emitted by the format-specific _convert_* methods
                 else:
@@ -125,10 +127,11 @@ class TargetSizeConversionEngine(QThread):
         Returns:
             'image', 'video', or 'loop'
         """
-        # First check explicit type param (set by tabs)
-        if 'conversion_type' in self.params:
-            return self.params['conversion_type']
-        
+        # Check explicit type param — tabs may set 'conversion_type' or 'type'
+        explicit = self.params.get('conversion_type') or self.params.get('type')
+        if explicit in ('image', 'video', 'loop'):
+            return explicit
+
         # Otherwise infer from format params
         if self.params.get('loop_format'):
             return 'loop'
@@ -226,8 +229,6 @@ class TargetSizeConversionEngine(QThread):
         else:
             # Get appropriate default based on media type
             if media_type == 'loop':
-                # Loop mode: check format to determine which parameter to use
-                # GIF loops use gif_max_size_mb, WebM loops use video_max_size_mb
                 loop_format = self.params.get('loop_format', 'GIF')
                 if 'webm' in loop_format.lower():
                     default_key = 'video_max_size_mb'
@@ -239,8 +240,9 @@ class TargetSizeConversionEngine(QThread):
                     'video': 'video_max_size_mb',
                 }
                 default_key = key_map.get(media_type, 'video_max_size_mb')
-            
-            return [self.params.get(default_key, 1.0)]
+
+            val = self.params.get(default_key, 1.0)
+            return [val if val is not None else 1.0]
     
     def _get_output_path(self, file_path: str, extension: str, params: Dict = None, target_mb: float = None) -> str:
         """Generate output path using suffix manager."""
@@ -399,19 +401,20 @@ class TargetSizeConversionEngine(QThread):
             output_ext = estimator.get_output_extension() if estimator else 'webp'
             
             all_success = True
-            
+            any_encoded = False
+
             # Iterate over target sizes
             for target_mb in target_sizes:
                 if self.should_stop:
                     return False
-                
+
                 target_bytes = int(target_mb * 1024 * 1024)
-                
+
                 # Iterate over resize variants
                 for resize_spec in resize_specs:
                     if self.should_stop:
                         return False
-                    
+
                     # Calculate override dimensions for this variant
                     override_dims = None
                     if resize_spec and orig_w > 0:
@@ -422,23 +425,40 @@ class TargetSizeConversionEngine(QThread):
                             original_height=orig_h,
                             allow_upscale=allow_upscale
                         )
-                    
+
                     # Prepare estimator kwargs with overrides
                     est_kwargs = {'allow_downscale': auto_resize}
                     if override_dims:
                         est_kwargs['override_width'] = override_dims[0]
                         est_kwargs['override_height'] = override_dims[1]
-                    
+
                     # Generate output path (use estimator estimate for params info)
                     multiple_max_sizes = self.params.get('multiple_max_sizes', False)
                     params = estimator.estimate(file_path, target_bytes, **est_kwargs) if estimator else {}
+
+                    # Handle skip: input already under target (v7+)
+                    if params.get('skipped'):
+                        input_kb = params.get('input_size', 0) / 1024
+                        target_kb = target_bytes / 1024
+                        self.status_updated.emit(
+                            f"[SKIP] {Path(file_path).name} already under target "
+                            f"({input_kb:.1f} KB < {target_kb:.1f} KB)"
+                        )
+                        self.skipped_files += 1
+                        self.file_skipped.emit(file_path)
+                        self.completed_outputs += 1
+                        if self.total_outputs > 0:
+                            progress = int((self.completed_outputs / self.total_outputs) * 100)
+                            self.progress_updated.emit(progress)
+                        continue
+
                     output_path = self._get_output_path(
                         file_path,
                         output_ext,
                         params,
                         target_mb if multiple_max_sizes else None
                     )
-                    
+
                     # Delegate to self-contained estimator
                     success = run_image_conversion(
                         input_path=file_path,
@@ -454,8 +474,9 @@ class TargetSizeConversionEngine(QThread):
                         override_width=override_dims[0] if override_dims else None,
                         override_height=override_dims[1] if override_dims else None
                     )
-                    
+
                     if success:
+                        any_encoded = True
                         self.file_completed.emit(file_path, output_path)
                         self.completed_outputs += 1
                         # Update progress immediately
@@ -465,7 +486,10 @@ class TargetSizeConversionEngine(QThread):
                     else:
                         all_success = False
                         # Don't break - continue with other variants
-            
+
+            # If all variants were skipped (none encoded, none failed), signal skip
+            if not any_encoded and all_success:
+                return 'skipped'
             return all_success
             
         except Exception as e:

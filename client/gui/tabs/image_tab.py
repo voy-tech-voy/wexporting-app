@@ -28,10 +28,10 @@ COMBOBOX_STYLE = get_combobox_style(True)  # Default dark mode
 
 # Format-specific defaults for max size variants (in MB)
 DEFAULT_MAX_SIZE_VARIANTS = {
-    'WebP': '0.1, 0.2, 0.3',
-    'JPEG': '0.1, 0.2, 0.3',
-    'PNG': '0.1, 0.2, 0.3',
-    'AVIF': '0.1, 0.2, 0.3',
+    'WebP': '0.05, 0.1, 0.15',
+    'JPEG': '0.05, 0.1, 0.15',
+    'PNG': '0.05, 0.1, 0.15',
+    'AVIF': '0.05, 0.1, 0.15',
 }
 
 

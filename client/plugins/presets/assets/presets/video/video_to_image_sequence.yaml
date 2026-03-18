@@ -53,35 +53,31 @@ parameters:
 pipeline:
   - tool: "ffmpeg"
     description: "Extracting frames as image sequence"
-    
-    # Suffix describes the count for easier file management
-    filename_suffix: "_sequence_{{ image_count }}stills"
-    
+
+    # Outputs into a subfolder: {stem}_image_sequence/{stem}_001.jpg etc.
+    filename_suffix: "_image_sequence/{{ input_stem }}"
+
     command_template: |
       {{ tool_exe }} -y -i "{{ input_path }}"
-      
+
       {# --- FPS FILTER CALCULATION --- #}
       {# Formula: image_count / duration gives the specific frequency needed #}
       -vf "fps={{ image_count }}/{{ meta.duration }}"
-      
+
       {# --- FORMAT SPECIFIC ENCODING --- #}
       {% if img_format == 'jpg' %}
         {# Map 100-60 quality to FFmpeg's 1-31 scale (where 1 is best) #}
         {% set q_val = ((101 - img_quality) / 3.2) | int %}
         -qscale:v {{ q_val | default(2) }}
-        "{{ output_path_no_ext }}_%03d.jpg"
-      
       {% elif img_format == 'png' %}
         {# Standard high-quality PNG compression #}
         -compression_level 3
-        "{{ output_path_no_ext }}_%03d.png"
-      
       {% else %}
         {# WebP Encoding #}
         -c:v libwebp
         -quality {{ img_quality }}
-        "{{ output_path_no_ext }}_%03d.webp"
       {% endif %}
+      "{{ output_path_no_ext }}_%03d.{{ img_format }}"
 
 # ============================================================================
 # CHECKLIST

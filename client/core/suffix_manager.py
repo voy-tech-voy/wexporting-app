@@ -8,6 +8,15 @@ from typing import Dict, List, Optional
 from client.core.ffmpeg_utils import get_video_dimensions, ensure_output_directory_exists
 from client.core.dimension_utils import calculate_target_dimensions, format_dimension_suffix
 
+def _fmt_num(value) -> str:
+    """Format a numeric value without a trailing .0 when it's a whole number."""
+    try:
+        f = float(value)
+        return str(int(f)) if f == int(f) else str(f)
+    except (ValueError, TypeError):
+        return str(value)
+
+
 def _resolve_output_dir(params: Dict, input_path: Path) -> Path:
     """Resolve output directory honoring custom path or nested option."""
     output_dir = params.get('output_dir', '')
@@ -242,7 +251,7 @@ class SuffixManager:
                  dither_val = p.get('gif_dither')
                  
              if dither_val is not None:
-                 parts.append(f"_quality{dither_val}")
+                 parts.append(f"_quality{_fmt_num(dither_val)}")
 
         # 4. Quality Suffix For Non-GIF (e.g. WebM/MP4)
         else:
@@ -256,7 +265,7 @@ class SuffixManager:
                      q_val = p['quality']
                  
                  if q_val is not None:
-                      parts.append(f"_q{q_val}")
+                      parts.append(f"_q{_fmt_num(q_val)}")
                       
         return "".join(parts)
 
@@ -264,7 +273,7 @@ class SuffixManager:
     def generate_variant_suffix(file_path: str, variant_type: str, value, params: Dict) -> str:
         """Generate suffix for a specific variant (Size, Quality, etc)."""
         if variant_type == 'quality':
-            return f"_q{value}"
+            return f"_q{_fmt_num(value)}"
             
         elif variant_type == 'size' or variant_type == 'resize':
             # Use dimension_utils for consistent calculation
@@ -280,11 +289,11 @@ class SuffixManager:
                 return f"_{value}"
                 
         elif variant_type == 'fps':
-             return f"_{value}fps"
+             return f"_{_fmt_num(value)}fps"
         elif variant_type == 'colors':
-             return f"_{value}colors"
+             return f"_{_fmt_num(value)}colors"
         elif variant_type == 'dither':
-             return f"_d{value}"
+             return f"_d{_fmt_num(value)}"
         elif variant_type == 'time_cut':
             # value is tuple (start_pct, end_pct)
             if isinstance(value, (tuple, list)) and len(value) == 2:

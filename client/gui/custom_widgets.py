@@ -185,7 +185,7 @@ class ThemedCheckBox(QCheckBox):
                 border: 1px solid {success};
             }}
             QCheckBox::indicator:unchecked:hover {{
-                border: 1px solid {hover_border};
+                border: 1px solid {success};
             }}
             QCheckBox::indicator:checked:hover {{
                 background-color: {success_hover};
@@ -287,7 +287,7 @@ class SegmentedButton(QPushButton):
         super().__init__(text, parent)
         self.setCheckable(True)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.setMinimumHeight(32)
+        self.setMinimumHeight(38)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
 
 
@@ -425,8 +425,9 @@ class OutputDestinationSelector(GenericSegmentedControl):
         self.add_segment("organized", "Organized")
         self.add_segment("custom", "Custom...")
         
-        # Organized folder input
-        self.organized_input = UnifiedVariantInput()
+        # Organized folder input — plain QLineEdit (no numeric validator)
+        from PySide6.QtWidgets import QLineEdit
+        self.organized_input = QLineEdit()
         self.organized_input.setPlaceholderText("Folder name...")
         self.organized_input.setText("output")
         self.organized_input.setMaximumWidth(120)
@@ -441,6 +442,7 @@ class OutputDestinationSelector(GenericSegmentedControl):
         # Initial theme variable needed for path_label style
         Theme.set_dark_mode(self._is_dark)
         self.path_label.setStyleSheet(f"font-size: {Theme.FONT_SIZE_XS}px; color: {Theme.text_muted()}; padding-left: 8px;")
+        self.update_theme(self._is_dark)
         
         self.layout.addWidget(self.path_label)
         
@@ -481,6 +483,19 @@ class OutputDestinationSelector(GenericSegmentedControl):
         super().update_theme(is_dark)
         Theme.set_dark_mode(is_dark)
         self.path_label.setStyleSheet(f"font-size: {Theme.FONT_SIZE_XS}px; color: {Theme.text_muted()}; padding-left: 8px;")
+        self.organized_input.setStyleSheet(f"""
+            QLineEdit {{
+                background-color: {Theme.param_bg()};
+                color: {Theme.text()};
+                border: 1px solid {Theme.border()};
+                border-radius: {Theme.RADIUS_SM}px;
+                padding: 6px 8px;
+                min-height: 20px;
+                font-family: '{Theme.FONT_BODY}';
+                font-size: {Theme.FONT_SIZE_XL}px;
+            }}
+            QLineEdit:focus {{ border: 1px solid {Theme.border_focus()}; }}
+        """)
 
     def _truncate_path(self, path, max_len=20):
         if len(path) <= max_len: return path

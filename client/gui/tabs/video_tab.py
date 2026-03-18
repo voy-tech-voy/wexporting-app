@@ -249,8 +249,9 @@ class VideoTab(BaseTab):
             'type': 'video',
             'codec': self.codec.currentText(),
             'quality': self.quality.value(),
-            'multiple_qualities': self.multiple_qualities.isChecked(),
-            'quality_variants': self._parse_variants(self.quality_variants.text()),
+            # Manual-mode quality params are only valid in manual mode
+            'multiple_qualities': False if is_max_size_mode else self.multiple_qualities.isChecked(),
+            'quality_variants': [] if is_max_size_mode else self._parse_variants(self.quality_variants.text()),
             'video_max_size_mb': target_params['target_size_mb'],
             'video_auto_resize': target_params['auto_resize'],
             'video_size_mode': 'max_size' if is_max_size_mode else 'manual',
@@ -440,8 +441,8 @@ class VideoTab(BaseTab):
         # (100 quality = low CRF, 0 quality = high CRF)
         # Restore visibility state based on current checkbox
         is_multiple = self.multiple_qualities.isChecked()
-        self.quality_variants.setVisible(is_multiple)
-        self.quality_variants_label.setVisible(is_multiple)
+        self.quality_variants.setVisible(is_multiple and not self._is_max_size_mode)
+        self.quality_variants_label.setVisible(is_multiple and not self._is_max_size_mode)
         self._notify_param_change()
     
 

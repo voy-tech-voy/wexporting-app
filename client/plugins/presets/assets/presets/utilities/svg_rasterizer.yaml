@@ -7,6 +7,11 @@ meta:
   category: "utility"
   description: "High-DPI rasterization of vector graphics with transparency."
   version: "1.0"
+  output_extension: ".png"
+
+constraints:
+  accepted_types: ["image"]
+  accepted_extensions: [".svg"]
 
 pipeline:
   - tool: "magick"

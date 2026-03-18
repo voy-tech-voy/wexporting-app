@@ -113,7 +113,9 @@ class PresetConversionEngine(QThread):
             # Convert file/item
             try:
                 success = self._convert_file(input_item, i, total_files)
-                if success:
+                if success is None:
+                    pass  # Already counted in _convert_file via skipped_files
+                elif success:
                     self.successful_conversions += 1
                 else:
                     self.failed_conversions += 1
@@ -161,7 +163,18 @@ class PresetConversionEngine(QThread):
             sequence_files = []
             
         input_p = Path(input_path)
-        
+
+        # Enforce accepted_extensions constraint
+        preset = self.orchestrator.selected_preset
+        if preset and preset.constraints.accepted_extensions:
+            file_ext = input_p.suffix.lower()
+            allowed = [e.lower() for e in preset.constraints.accepted_extensions]
+            if file_ext not in allowed:
+                self.status_updated.emit(f"[SKIP] {input_name}: not a supported format for this preset (expected {', '.join(allowed)})")
+                self.skipped_files += 1
+                self.file_skipped.emit(input_path)
+                return None  # Treated as "skipped" by caller
+
         # Determine output directory from params
         output_mode = self.params.get('output_mode', 'source')
         organized_name = self.params.get('organized_name', 'output')
@@ -196,21 +209,25 @@ class PresetConversionEngine(QThread):
         if preset.pipeline and preset.pipeline[0].filename_suffix:
             suffix_context = {
                 'meta': meta,
+                'input_stem': input_p.stem,  # Available as {{ input_stem }} in suffix templates
                 **param_values,
             }
             filename_suffix = self.orchestrator._builder.render_filename_suffix(preset.pipeline[0], suffix_context)
         else:
             filename_suffix = "_preset"
-        
+
         # Construct output path
         output_ext = preset.output_extension if preset.output_extension else input_p.suffix
         output_path = output_dir / f"{input_p.stem}{filename_suffix}{output_ext}"
-        
+
+        # Ensure the output directory (and any subfolders in filename_suffix) exists
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+
         # Build context for command templates
         from client.utils.gpu_detector import get_gpu_detector
         gpu_detector = get_gpu_detector(self.orchestrator._registry.get_tool_path('ffmpeg'))
         h264_encoder, encoder_type = gpu_detector.get_best_encoder("MP4 (H.264)", prefer_gpu=True)
-        
+
         # Normalize paths for FFmpeg
         input_path_normalized = str(input_path).replace('\\', '/')
         output_path_normalized = str(output_path).replace('\\', '/')
@@ -272,6 +289,15 @@ class PresetConversionEngine(QThread):
                 self.file_progress_updated.emit(file_index, 1.0)
                 return True
             else:
+                # Fallback: check for sequence output (e.g. %03d frames - no single output file)
+                seq_parent = output_path.parent
+                seq_stem = output_path.stem
+                sequence_matches = list(seq_parent.glob(f"{seq_stem}*"))
+                if sequence_matches:
+                    print(f"[PresetEngine] Sequence output detected: {len(sequence_matches)} file(s) in {seq_parent}")
+                    self.file_completed.emit(str(input_path), str(seq_parent))
+                    self.file_progress_updated.emit(file_index, 1.0)
+                    return True
                 print(f"[PresetEngine] ERROR: Pipeline succeeded but output file not created!")
                 print(f"[PresetEngine] Expected output: {output_path}")
                 return False
