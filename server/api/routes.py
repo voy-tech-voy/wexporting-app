@@ -417,11 +417,11 @@ def validate_store_receipt():
             
         if energy_to_add > 0:
             if product_id in _PRODUCT_LIMIT_PACKS:
-                # Durable limit pack: permanently increases daily max.
-                # Only update purchased_energy — balance is NOT changed.
-                # The higher max becomes available from the next daily refresh.
+                # Durable limit pack: permanently increases daily max AND
+                # tops up the current balance immediately so the benefit kicks in today.
                 user_profile['purchased_energy'] = user_profile.get('purchased_energy', 0) + energy_to_add
-                logger.info(f"Limit pack: purchased_energy += {energy_to_add} (new max: {35 + user_profile['purchased_energy']})")
+                user_profile['energy_balance'] = user_profile.get('energy_balance', 0) + energy_to_add
+                logger.info(f"Limit pack: purchased_energy += {energy_to_add} (new max: {35 + user_profile['purchased_energy']}), energy_balance += {energy_to_add}")
             else:
                 # Consumable pack: one-time balance addition.
                 # Max daily stays unchanged; only the available balance increases.
