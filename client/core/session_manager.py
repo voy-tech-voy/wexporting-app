@@ -1,4 +1,4 @@
-﻿"""
+"""
 Session Manager - Centralized User Session & Entitlements
 
 Manages user identity, authentication tokens, and entitlements (Premium status).
@@ -6,6 +6,8 @@ Implements runtime obfuscation for security-sensitive flags.
 """
 
 import os
+import base64
+from pathlib import Path
 from PySide6.QtCore import QObject, Signal
 
 
@@ -47,6 +49,10 @@ class SessionManager(QObject):
         self._store_user_id = None
         self._jwt_token = None
         self._is_authenticated = False
+        
+        # Path for persisted JWT (same folder as energy.dat)
+        app_data = os.environ.get('APPDATA', os.path.expanduser('~'))
+        self._session_file = Path(app_data) / 'wexporting' / 'config' / 'session.dat'
     
     def _obfuscate(self, value: bool) -> int:
         """Obfuscate a boolean value using XOR with runtime key."""
@@ -109,8 +115,69 @@ class SessionManager(QObject):
         self._is_authenticated = False
         self._set_premium_status(False)
         
+        # Clear persisted JWT so next launch starts fresh
+        self._clear_persisted_jwt()
+        
         print("[SessionManager] Session ended")
         self.session_ended.emit()
+    
+    def set_jwt_token(self, token: str):
+        """
+        Inject a JWT token into the live session (e.g. from persisted storage).
+        Does not emit session_started — only updates the token.
+        """
+        self._jwt_token = token
+    
+    def persist_jwt(self, token: str):
+        """
+        Persist the JWT token to disk so it survives app restarts.
+        
+        Storage: %APPDATA%/wexporting/config/session.dat
+        Format: base64-encoded token (obfuscation only, not encryption).
+        Real security is the server-side JWT signature validation.
+        """
+        if not token:
+            return
+        try:
+            self._session_file.parent.mkdir(parents=True, exist_ok=True)
+            encoded = base64.b64encode(token.encode('utf-8'))
+            with open(self._session_file, 'wb') as f:
+                f.write(encoded)
+            from client.config.config import Config
+            if Config.DEVELOPMENT_MODE:
+                print(f"[SessionManager] JWT persisted to disk")
+        except Exception as e:
+            print(f"[SessionManager] Failed to persist JWT: {e}")
+    
+    def load_persisted_jwt(self):
+        """
+        Load a previously persisted JWT from disk.
+        
+        Returns:
+            str: The JWT token, or None if not found / corrupt.
+        """
+        if not self._session_file.exists():
+            return None
+        try:
+            with open(self._session_file, 'rb') as f:
+                encoded = f.read()
+            token = base64.b64decode(encoded).decode('utf-8')
+            from client.config.config import Config
+            if Config.DEVELOPMENT_MODE:
+                print(f"[SessionManager] Loaded persisted JWT from disk")
+            return token if token else None
+        except Exception as e:
+            print(f"[SessionManager] Failed to load persisted JWT: {e}")
+            return None
+    
+    def _clear_persisted_jwt(self):
+        """Delete the persisted JWT file (called on logout)."""
+        try:
+            if self._session_file.exists():
+                self._session_file.unlink()
+                print("[SessionManager] Persisted JWT cleared")
+        except Exception as e:
+            print(f"[SessionManager] Failed to clear persisted JWT: {e}")
     
     # ===== Getters =====
     

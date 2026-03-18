@@ -584,9 +584,14 @@ def main():
                 print(f"[AUTH] Session active. Premium: {session.is_premium}")
             
             # Configure Energy Manager sync
+            energy_mgr = EnergyManager.instance()
             if session.jwt_token:
-                energy_mgr = EnergyManager.instance()
                 energy_mgr.sync_with_server_jwt()
+                if Config.DEVELOPMENT_MODE:
+                    print("[AUTH] Server sync triggered (JWT available)")
+            else:
+                if Config.DEVELOPMENT_MODE:
+                    print("[AUTH] No JWT token — skipping server sync, using local energy.dat")
                 
             if CRASH_REPORTING_AVAILABLE:
                 log_info(f"Store auth successful. User: {session.store_user_id}", "startup")
@@ -609,6 +614,8 @@ def main():
         # --------------------------------------------------------------------
         # Version Gateway Pattern - Check for Updates
         # --------------------------------------------------------------------
+        _offline_detected = False
+        import requests as _requests  # needed for exception types below
         try:
             from client.utils.update_checker import check_for_updates, UpdateState
             
@@ -637,14 +644,41 @@ def main():
                 # UP_TO_DATE - continue normally
                 logger.info("App is up to date")
                 
+        except (_requests.exceptions.ConnectionError,
+                _requests.exceptions.Timeout,
+                _requests.exceptions.RequestException):
+            # Network unreachable — server not reachable at launch
+            _offline_detected = True
+            logger.warning("[Connectivity] Server unreachable at launch — offline mode active")
+            # Set EnergyAPIClient into offline mode so large-job reserve calls are skipped
+            try:
+                energy_mgr = EnergyManager.instance()
+                energy_mgr.api_client.set_offline_mode(True)
+            except Exception:
+                pass
         except Exception as e:
-            # Update check failed - fail silently and continue
+            # Non-network failure (e.g. bad response) — still allow app to run
             logger.warning(f"Update check failed: {e}")
             if CRASH_REPORTING_AVAILABLE:
                 log_error(e, "update_check")
         # --------------------------------------------------------------------
         
         window.show()
+        
+        # Show offline warning toast after window is visible
+        if _offline_detected:
+            try:
+                from client.gui.components.toast_notification import ToastNotification
+                _offline_toast = ToastNotification(
+                    message="<b>No internet connection</b><br>Credit sync and purchases unavailable",
+                    icon_type="warning",
+                    duration=8000,
+                    parent=window.drag_drop_area,
+                    position="top-center"
+                )
+                _offline_toast.show_toast()
+            except Exception:
+                pass
         
         if CRASH_REPORTING_AVAILABLE:
             log_info("Main application window displayed", "startup")

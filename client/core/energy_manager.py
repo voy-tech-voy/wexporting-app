@@ -295,6 +295,10 @@ class EnergyManager(QObject):
             # Fall back to local check (no server validation)
             return self.consume(cost)
         
+        if self.api_client.offline_mode:
+            print("[EnergyManager] Offline mode - falling back to local balance check for large job")
+            return self.consume(cost)
+        
         # Configure API client with JWT
         self.api_client.set_jwt_token(jwt_token)
         

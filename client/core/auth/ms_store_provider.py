@@ -99,6 +99,13 @@ class MSStoreProvider(IStoreAuthProvider):
                     is_premium=final_premium_status
                 )
                 
+                # Load persisted JWT from a previous session so the server sync
+                # can run on this launch even without a new purchase.
+                persisted_jwt = session.load_persisted_jwt()
+                if persisted_jwt:
+                    session.set_jwt_token(persisted_jwt)
+                    logger.info("[MSStoreProvider] Loaded persisted JWT for server sync")
+                
                 return AuthResult(
                     success=True,
                     store_user_id=self._store_user_id,
@@ -226,6 +233,9 @@ class MSStoreProvider(IStoreAuthProvider):
                             jwt_token=self._jwt_token or "",
                             is_premium=self._is_premium
                         )
+                        # Persist JWT so next launch can sync with the server
+                        if self._jwt_token:
+                            SessionManager.instance().persist_jwt(self._jwt_token)
 
                     logger.info(f"Receipt validated successfully (premium: {self._is_premium}, balance: {energy_balance})")
                     return True
@@ -502,16 +512,25 @@ class MockStoreProvider(IStoreAuthProvider):
         from client.core.session_manager import SessionManager
         self._is_premium = False
         session = SessionManager.instance()
+        
+        # Load persisted JWT from a previous session (e.g. after a mock purchase)
+        # Must do this BEFORE start_session() so we pass the real token in.
+        persisted_jwt = session.load_persisted_jwt()
+        
         session.start_session(
             store_user_id=self._store_user_id,
-            jwt_token="DEV_MOCK_JWT",
+            jwt_token=persisted_jwt or "",   # Real JWT if available, otherwise empty
             is_premium=self._is_premium
         )
+        
+        if persisted_jwt:
+            logger.info("[DEV MOCK] Loaded persisted JWT for server sync")
+        
         logger.warning("[DEV MOCK] login() called — simulating successful Store login")
         return AuthResult(
             success=True,
             store_user_id=self._store_user_id,
-            jwt_token="DEV_MOCK_JWT",
+            jwt_token=persisted_jwt or "",
             is_premium=self._is_premium
         )
 
@@ -586,6 +605,12 @@ class MockStoreProvider(IStoreAuthProvider):
                     is_premium=is_premium
                 )
                 self._jwt_token = jwt_token
+                
+                # Persist JWT so subsequent launches trigger the server sync
+                if jwt_token:
+                    SessionManager.instance().persist_jwt(jwt_token)
+                    logger.info("[DEV MOCK] JWT persisted for next launch")
+                
                 return True
             else:
                 logger.error(f"[DEV MOCK] Server rejected: {resp.status_code} {resp.text}")
