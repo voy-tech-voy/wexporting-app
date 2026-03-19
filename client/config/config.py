@@ -100,3 +100,8 @@ MSSTORE_PRODUCT_ID = current_config.MSSTORE_PRODUCT_ID
 
 # Development Overrides
 PREMIUM_OVERRIDE = current_config.PREMIUM_OVERRIDE
+
+# Energy endpoint HMAC secret — must match ENERGY_HMAC_KEY on the server.
+# Set via ENERGY_HMAC_SECRET env var for installed builds.
+# If absent, signature verification is skipped (backward-compatible).
+ENERGY_HMAC_SECRET = os.environ.get('ENERGY_HMAC_SECRET')

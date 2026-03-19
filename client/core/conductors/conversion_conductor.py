@@ -554,17 +554,23 @@ class ConversionConductor(QObject):
         """
         Check if user has sufficient energy for this conversion job.
         Uses job-based logic: syncs with server for large jobs, local for small.
-        
+
         Returns: True if approved, False if insufficient
         """
         from client.core.energy_manager import EnergyManager
-        
+
         energy_mgr = EnergyManager.instance()
-        
+
         # Premium users bypass
         from client.core.session_manager import SessionManager
         if SessionManager.instance().is_premium:
             return True
+
+        # Server init pending: energy.dat was missing and server hasn't confirmed
+        # the balance yet (offline at launch or register-free not yet called).
+        if energy_mgr.pending_server_init:
+            self.drag_drop_area.show_insufficient_credits_toast()
+            return False
         
         # Use ProgressManager to get total outputs (includes all variants)
         result = self.progress_manager.calculate_from_params(files, params)
@@ -596,13 +602,18 @@ class ConversionConductor(QObject):
         """
         from client.core.energy_manager import EnergyManager
         from client.core.progress_manager import AppMode
-        
+
         energy_mgr = EnergyManager.instance()
-        
+
         # Premium users bypass
         from client.core.session_manager import SessionManager
         if SessionManager.instance().is_premium:
             return True
+
+        # Server init pending: block until balance is confirmed by server
+        if energy_mgr.pending_server_init:
+            self.drag_drop_area.show_insufficient_credits_toast()
+            return False
         
         # Use ProgressManager to get total outputs (presets don't have variants currently, but future-proof)
         result = self.progress_manager.calculate(

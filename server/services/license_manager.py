@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 _licenses_lock = threading.Lock()
 _trials_lock = threading.Lock()
 _purchases_lock = threading.Lock()
+_profiles_lock = threading.Lock()
 
 
 class Platform(str, Enum):
@@ -455,27 +456,18 @@ class LicenseManager:
             }
     
     def is_trial_license(self, license_key):
-        """Check if a license is a trial license
-        
+        """Check if a license key exists in trials.json (the authoritative trial store).
+
         Args:
             license_key: License key to check
-        
+
         Returns:
             bool: True if trial, False otherwise
         """
         try:
-            licenses = self.load_licenses()
-            if license_key not in licenses:
-                return False
-            
-            license_data = licenses[license_key]
-            created = datetime.fromisoformat(license_data['created_date'])
-            expiry = datetime.fromisoformat(license_data['expiry_date'])
-            days_diff = (expiry - created).days
-            
-            # Trial licenses have 7-day duration
-            return days_diff <= 7
-        except:
+            trials = self.load_trials()
+            return license_key in trials
+        except Exception:
             return False
     
     def validate_license(self, email, license_key, hardware_id, device_name="Unknown", is_offline=False):
@@ -830,14 +822,13 @@ class LicenseManager:
                     # Detect platform from existing data
                     source = None
                     
-                    # Check source_license_key format (Gumroad keys have specific format)
+                    # Check if it's a trial (short duration)
                     source_key = license_data.get('source_license_key')
                     if source_key:
-                        # Gumroad license keys are typically 32-35 chars
-                        if len(source_key) == 32 or len(source_key) == 35:
-                            source = Platform.GUMROAD.value
-                    
-                    # Check if it's a trial (short duration)
+                        # Legacy direct/external keys are typically 32-35 chars
+                        if len(source_key) in (32, 35):
+                            source = Platform.DIRECT.value
+
                     if not source:
                         try:
                             created = datetime.fromisoformat(license_data.get('created_date', ''))
@@ -845,19 +836,18 @@ class LicenseManager:
                             days = (expiry - created).days
                             if days <= 7:
                                 source = Platform.TRIAL.value
-                        except:
+                        except Exception:
                             pass
-                    
-                    # Default to gumroad for existing licenses (our primary platform)
+
+                    # Default to DIRECT for pre-MS-Store legacy licenses
                     if not source:
-                        source = Platform.GUMROAD.value
-                    
+                        source = Platform.DIRECT.value
+
                     # Update license
                     license_data['platform'] = source
-                    
+
                     # Try to set platform_transaction_id from existing data
-                    if source == Platform.GUMROAD.value:
-                        # Check for sale_id in various locations
+                    if source == Platform.DIRECT.value:
                         sale_id = license_data.get('sale_id')
                         if not sale_id:
                             purchase_info = license_data.get('purchase_info', {})
@@ -1121,31 +1111,31 @@ class LicenseManager:
     
     def _deactivate_trial_for_email(self, email):
         """
-        Deactivate trial when full license is activated
-        
-        Keeps trial record for audit trail but marks as superseded
+        Deactivate trial when full license is activated.
+        Searches trials.json (the authoritative trial store).
+        Keeps trial record for audit trail but marks as superseded.
         """
         try:
-            licenses = self.load_licenses()
+            trials = self.load_trials()
             email_lower = email.lower()
-            
-            for license_key, license_data in licenses.items():
-                if license_data.get('email', '').lower() == email_lower and self.is_trial_license(license_key):
+
+            for license_key, license_data in trials.items():
+                if license_data.get('email', '').lower() == email_lower:
                     if license_data.get('is_active'):
                         license_data['is_active'] = False
                         license_data['deactivated_at'] = datetime.now().isoformat()
                         license_data['deactivation_reason'] = 'superseded_by_full'
-                        
-                        licenses[license_key] = license_data
-                        self.save_licenses(licenses)
-                        
-                        logger.info(f"✅ Trial deactivated for {email} (superseded by full license)")
+
+                        trials[license_key] = license_data
+                        self.save_trials(trials)
+
+                        logger.info(f"Trial deactivated for {email} (superseded by full license)")
                         return True
-            
+
             return False
-            
+
         except Exception as e:
-            logger.error(f"❌ Failed to deactivate trial: {e}")
+            logger.error(f"Failed to deactivate trial: {e}")
             return False
 
     def find_license_by_email(self, email):
@@ -1218,71 +1208,117 @@ class LicenseManager:
         return os.path.join(os.path.dirname(self.license_file), 'user_profiles.json')
     
     def load_user_profiles(self):
-        """Load user profiles from file"""
+        """Load user profiles from file (thread-safe)."""
         profiles_file = self.get_user_profiles_file()
-        if not os.path.exists(profiles_file):
-            return {}
-        try:
-            with open(profiles_file, 'r', encoding='utf-8') as f:
-                return json.load(f)
-        except Exception as e:
-            logger.error(f"Failed to load user profiles: {e}")
-            return {}
-    
+        with _profiles_lock:
+            if not os.path.exists(profiles_file):
+                return {}
+            try:
+                with open(profiles_file, 'r', encoding='utf-8') as f:
+                    return json.load(f)
+            except Exception as e:
+                logger.error(f"Failed to load user profiles: {e}")
+                return {}
+
     def save_user_profiles(self, profiles):
-        """Save user profiles to file"""
+        """Save user profiles atomically (thread-safe, temp-file + os.replace)."""
         profiles_file = self.get_user_profiles_file()
         os.makedirs(os.path.dirname(profiles_file), exist_ok=True)
-        try:
-            with open(profiles_file, 'w', encoding='utf-8') as f:
-                json.dump(profiles, f, indent=2)
-        except Exception as e:
-            logger.error(f"Failed to save user profiles: {e}")
-    
+        with _profiles_lock:
+            try:
+                tmp_file = profiles_file + '.tmp'
+                with open(tmp_file, 'w', encoding='utf-8') as f:
+                    json.dump(profiles, f, indent=2)
+                os.replace(tmp_file, profiles_file)
+            except Exception as e:
+                logger.error(f"Failed to save user profiles: {e}")
+
     def get_or_create_user_profile(self, store_user_id: str, platform: str) -> Dict[str, Any]:
         """
         Get or create a user profile for store-native authentication.
-        
+        Entire read-modify-write is atomic under _profiles_lock.
+
         Args:
             store_user_id: Platform-specific user ID (MS SubjectID or Apple SubjectID)
             platform: "msstore" or "appstore"
-            
+
         Returns:
             dict: User profile with energy_balance, is_premium, etc.
         """
-        profiles = self.load_user_profiles()
-        
-        if store_user_id in profiles:
-            return profiles[store_user_id]
-        
-        # Create new profile
-        from datetime import datetime
-        profile = {
-            'store_user_id': store_user_id,
-            'platform': platform,
-            'energy_balance': Config.DAILY_FREE_ENERGY,
-            'purchased_energy': 0,  # Track purchased energy separately
-            'is_premium': False,
-            'last_energy_refresh': datetime.utcnow().isoformat(),
-            'created_at': datetime.utcnow().isoformat()
-        }
-        
-        profiles[store_user_id] = profile
-        self.save_user_profiles(profiles)
-        
-        logger.info(f"Created user profile for {store_user_id[:8]}... (platform: {platform})")
-        return profile
-    
+        profiles_file = self.get_user_profiles_file()
+        os.makedirs(os.path.dirname(profiles_file), exist_ok=True)
+        with _profiles_lock:
+            # Read
+            profiles = {}
+            if os.path.exists(profiles_file):
+                try:
+                    with open(profiles_file, 'r', encoding='utf-8') as f:
+                        profiles = json.load(f)
+                except Exception as e:
+                    logger.error(f"Failed to load user profiles: {e}")
+
+            if store_user_id in profiles:
+                return profiles[store_user_id]
+
+            # Create new profile
+            from datetime import datetime
+            profile = {
+                'store_user_id': store_user_id,
+                'platform': platform,
+                'energy_balance': Config.DAILY_FREE_ENERGY,
+                'purchased_energy': 0,
+                'is_premium': False,
+                'last_energy_refresh': datetime.utcnow().isoformat(),
+                'created_at': datetime.utcnow().isoformat()
+            }
+            profiles[store_user_id] = profile
+
+            # Atomic write
+            try:
+                tmp_file = profiles_file + '.tmp'
+                with open(tmp_file, 'w', encoding='utf-8') as f:
+                    json.dump(profiles, f, indent=2)
+                os.replace(tmp_file, profiles_file)
+            except Exception as e:
+                logger.error(f"Failed to save new user profile: {e}")
+
+            logger.info(f"Created user profile for {store_user_id[:8]}... (platform: {platform})")
+            return profile
+
     def get_user_profile(self, store_user_id: str) -> Optional[Dict[str, Any]]:
-        """Get user profile by store user ID"""
-        profiles = self.load_user_profiles()
-        return profiles.get(store_user_id)
-    
+        """Get user profile by store user ID (thread-safe)."""
+        profiles_file = self.get_user_profiles_file()
+        with _profiles_lock:
+            if not os.path.exists(profiles_file):
+                return None
+            try:
+                with open(profiles_file, 'r', encoding='utf-8') as f:
+                    profiles = json.load(f)
+                return profiles.get(store_user_id)
+            except Exception as e:
+                logger.error(f"Failed to load user profiles: {e}")
+                return None
+
     def save_user_profile(self, store_user_id: str, profile: Dict[str, Any]):
-        """Save a single user profile"""
-        profiles = self.load_user_profiles()
-        profiles[store_user_id] = profile
-        self.save_user_profiles(profiles)
+        """Save a single user profile atomically (thread-safe)."""
+        profiles_file = self.get_user_profiles_file()
+        os.makedirs(os.path.dirname(profiles_file), exist_ok=True)
+        with _profiles_lock:
+            profiles = {}
+            if os.path.exists(profiles_file):
+                try:
+                    with open(profiles_file, 'r', encoding='utf-8') as f:
+                        profiles = json.load(f)
+                except Exception as e:
+                    logger.error(f"Failed to load profiles for save: {e}")
+            profiles[store_user_id] = profile
+            try:
+                tmp_file = profiles_file + '.tmp'
+                with open(tmp_file, 'w', encoding='utf-8') as f:
+                    json.dump(profiles, f, indent=2)
+                os.replace(tmp_file, profiles_file)
+            except Exception as e:
+                logger.error(f"Failed to save user profile: {e}")
     
     def check_daily_energy_reset(self, store_user_id: str, profile: Dict[str, Any]):
         """

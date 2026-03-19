@@ -83,8 +83,27 @@ class IStoreAuthProvider(ABC):
     def is_authenticated(self) -> bool:
         """
         Check if user is currently authenticated with the store.
-        
+
         Returns:
             bool: True if authenticated
         """
+        pass
+
+    @abstractmethod
+    def purchase_add_on(self, store_id: str, window_handle: Optional[int] = None) -> bool:
+        """
+        Purchase an add-on (consumable or durable) via the platform store UI.
+
+        Args:
+            store_id: Platform product/store ID (e.g. '9PFHR7GMBT0T' for MS Store)
+            window_handle: Native window handle for modal parenting (HWND on Windows)
+
+        Returns:
+            bool: True if purchase succeeded and was validated with the server
+        """
+        pass
+
+    @abstractmethod
+    def request_purchase(self, product_id: str, window_handle: Optional[int] = None) -> bool:
+        """Alias for purchase_add_on — triggers the store purchase UI."""
         pass

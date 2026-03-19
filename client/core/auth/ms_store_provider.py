@@ -5,11 +5,68 @@ Implements Store authentication using Windows StoreContext API.
 Handles MS Store login, user identification, and receipt validation.
 """
 
+import hashlib
 import logging
+import os
+import subprocess
+import uuid
+from pathlib import Path
 from typing import Optional
+
 from .store_auth_provider import IStoreAuthProvider, AuthResult
 
 logger = logging.getLogger("MSStoreProvider")
+
+
+def _get_stable_user_id() -> str:
+    """
+    Return a stable per-Windows-user identifier that survives AppData deletion.
+
+    Strategy:
+      1. Get the current user's Windows SID via `whoami /user` (stable, per-account).
+         Hash it with an app-specific salt so the raw SID is never stored.
+      2. On failure, fall back to a UUID persisted in %APPDATA%\\wexporting\\config\\user_id.dat.
+         Since %APPDATA% is per-Windows-user, different accounts still get different IDs.
+      3. If even that fails, generate and return a fresh UUID (not persisted).
+    """
+    # --- 1. Windows SID (most stable: survives AppData deletion, unique per account) ---
+    try:
+        result = subprocess.run(
+            ['whoami', '/user', '/fo', 'csv', '/nh'],
+            capture_output=True, text=True, timeout=5
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            # Output format: "DOMAIN\\username","S-1-5-21-..."
+            parts = result.stdout.strip().split(',')
+            sid = parts[-1].strip().strip('"')
+            if sid.startswith('S-'):
+                return 'win_' + hashlib.sha256(
+                    f"wexporting_v1_{sid}".encode()
+                ).hexdigest()[:32]
+    except Exception as e:
+        logger.debug(f"[StableID] SID lookup failed: {e}")
+
+    # --- 2. Persisted UUID in %APPDATA% ---
+    app_data = os.environ.get('APPDATA', os.path.expanduser('~'))
+    id_file = Path(app_data) / 'wexporting' / 'config' / 'user_id.dat'
+    try:
+        if id_file.exists():
+            stored = id_file.read_text(encoding='utf-8').strip()
+            if stored and len(stored) >= 32:
+                return stored
+    except Exception as e:
+        logger.debug(f"[StableID] Could not read user_id.dat: {e}")
+
+    # Generate a new UUID and persist it
+    new_id = 'win_' + uuid.uuid4().hex
+    try:
+        id_file.parent.mkdir(parents=True, exist_ok=True)
+        id_file.write_text(new_id, encoding='utf-8')
+        logger.info(f"[StableID] Generated and persisted new user_id")
+    except Exception as e:
+        logger.warning(f"[StableID] Could not persist user_id.dat: {e}")
+
+    return new_id
 
 
 class MSStoreProvider(IStoreAuthProvider):
@@ -60,9 +117,9 @@ class MSStoreProvider(IStoreAuthProvider):
                 license_result = await self._store_context.get_app_license_async()
                 
                 if license_result:
-                    # Extract user ID from license
-                    # Note: MS Store user ID is in the license's extended JSON data
-                    self._store_user_id = license_result.sku_store_id or "unknown"
+                    # Use a stable per-Windows-user ID (SID-based) instead of
+                    # sku_store_id which is a shared product SKU, not per-user.
+                    self._store_user_id = _get_stable_user_id()
                     
                     # Check if user has premium entitlement
                     # This checks for durable add-ons (lifetime purchase)
@@ -178,42 +235,44 @@ class MSStoreProvider(IStoreAuthProvider):
             logger.error(f"Failed to get receipt: {e}")
             return None
     
-    def validate_receipt(self, receipt_data: bytes) -> bool:
+    def validate_receipt(self, receipt_data: bytes, product_id: str = "unknown") -> bool:
         """
         Validate MS Store receipt with backend server.
-        
+
         Sends the receipt to POST /api/v1/store/validate-receipt
         which validates it with Microsoft Store Collections API.
-        
+
         Args:
-            receipt_data: MS Store receipt blob
-            
+            receipt_data: MS Store receipt blob (None triggers get_receipt())
+            product_id: The actual MS Store product ID that was purchased
+                        (e.g. '9P4WCMTCH89V'). Must be passed from request_purchase().
+
         Returns:
-            bool: True if receipt is valid and premium unlocked
+            bool: True if receipt is valid and server updated the profile
         """
         if not self._store_available:
             logger.error("Cannot validate receipt: MS Store APIs not available")
             return False
-        
+
         try:
             import requests
             from client.config.config import API_BASE_URL
-            
+
             # Get receipt if not provided
             if not receipt_data:
                 receipt_data = self.get_receipt()
-            
+
             if not receipt_data:
                 logger.error("No receipt data available")
                 return False
-            
-            # Send to server for validation
+
+            # Send to server for validation with the real product_id
             response = requests.post(
                 f"{API_BASE_URL}/api/v1/store/validate-receipt",
                 json={
                     "receipt_data": receipt_data,
                     "platform": "msstore",
-                    "product_id": "imgapp_lifetime"  # Or detect from receipt
+                    "product_id": product_id
                 },
                 timeout=10
             )
@@ -403,10 +462,10 @@ class MSStoreProvider(IStoreAuthProvider):
 
             # For already_owned: validate entitlements (fulfillment was handled inside async flow)
             if tx_id == "already_owned":
-                return self.validate_receipt(None)
+                return self.validate_receipt(None, product_id)
 
             # For new purchase: validate then fulfill consumable
-            is_valid = self.validate_receipt(None)
+            is_valid = self.validate_receipt(None, product_id)
 
             if is_valid:
                 is_consumable = 'energy' in product_id.lower() or 'day_pass' in product_id.lower()

@@ -37,6 +37,7 @@ class EnergyAPIClient(QObject):
         self.url_sync = f"{self.base_url}/api/v1/energy/sync"
         self.url_reserve = f"{self.base_url}/api/v1/energy/reserve"
         self.url_report = f"{self.base_url}/api/v1/energy/report"
+        self.url_register_free = f"{self.base_url}/api/v1/store/register-free"
     
     def set_jwt_token(self, jwt_token: str):
         """Set JWT token for authentication."""
@@ -159,6 +160,28 @@ class EnergyAPIClient(QObject):
                 
         except Exception as e:
             self.report_completed.emit(False, {"error": str(e)})
+
+    def register_free_tier(self, store_user_id: str, platform: str) -> dict:
+        """
+        Register as a free-tier user and obtain a JWT token.
+
+        Synchronous — called at startup before the main window appears.
+        Returns a dict with keys: success, jwt_token, energy_balance, is_premium.
+        """
+        try:
+            response = self.session.post(self.url_register_free, json={
+                "store_user_id": store_user_id,
+                "platform": platform
+            }, timeout=10)
+
+            if response.status_code == 200:
+                return response.json()
+            else:
+                logger.warning(f"register-free returned {response.status_code}")
+                return {"success": False, "error": f"server_error_{response.status_code}"}
+        except Exception as e:
+            logger.error(f"register-free request failed: {e}")
+            return {"success": False, "error": str(e)}
 
     def _verify_signature(self, data):
         """

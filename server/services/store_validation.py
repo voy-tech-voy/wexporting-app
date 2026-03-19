@@ -69,12 +69,12 @@ def _validate_msstore_receipt(receipt_data: str, product_id: str) -> Dict[str, A
     client_secret = Config.MSSTORE_CLIENT_SECRET
     
     # ==========================================================================
-    # DEV MOCK BYPASS
+    # DEV MOCK BYPASS — DEBUG MODE ONLY
     # If receipt_data starts with DEV_MOCK_TX_, skip all Azure validation.
     # Real MS Store transaction IDs are GUIDs and can NEVER match this prefix.
-    # Safe to leave in production — will never trigger on a real receipt.
+    # SECURITY: Only active when FLASK_DEBUG=true. Never runs in production.
     # ==========================================================================
-    if receipt_data and receipt_data.startswith("DEV_MOCK_TX_"):
+    if Config.DEBUG and receipt_data and receipt_data.startswith("DEV_MOCK_TX_"):
         logger.warning(f"[DEV MOCK] Bypassing Azure validation for mock receipt: {receipt_data}")
         product_type = _get_product_type_from_id(product_id)
         energy_amount = _get_energy_amount_from_id(product_id) if product_type == "energy_pack" else 0
@@ -148,16 +148,18 @@ def _validate_msstore_receipt(receipt_data: str, product_id: str) -> Dict[str, A
         raise StoreValidationError(f"MS Store API error: {str(e)}")
 
 
+def _validate_appstore_receipt(receipt_data: str, product_id: str) -> Dict[str, Any]:
     """
     Validate Apple App Store receipt via App Store Server API.
-    
+
     Args:
         receipt_data: For StoreKit 2, this is the originalTransactionId (or transactionId)
         product_id: Expected Product ID
-        
+
     Returns:
         dict: Validation result
     """
+    import os
     key_id = Config.APPSTORE_KEY_ID
     issuer_id = Config.APPSTORE_ISSUER_ID
     bundle_id = Config.APPSTORE_BUNDLE_ID
@@ -266,43 +268,67 @@ def _validate_msstore_receipt(receipt_data: str, product_id: str) -> Dict[str, A
         raise StoreValidationError(f"App Store API error: {str(e)}")
 
 
+# MS Store product ID lookup tables (must match routes.py and purchase_options.json)
+_MSSTORE_PRODUCT_TYPE_MAP = {
+    '9PFHR7GMBT0T': 'energy_pack',  # 500 Credits (consumable)
+    '9NNK6Q3WZN2M': 'limit_pack',   # Daily Focus Pack (+200 permanent max)
+    '9P4WCMTCH89V': 'lifetime',     # Premium Lifetime
+}
+
+_MSSTORE_PRODUCT_ENERGY_MAP = {
+    '9PFHR7GMBT0T': 500,
+    '9NNK6Q3WZN2M': 200,
+    '9P4WCMTCH89V': 0,
+}
+
+
 def _get_product_type_from_id(product_id: str) -> str:
     """
     Determine product type from product ID.
-    
+
+    Checks explicit MS Store ID table first, then falls back to keyword matching
+    for forward-compatibility with future products.
+
     Args:
         product_id: Product identifier
-        
+
     Returns:
-        str: "lifetime" or "energy_pack"
+        str: "lifetime", "energy_pack", "limit_pack", or "day_pass"
     """
-    if 'lifetime' in product_id.lower() or 'premium' in product_id.lower():
+    if product_id in _MSSTORE_PRODUCT_TYPE_MAP:
+        return _MSSTORE_PRODUCT_TYPE_MAP[product_id]
+
+    # Keyword fallback for future / non-MS-Store products
+    pid = product_id.lower()
+    if 'lifetime' in pid or 'premium' in pid:
         return 'lifetime'
-    elif 'energy' in product_id.lower():
-        return 'energy_pack'
-    elif 'day_pass' in product_id.lower():
+    elif 'day_pass' in pid:
         return 'day_pass'
+    elif 'energy' in pid or 'credit' in pid:
+        return 'energy_pack'
     else:
-        # Default to lifetime for unknown products
+        logger.warning(f"Unknown product_id '{product_id}' — defaulting to 'lifetime'")
         return 'lifetime'
 
 
 def _get_energy_amount_from_id(product_id: str) -> int:
     """
     Extract energy amount from product ID.
-    
-    Examples:
-        "imgapp_energy_100" -> 100
-        "imgapp_energy_500" -> 500
-        
+
+    Checks explicit MS Store ID table first, then falls back to regex parsing
+    for future products that encode the amount in their ID string.
+
     Args:
         product_id: Product identifier
-        
+
     Returns:
         int: Energy amount, or 0 if not found
     """
+    if product_id in _MSSTORE_PRODUCT_ENERGY_MAP:
+        return _MSSTORE_PRODUCT_ENERGY_MAP[product_id]
+
     import re
-    match = re.search(r'energy[_-](\d+)', product_id.lower())
+    match = re.search(r'(?:energy|credit)[_-](\d+)', product_id.lower())
     if match:
         return int(match.group(1))
     return 0

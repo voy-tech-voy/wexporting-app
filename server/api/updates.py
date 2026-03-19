@@ -9,84 +9,21 @@ from functools import wraps
 import logging
 from . import api_bp
 from services.update_manifest import UpdateManifestService
-from services.license_manager import LicenseManager
+from auth.jwt_auth import require_jwt, get_current_user_id
 
 logger = logging.getLogger(__name__)
 
 update_service = UpdateManifestService()
-license_manager = LicenseManager()
-
-
-def require_valid_license(f):
-    """
-    Decorator to require valid license for update endpoints.
-    
-    Checks Authorization header for Bearer token (license key).
-    Validates license is active and not expired.
-    """
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        auth_header = request.headers.get('Authorization')
-        
-        if not auth_header or not auth_header.startswith('Bearer '):
-            logger.warning(f"Update request without auth from IP: {request.remote_addr}")
-            return jsonify({
-                'success': False,
-                'error': 'unauthorized',
-                'message': 'Valid license required for updates'
-            }), 401
-        
-        license_key = auth_header.replace('Bearer ', '').strip()
-        
-        # Quick validation - just check if license exists and is active
-        licenses = license_manager.load_licenses()
-        trials = license_manager.load_trials()
-        
-        license_data = licenses.get(license_key) or trials.get(license_key)
-        
-        if not license_data:
-            logger.warning(f"Update request with invalid license from IP: {request.remote_addr}")
-            return jsonify({
-                'success': False,
-                'error': 'invalid_license',
-                'message': 'License not found'
-            }), 401
-        
-        if not license_data.get('is_active', False):
-            return jsonify({
-                'success': False,
-                'error': 'license_inactive',
-                'message': 'License is not active'
-            }), 401
-        
-        # Check expiry
-        from datetime import datetime
-        try:
-            expiry_date = datetime.fromisoformat(license_data['expiry_date'])
-            if datetime.now() > expiry_date:
-                return jsonify({
-                    'success': False,
-                    'error': 'license_expired',
-                    'message': 'License has expired'
-                }), 401
-        except:
-            pass
-        
-        # Store license info in request context for logging
-        request.license_key = license_key
-        request.license_email = license_data.get('email')
-        
-        return f(*args, **kwargs)
-    
-    return decorated_function
 
 
 @api_bp.route('/updates/manifest', methods=['GET'])
-@require_valid_license
+@require_jwt
 def get_update_manifest():
     """
     Get manifest of available updates.
-    
+
+    JWT Protected — requires Bearer token from register-free or validate-receipt.
+
     Returns:
         JSON: {
             'presets': [{'id', 'version', 'hash', 'path'}]
@@ -94,14 +31,15 @@ def get_update_manifest():
     """
     try:
         manifest = update_service.generate_manifest()
-        
-        logger.info(f"Manifest requested by {request.license_email}")
-        
+
+        user_id = get_current_user_id()
+        logger.info(f"Manifest requested by user {user_id[:8]}...")
+
         return jsonify({
             'success': True,
             'manifest': manifest
         }), 200
-        
+
     except Exception as e:
         logger.error(f"Failed to generate manifest: {e}")
         return jsonify({
@@ -112,7 +50,7 @@ def get_update_manifest():
 
 
 @api_bp.route('/updates/download/preset/<preset_id>', methods=['GET'])
-@require_valid_license
+@require_jwt
 def download_preset(preset_id):
     """
     Download preset YAML content.
@@ -141,7 +79,7 @@ def download_preset(preset_id):
                 'message': f'Preset {preset_id} not found'
             }), 404
         
-        logger.info(f"Preset {preset_id} downloaded by {request.license_email}")
+        logger.info(f"Preset {preset_id} downloaded by user {get_current_user_id()[:8]}...")
         
         return Response(
             content,

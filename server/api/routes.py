@@ -87,7 +87,7 @@ def admin_migrate_platforms():
     ADMIN ONLY - Requires X-Admin-Key header
     """
     try:
-        result = license_manager.migrate_to_platform_schema()
+        result = license_manager.migrate_existing_licenses_platform()
         return jsonify({
             'success': True,
             'migration_result': result,
@@ -339,6 +339,99 @@ def validate_store_receipt():
         }), 500
 
 
+@api_bp.route('/store/register-free', methods=['POST'])
+def register_free_tier():
+    """
+    Register a free-tier user and issue a JWT token.
+
+    No purchase required. Called on first launch for users who have never made
+    a purchase. Creates a server profile (idempotent) and returns a JWT so the
+    server — not local files — controls the energy balance.
+
+    Request:
+        {
+            "store_user_id": "<ms store / apple user id>",
+            "platform": "msstore" | "appstore"
+        }
+
+    Response:
+        {
+            "success": true,
+            "is_premium": false,
+            "energy_balance": 35,
+            "jwt_token": "eyJ..."
+        }
+    """
+    try:
+        data = request.get_json()
+        store_user_id = (data.get('store_user_id') or '').strip()
+        platform = (data.get('platform') or '').strip()
+
+        if not store_user_id or not platform:
+            return jsonify({
+                'success': False,
+                'error': 'missing_fields',
+                'message': 'store_user_id and platform required'
+            }), 400
+
+        # Reject known fake/dev identifiers
+        _REJECTED_IDS = {'dev-user', 'unknown', 'test', 'null', 'none'}
+        if store_user_id.lower() in _REJECTED_IDS:
+            return jsonify({
+                'success': False,
+                'error': 'invalid_store_id',
+                'message': 'A valid store user ID is required'
+            }), 400
+
+        # Rate-limit by IP to prevent abuse
+        rate_check = rate_limiter.check_rate_limit(
+            'login_validate',
+            ip_address=request.remote_addr
+        )
+        if not rate_check.get('allowed', True):
+            return jsonify({
+                'success': False,
+                'error': 'rate_limited',
+                'message': rate_check.get('message', 'Too many requests'),
+                'retry_after': rate_check.get('retry_after', 600)
+            }), 429
+
+        # Get or create user profile (idempotent — safe to call every launch)
+        user_profile = license_manager.get_or_create_user_profile(store_user_id, platform)
+
+        # Refresh daily energy if a new UTC day has started
+        license_manager.check_daily_energy_reset(store_user_id, user_profile)
+
+        # Determine effective premium status
+        is_premium = user_profile.get('is_premium', False)
+        if not is_premium:
+            expiry_str = user_profile.get('premium_expiry')
+            if expiry_str:
+                from datetime import datetime
+                if datetime.fromisoformat(expiry_str) > datetime.utcnow():
+                    is_premium = True
+
+        # Issue JWT token
+        jwt_token = create_jwt_token(store_user_id, platform, is_premium)
+
+        logger.info(f"Free-tier registered: user {store_user_id[:8]}... (platform: {platform})")
+
+        return jsonify({
+            'success': True,
+            'is_premium': is_premium,
+            'energy_balance': user_profile.get('energy_balance', Config.DAILY_FREE_ENERGY),
+            'jwt_token': jwt_token
+        }), 200
+
+    except Exception as e:
+        logger.error(f"register-free failed: {e}")
+        return jsonify({
+            'success': False,
+            'error': 'server_error',
+            'message': 'Internal server error'
+        }), 500
+
+
 # ============================================================================
 # ENERGY ENDPOINTS (JWT Protected)
 # ============================================================================
@@ -576,6 +669,12 @@ def energy_report():
         current_balance = user_profile.get('energy_balance', 0)
         new_balance = max(0, current_balance - usage)
         user_profile['energy_balance'] = new_balance
+
+        # Clamp purchased_energy if balance dipped below it (same logic as /energy/reserve)
+        current_purchased = user_profile.get('purchased_energy', 0)
+        if new_balance < current_purchased:
+            user_profile['purchased_energy'] = new_balance
+
         license_manager.save_user_profile(user_id, user_profile)
         
         # Generate signature
@@ -694,45 +793,46 @@ def _get_energy_amount_from_id(product_id: str) -> int:
 def _extract_user_id_from_receipt(receipt_data: str, platform: str) -> str:
     """
     Extract store user ID from receipt data.
-    
+
     For MS Store: Parse XML receipt for user ID
     For App Store: Parse JSON receipt for user ID
-    
+
     Args:
         receipt_data: Receipt blob
         platform: "msstore" or "appstore"
-        
+
     Returns:
         str: Store user ID
     """
     import base64
+    import hashlib
     import xml.etree.ElementTree as ET
-    
+
     if platform == "msstore":
         # DEV MOCK: return a stable user ID so all mock purchases hit the same profile
         if receipt_data and receipt_data.startswith("DEV_MOCK_TX_"):
             return "msstore_DEV_MOCK_USER_001"
         try:
-            # MS Store receipts are XML
             receipt_xml = base64.b64decode(receipt_data).decode('utf-8')
             root = ET.fromstring(receipt_xml)
-            # Extract user ID from receipt (adjust XPath as needed)
-            user_id = root.find('.//UserId').text if root.find('.//UserId') is not None else 'unknown'
-            return user_id
+            user_id_el = root.find('.//UserId')
+            if user_id_el is not None and user_id_el.text:
+                return user_id_el.text
         except Exception as e:
             logger.warning(f"Failed to extract MS Store user ID: {e}")
-            return f"msstore_{hash(receipt_data) % 1000000}"
-    
+        # Deterministic fallback (stable across server restarts)
+        return f"msstore_{hashlib.sha256(receipt_data.encode()).hexdigest()[:12]}"
+
     elif platform == "appstore":
         try:
-            # App Store receipts are JSON
-            import json
+            import json as _json
             receipt_json = base64.b64decode(receipt_data).decode('utf-8')
-            receipt = json.loads(receipt_json)
-            user_id = receipt.get('user_id', 'unknown')
-            return user_id
+            receipt = _json.loads(receipt_json)
+            user_id = receipt.get('user_id', '')
+            if user_id:
+                return user_id
         except Exception as e:
             logger.warning(f"Failed to extract App Store user ID: {e}")
-            return f"appstore_{hash(receipt_data) % 1000000}"
-    
+        return f"appstore_{hashlib.sha256(receipt_data.encode()).hexdigest()[:12]}"
+
     return "unknown"

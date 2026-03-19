@@ -5,7 +5,12 @@ from dotenv import load_dotenv
 load_dotenv()
 
 class Config:
-    SECRET_KEY = os.environ.get('SECRET_KEY') or 'dev-secret-key'
+    SECRET_KEY = os.environ.get('SECRET_KEY')
+    if not SECRET_KEY:
+        raise EnvironmentError(
+            "SECRET_KEY environment variable is required and not set. "
+            "Set it in PythonAnywhere > Web > Environment variables."
+        )
     DATA_FOLDER = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data')
     LICENSES_FILE = os.path.join(DATA_FOLDER, 'licenses.json')
     TRIALS_FILE = os.path.join(DATA_FOLDER, 'trials.json')
@@ -56,8 +61,9 @@ class Config:
     # ========================================================================
     # JWT AUTHENTICATION
     # ========================================================================
-    JWT_SECRET_KEY = os.environ.get('JWT_SECRET_KEY')  # Separate from SECRET_KEY for security
+    JWT_SECRET_KEY = os.environ.get('JWT_SECRET_KEY') or SECRET_KEY  # Falls back to SECRET_KEY
     JWT_EXPIRY_HOURS = int(os.environ.get('JWT_EXPIRY_HOURS', 24))  # Token expiry (default 24h)
+    ENERGY_HMAC_KEY = os.environ.get('ENERGY_HMAC_KEY') or SECRET_KEY  # Shared with client for response signing
     
     # ========================================================================
     # ENERGY SYSTEM

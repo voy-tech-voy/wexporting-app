@@ -6,7 +6,7 @@ from PySide6.QtWidgets import (
     QPushButton, QProgressBar, QApplication, QWidget, QScrollArea,
     QSizePolicy, QFrame
 )
-from PySide6.QtCore import Qt, QTimer, Signal, QPropertyAnimation, QEasingCurve, Property
+from PySide6.QtCore import Qt, QTimer, Signal, QPropertyAnimation, QEasingCurve, Property, QThread
 from PySide6.QtGui import QFont, QIcon, QColor, QPainter, QBrush
 
 from client.utils.font_manager import AppFonts
@@ -18,6 +18,31 @@ from PySide6.QtCore import QEvent
 
 import logging
 logger = logging.getLogger("PurchaseDialog")
+
+
+class _PurchaseWorker(QThread):
+    """
+    Background thread for the MS Store purchase flow.
+
+    Keeps the Qt event loop alive so the dialog spinner animates and the window
+    stays responsive while asyncio.run() blocks inside purchase_add_on().
+    Emits finished(bool) on the main thread when done.
+    """
+    finished = Signal(bool)
+
+    def __init__(self, product_id: str, hwnd: int, parent=None):
+        super().__init__(parent)
+        self._product_id = product_id
+        self._hwnd = hwnd
+
+    def run(self):
+        try:
+            provider = get_store_auth_provider()
+            success = provider.purchase_add_on(self._product_id, window_handle=self._hwnd)
+        except Exception as e:
+            logger.error(f"[PurchaseWorker] Unhandled exception: {e}")
+            success = False
+        self.finished.emit(bool(success))
 
 
 class PurchaseOptionCard(QWidget):
@@ -672,60 +697,42 @@ class PurchaseDialog(QDialog):
         super().mouseReleaseEvent(event)
     
     def _on_purchase_requested(self, product_id: str):
-        """Handle purchase request from a card."""
-        # Set all cards to busy
+        """Handle purchase request from a card — runs provider in a background QThread."""
         for card in self.option_cards:
             card.set_busy(True)
-        
+
         self.progress.setVisible(True)
         self.lbl_status.setText("Contacting Microsoft Store...")
         self.lbl_status.setVisible(True)
-        
-        # Force UI update
-        QApplication.processEvents()
-        
-        try:
-            # Get Provider
-            provider = get_store_auth_provider()
-            
-            # Get Window Handle
-            hwnd = int(self.winId())
-            logger.info(f"PurchaseDialog: Initiating purchase for {product_id} with HWND {hwnd}")
-            
-            # Call Purchase via Provider
-            success = provider.purchase_add_on(product_id, window_handle=hwnd)
-            
-            if success:
-                self.lbl_status.setText("Purchase Successful!")
-                self.progress.setVisible(False)
-                
-                # Sync energy balance from server — the provider has stored a real JWT
-                # in SessionManager, so this call will succeed and update the credit bar.
-                try:
-                    from client.core.energy_manager import EnergyManager
-                    EnergyManager.instance().sync_with_server_jwt()
-                    logger.info("PurchaseDialog: Energy sync triggered after purchase")
-                except Exception as sync_err:
-                    logger.warning(f"PurchaseDialog: Post-purchase sync failed (non-critical): {sync_err}")
-                
-                # Auto-close after short delay
-                QTimer.singleShot(1500, self.accept)
-            else:
-                # Failed or Cancelled
-                self.lbl_status.setText("Purchase cancelled or failed.")
-                self.progress.setVisible(False)
-                self.lbl_status.setVisible(False)
-                
-                # Re-enable cards
-                for card in self.option_cards:
-                    card.set_busy(False)
-                
-        except Exception as e:
-            logger.error(f"Purchase Error: {e}")
-            self.lbl_status.setText(f"Error: {str(e)}")
-            self.progress.setVisible(False)
-            
-            # Re-enable cards
+
+        # Capture HWND on the main thread before handing off to the worker
+        hwnd = int(self.winId())
+        logger.info(f"PurchaseDialog: Initiating purchase for {product_id} with HWND {hwnd}")
+
+        # Run the blocking store call in a background thread so the Qt event loop
+        # stays alive (spinner animates, window stays responsive)
+        self._worker = _PurchaseWorker(product_id, hwnd)
+        self._worker.finished.connect(self._on_purchase_finished)
+        self._worker.start()
+
+    def _on_purchase_finished(self, success: bool):
+        """Called on the main thread when the purchase worker completes."""
+        self.progress.setVisible(False)
+
+        if success:
+            self.lbl_status.setText("Purchase Successful!")
+
+            try:
+                from client.core.energy_manager import EnergyManager
+                EnergyManager.instance().sync_with_server_jwt()
+                logger.info("PurchaseDialog: Energy sync triggered after purchase")
+            except Exception as sync_err:
+                logger.warning(f"PurchaseDialog: Post-purchase sync failed (non-critical): {sync_err}")
+
+            QTimer.singleShot(1500, self.accept)
+        else:
+            self.lbl_status.setText("Purchase cancelled or failed.")
+            self.lbl_status.setVisible(False)
             for card in self.option_cards:
                 card.set_busy(False)
 

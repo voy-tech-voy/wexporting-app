@@ -566,27 +566,70 @@ def main():
                 if Config.DEVELOPMENT_MODE:
                     print(f"[AUTH] DEV Override: Premium = {PREMIUM_OVERRIDE}")
             
-            # If session was never started (e.g. Store APIs unavailable), start a dev session
+            # If session was never started (e.g. Store APIs unavailable):
+            # - Dev mode: start a local dev session so development works offline
+            # - Production: leave unauthenticated; balance stays 0 until register-free succeeds
             if not session.is_authenticated:
-                # In dev mode, apply override; in production, default to Free
-                default_premium = PREMIUM_OVERRIDE if (Config.DEVELOPMENT_MODE and PREMIUM_OVERRIDE is not None) else False
-                session.start_session(
-                    store_user_id="dev-user",
-                    jwt_token="",
-                    is_premium=default_premium
-                )
                 if Config.DEVELOPMENT_MODE:
+                    default_premium = PREMIUM_OVERRIDE if PREMIUM_OVERRIDE is not None else False
+                    session.start_session(
+                        store_user_id="dev-user",
+                        jwt_token="",
+                        is_premium=default_premium
+                    )
                     print("[AUTH] Started dev session (no Store APIs)")
-            
+                else:
+                    # Frozen build with no Store listing (sideloaded MSIX testing).
+                    # If IMGAPP_DEV_STORE_ID is set, use it as the store_user_id so
+                    # register_free_tier() can run and give a server-backed session.
+                    _dev_id = os.environ.get('IMGAPP_DEV_STORE_ID', '').strip()
+                    if _dev_id:
+                        session.start_session(
+                            store_user_id=_dev_id,
+                            jwt_token="",
+                            is_premium=False
+                        )
+                        print(f"[AUTH] TEST MODE: using IMGAPP_DEV_STORE_ID={_dev_id}")
+
             if Config.DEVELOPMENT_MODE:
                 print(f"[AUTH] Session active. Premium: {session.is_premium}")
-            
+
             # Configure Energy Manager sync
             energy_mgr = EnergyManager.instance()
             if session.jwt_token:
+                # Existing JWT (from previous session or a purchase) — sync server balance
                 energy_mgr.sync_with_server_jwt()
                 if Config.DEVELOPMENT_MODE:
                     print("[AUTH] Server sync triggered (JWT available)")
+            elif session.is_authenticated and session.store_user_id and session.store_user_id != "dev-user":
+                # Real store identity but no JWT — register as free-tier to get one
+                import sys as _sys
+                _platform = "msstore" if _sys.platform == "win32" else "appstore"
+                _result = energy_mgr.api_client.register_free_tier(session.store_user_id, _platform)
+                if _result.get("success"):
+                    _jwt = _result.get("jwt_token", "")
+                    _balance = _result.get("energy_balance", 0)
+                    _premium = _result.get("is_premium", False)
+                    session.set_jwt_token(_jwt)
+                    session.persist_jwt(_jwt)
+                    session._set_premium_status(_premium)
+                    energy_mgr.balance = _balance
+                    energy_mgr.pending_server_init = False
+                    energy_mgr.save()
+                    energy_mgr.energy_changed.emit(energy_mgr.balance, energy_mgr.max_daily_energy)
+                    print(f"[AUTH] Free-tier registered. Balance: {_balance}")
+                else:
+                    print(f"[AUTH] register-free failed: {_result.get('error', 'unknown')}")
+                    if session.is_authenticated:
+                        # Store APIs confirmed a real identity but we're offline.
+                        # Grant standard daily credits so the user can work.
+                        # No JWT is persisted — on next online launch, register-free runs
+                        # again and reconciles the balance to the server's actual value.
+                        energy_mgr.balance = energy_mgr.DEFAULT_DAILY_ENERGY
+                        energy_mgr.pending_server_init = False
+                        energy_mgr.save()
+                        energy_mgr.energy_changed.emit(energy_mgr.balance, energy_mgr.max_daily_energy)
+                        print("[AUTH] Offline grace: granted local credits (will reconcile when online)")
             else:
                 if Config.DEVELOPMENT_MODE:
                     print("[AUTH] No JWT token — skipping server sync, using local energy.dat")

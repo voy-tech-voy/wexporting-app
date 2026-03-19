@@ -82,6 +82,7 @@ class EnergyManager(QObject):
         self.last_refresh = datetime.utcnow().date().isoformat()
         self.unsynced_usage = 0  # Track local usage not yet reported to server
         self.server_signature = None  # Server's cryptographic signature
+        self.pending_server_init = False  # True when energy.dat is missing and server hasn't confirmed balance yet
         
         # Session state is now managed by SessionManager
         # Access via SessionManager.instance().is_premium, .jwt_token, etc.
@@ -91,9 +92,9 @@ class EnergyManager(QObject):
         self._preset_credits = {}
         self._load_credit_configs()
         
-        # Initialize API client (will be configured with credentials later)
-        from client.config.config import API_BASE_URL
-        self.api_client = EnergyAPIClient(API_BASE_URL)
+        # Initialize API client with HMAC secret for server response verification
+        from client.config.config import API_BASE_URL, ENERGY_HMAC_SECRET
+        self.api_client = EnergyAPIClient(API_BASE_URL, secret_key=ENERGY_HMAC_SECRET)
         
         # Connect signals
         self.api_client.sync_completed.connect(self._on_sync_completed)
@@ -172,7 +173,11 @@ class EnergyManager(QObject):
     def load(self):
         """Load and decrypt energy state"""
         if not self.storage_path.exists():
-            self.reset_defaults()
+            # No local data — set balance to 0 and flag that server verification
+            # is needed before exports are allowed.  The register-free or sync
+            # call at startup will populate the real balance and clear this flag.
+            self.balance = 0
+            self.pending_server_init = True
             return
             
         try:
@@ -568,6 +573,7 @@ class EnergyManager(QObject):
 
             print(f"[EnergyManager] Sync successful - Balance: {self.balance}, Max: {self.max_daily_energy}, Premium: {is_premium}")
             self.unsynced_usage = 0
+            self.pending_server_init = False
             self.save()
             self.energy_changed.emit(self.balance, self.max_daily_energy)
         else:
