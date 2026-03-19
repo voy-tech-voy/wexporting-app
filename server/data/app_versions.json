@@ -1,6 +1,6 @@
 {
     "windows": {
-        "latest_version": "1.0.3.0",
+        "latest_version": "1.0.6.0",
         "min_required_version": "1.0.0.0",
         "update_url": "ms-windows-store://pdp/?productid=9N6WKVSXSRCN",
         "release_notes": "Store auth, energy system, and stability improvements"
