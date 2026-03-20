@@ -17,7 +17,7 @@ pipeline:
   - tool: "magick"
     description: "Rasterizing vector at 300 DPI"
     command_template: |
-      "tools/magick.exe" 
+      "{{ tool_exe }}"
       -background none 
       -density 300 
       "{{ input_path }}" 

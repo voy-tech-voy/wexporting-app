@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(find /V/_MY_APPS/ImgApp_1 -name *offline* -type f)"
+      "Bash(find /V/_MY_APPS/ImgApp_1 -name *offline* -type f)",
+      "Bash(xargs grep:*)"
     ]
   }
 }

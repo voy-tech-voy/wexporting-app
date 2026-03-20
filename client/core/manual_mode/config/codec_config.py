@@ -243,16 +243,33 @@ def get_video_codec_config(codec_name: str) -> Optional[CodecConfig]:
                         'veryslow': 'p7',
                     }
                     hw_preset = preset_map.get(hw_preset, 'p4')  # Default to p4 (balanced)
+                    # Clear numeric preset range so ui_quality_to_preset() returns None
+                    # and _build_output_args uses the resolved hw_preset string (p1-p7)
+                    # instead of the SVT-AV1 numeric range (e.g. 8).
+                    config = replace(
+                        config,
+                        ffmpeg_codec=best_encoder,
+                        extra_args=clean_extra,
+                        preset=hw_preset,
+                        preset_min=None,
+                        preset_max=None,
+                    )
                 # QSV and AMF: clear preset, they use different systems
                 elif best_encoder.endswith('_qsv') or best_encoder.endswith('_amf'):
                     hw_preset = ''
-                
-                config = replace(
-                    config,
-                    ffmpeg_codec=best_encoder,
-                    extra_args=clean_extra,
-                    preset=hw_preset,
-                )
+                    config = replace(
+                        config,
+                        ffmpeg_codec=best_encoder,
+                        extra_args=clean_extra,
+                        preset=hw_preset,
+                    )
+                else:
+                    config = replace(
+                        config,
+                        ffmpeg_codec=best_encoder,
+                        extra_args=clean_extra,
+                        preset=hw_preset,
+                    )
             else:
                 # CPU Fallback handling
                 # If falling back to libaom-av1 (no SVT), we must change params

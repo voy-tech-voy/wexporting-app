@@ -24,7 +24,7 @@ pipeline:
     description: "Creating tiny blurred placeholder"
     filename_suffix: "_lqip"
     command_template: |
-      "tools/magick.exe" "{{ input_path }}"
+      "{{ tool_exe }}" "{{ input_path }}"
       -resize 20x20
       -strip
       -blur 0x8

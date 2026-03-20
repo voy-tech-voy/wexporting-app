@@ -460,6 +460,15 @@ def initialize_main_window(skip_splash=False):
 
 def main():
     """Main application entry point with comprehensive error handling"""
+    # PyInstaller frozen app: support `app.exe -m module args...` like Python itself.
+    # Without this, builder.py's `python_exe = sys.executable` causes the preset
+    # runner to re-launch the app instead of running the target module (e.g. scour).
+    if getattr(sys, 'frozen', False) and len(sys.argv) >= 3 and sys.argv[1] == '-m':
+        import runpy
+        sys.argv = sys.argv[2:]  # strip exe and '-m', leave module + its args
+        runpy.run_module(sys.argv[0], run_name='__main__', alter_sys=True)
+        sys.exit(0)
+
     profile_startup = '--profile-startup' in sys.argv
     if profile_startup:
         # Remove the flag so Qt doesn't see it

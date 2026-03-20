@@ -205,9 +205,12 @@ def extract_bundled_tools_to_cache() -> str:
     for name in os.listdir(meipass_tools):
         src = os.path.join(meipass_tools, name)
         dst = os.path.join(cache_dir, name)
-        
+
         try:
-            if not os.path.exists(dst) or os.path.getsize(src) != os.path.getsize(dst):
+            if os.path.isdir(src):
+                # Subdirectory (e.g. tools/ffmpeg/) — copy entire tree
+                shutil.copytree(src, dst, dirs_exist_ok=True)
+            elif not os.path.exists(dst) or os.path.getsize(src) != os.path.getsize(dst):
                 # Atomic copy
                 tmp = dst + '.tmp'
                 with open(src, 'rb') as sf, open(tmp, 'wb') as df:
@@ -218,7 +221,7 @@ def extract_bundled_tools_to_cache() -> str:
                     if os.path.exists(tmp):
                         os.remove(tmp)
                     shutil.copy2(src, dst)
-                
+
                 # Ensure executable on Unix
                 if os.name != 'nt':
                     os.chmod(dst, 0o755)

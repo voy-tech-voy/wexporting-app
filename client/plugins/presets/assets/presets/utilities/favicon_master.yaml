@@ -32,7 +32,7 @@ pipeline:
     description: "Packing multi-resolution icon container"
     filename_suffix: "_{{ icon_sizes.replace(',', '_') }}"
     command_template: |
-      "tools/magick.exe"
+      "{{ tool_exe }}"
       {% if input_path.lower().endswith('.svg') %}-density 300 {% endif %}-background none
       "{{ input_path }}"
       -alpha on
