@@ -73,13 +73,16 @@ class EnergyAPIClient(QObject):
             if response.status_code == 200:
                 data = response.json()
                 if self._verify_signature(data):
+                    logger.info(f"Energy sync OK: balance={data.get('balance', '?')}")
                     self.sync_completed.emit(True, data)
                 else:
                     logger.warning("Server signature verification failed during sync")
                     self.sync_completed.emit(False, {"error": "signature_mismatch"})
             elif response.status_code == 401:
+                logger.warning("Energy sync: unauthorized (JWT rejected)")
                 self.sync_completed.emit(False, {"error": "unauthorized"})
             else:
+                logger.warning(f"Energy sync: server error {response.status_code}")
                 self.sync_completed.emit(False, {"error": f"server_error_{response.status_code}"})
                 
         except Exception as e:
@@ -110,14 +113,17 @@ class EnergyAPIClient(QObject):
             if response.status_code == 200:
                 data = response.json()
                 if self._verify_signature(data):
+                    logger.info(f"Energy reserve OK: amount={amount}, approved={data.get('approved')}, new_balance={data.get('new_balance')}")
                     self.reservation_completed.emit(True, data)
                 else:
                     self.reservation_completed.emit(False, {"error": "signature_mismatch"})
             else:
                 # Handle 402 Payment Required (Insufficient Energy)
                 if response.status_code == 402:
+                    logger.warning(f"Energy reserve: insufficient energy (requested {amount})")
                     self.reservation_completed.emit(False, {"error": "insufficient_energy"})
                 elif response.status_code == 401:
+                    logger.warning("Energy reserve: unauthorized (JWT rejected)")
                     self.reservation_completed.emit(False, {"error": "unauthorized"})
                 else:
                     self.reservation_completed.emit(False, {"error": f"server_error_{response.status_code}"})
@@ -150,10 +156,12 @@ class EnergyAPIClient(QObject):
             if response.status_code == 200:
                 data = response.json()
                 if self._verify_signature(data):
+                    logger.info(f"Usage reported OK: {usage_amount} units, new_balance={data.get('balance', '?')}")
                     self.report_completed.emit(True, data)
                 else:
                     self.report_completed.emit(False, {"error": "signature_mismatch"})
             elif response.status_code == 401:
+                logger.warning("Usage report: unauthorized (JWT rejected)")
                 self.report_completed.emit(False, {"error": "unauthorized"})
             else:
                 self.report_completed.emit(False, {"error": f"server_error_{response.status_code}"})
@@ -175,6 +183,7 @@ class EnergyAPIClient(QObject):
             }, timeout=10)
 
             if response.status_code == 200:
+                logger.info("register-free OK: user registered/updated")
                 return response.json()
             else:
                 logger.warning(f"register-free returned {response.status_code}")

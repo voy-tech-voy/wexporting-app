@@ -126,12 +126,23 @@ class UpdateConductor(QObject):
         """
         Update the JWT token for authentication.
         Should be called after successful store authentication.
-        
+
         Args:
             jwt_token: JWT token from server after store validation
         """
         self.jwt_token = jwt_token
         logger.info("UpdateConductor: JWT token updated")
+
+    def _get_current_jwt(self) -> str:
+        """Get JWT from SessionManager, falling back to stored value."""
+        try:
+            from client.core.session_manager import get_session_manager
+            token = get_session_manager().jwt_token
+            if token:
+                return token
+        except Exception:
+            pass
+        return self.jwt_token  # fallback (dev mode / "FREE_TIER")
 
     def check_for_updates(self):
         """
@@ -149,7 +160,8 @@ class UpdateConductor(QObject):
                 self.check_worker = None
 
         logger.info("Starting update check...")
-        self.check_worker = UpdateWorker(self.server_url, self.jwt_token)
+        token = self._get_current_jwt()
+        self.check_worker = UpdateWorker(self.server_url, token)
         self.check_worker.check_complete.connect(self._handle_check_result)
         self.check_worker.finished.connect(self.check_worker.deleteLater)
         self.check_worker.finished.connect(self._cleanup_check_worker)
@@ -173,7 +185,8 @@ class UpdateConductor(QObject):
                 self.apply_worker = None
             
         logger.info("Starting update application...")
-        self.apply_worker = UpdateApplyWorker(self.server_url, self.jwt_token, manifest)
+        token = self._get_current_jwt()
+        self.apply_worker = UpdateApplyWorker(self.server_url, token, manifest)
         self.apply_worker.apply_complete.connect(self._handle_apply_result)
         self.apply_worker.progress_update.connect(self.update_progress.emit)
         self.apply_worker.finished.connect(self.apply_worker.deleteLater)

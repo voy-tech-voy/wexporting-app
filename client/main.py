@@ -159,7 +159,7 @@ except ImportError as e:
 # Import crash reporting
 try:
     from client.utils.crash_reporter import run_with_crash_protection
-    from client.utils.error_reporter import get_error_reporter, log_info, log_error
+    from client.utils.error_reporter import get_error_reporter, log_info, log_warning, log_error
     CRASH_REPORTING_AVAILABLE = True
 except ImportError as e:
     print(f"Warning: Crash reporting not available: {e}")
@@ -546,15 +546,15 @@ def main():
         # Initialize Store Provider (MS Store on Windows, Apple on macOS)
         try:
             auth_provider = get_store_auth_provider()
-            print(f"[AUTH] Using provider: {auth_provider.__class__.__name__}")
+            log_info(f"Auth provider: {auth_provider.__class__.__name__}", "auth")
             
             # Attempt silent login
             auth_result = auth_provider.login()
             
             if auth_result and auth_result.success:
-                print("[AUTH] Store login successful")
+                log_info("Store login successful", "auth")
             else:
-                print("[AUTH] Store login failed or unavailable")
+                log_info("Store login failed or unavailable", "auth")
             
             # Ensure SessionManager is initialized (may have been started inside provider.login())
             session = SessionManager.instance()
@@ -617,9 +617,9 @@ def main():
                     energy_mgr.pending_server_init = False
                     energy_mgr.save()
                     energy_mgr.energy_changed.emit(energy_mgr.balance, energy_mgr.max_daily_energy)
-                    print(f"[AUTH] Free-tier registered. Balance: {_balance}")
+                    log_info(f"Free-tier registered. Balance: {_balance}", "auth")
                 else:
-                    print(f"[AUTH] register-free failed: {_result.get('error', 'unknown')}")
+                    log_warning(f"register-free failed: {_result.get('error', 'unknown')}", "auth")
                     if session.is_authenticated:
                         # Store APIs confirmed a real identity but we're offline.
                         # Grant standard daily credits so the user can work.
@@ -629,7 +629,7 @@ def main():
                         energy_mgr.pending_server_init = False
                         energy_mgr.save()
                         energy_mgr.energy_changed.emit(energy_mgr.balance, energy_mgr.max_daily_energy)
-                        print("[AUTH] Offline grace: granted local credits (will reconcile when online)")
+                        log_info("Offline grace: granted local credits (will reconcile when online)", "auth")
             else:
                 if Config.DEVELOPMENT_MODE:
                     print("[AUTH] No JWT token — skipping server sync, using local energy.dat")
@@ -638,9 +638,7 @@ def main():
                 log_info(f"Store auth successful. User: {session.store_user_id}", "startup")
                     
         except Exception as e:
-            print(f"[AUTH] Error during store authentication: {e}")
-            if CRASH_REPORTING_AVAILABLE:
-                log_error(e, "store_auth")
+            log_error(e, "store_auth")
 
         # --------------------------------------------------------------------
 

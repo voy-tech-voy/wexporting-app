@@ -7,8 +7,11 @@ Implements runtime obfuscation for security-sensitive flags.
 
 import os
 import base64
+import logging
 from pathlib import Path
 from PySide6.QtCore import QObject, Signal
+
+logger = logging.getLogger(__name__)
 
 
 class SessionManager(QObject):
@@ -80,6 +83,7 @@ class SessionManager(QObject):
         self._premium_obf = self._obfuscate(is_premium)
         
         if old_status != is_premium:
+            logger.info(f"Premium status changed: {is_premium}")
             from client.config.config import Config
             if Config.DEVELOPMENT_MODE:
                 print(f"[SessionManager] Premium status changed: {is_premium}")
@@ -103,6 +107,7 @@ class SessionManager(QObject):
         # Set premium status (will emit signal if changed)
         self._set_premium_status(is_premium)
         
+        logger.info(f"Session started. User: {store_user_id[:8]}..., Premium: {is_premium}")
         from client.config.config import Config
         if Config.DEVELOPMENT_MODE:
             print(f"[SessionManager] Session started for user: {store_user_id[:8]}... (Premium: {is_premium})")
@@ -118,7 +123,7 @@ class SessionManager(QObject):
         # Clear persisted JWT so next launch starts fresh
         self._clear_persisted_jwt()
         
-        print("[SessionManager] Session ended")
+        logger.info("Session ended")
         self.session_ended.emit()
     
     def set_jwt_token(self, token: str):
@@ -143,10 +148,12 @@ class SessionManager(QObject):
             encoded = base64.b64encode(token.encode('utf-8'))
             with open(self._session_file, 'wb') as f:
                 f.write(encoded)
+            logger.info("JWT token persisted to disk")
             from client.config.config import Config
             if Config.DEVELOPMENT_MODE:
                 print(f"[SessionManager] JWT persisted to disk")
         except Exception as e:
+            logger.error(f"Failed to persist JWT: {e}")
             print(f"[SessionManager] Failed to persist JWT: {e}")
     
     def load_persisted_jwt(self):
@@ -162,11 +169,13 @@ class SessionManager(QObject):
             with open(self._session_file, 'rb') as f:
                 encoded = f.read()
             token = base64.b64decode(encoded).decode('utf-8')
+            logger.info("Persisted JWT loaded from disk")
             from client.config.config import Config
             if Config.DEVELOPMENT_MODE:
                 print(f"[SessionManager] Loaded persisted JWT from disk")
             return token if token else None
         except Exception as e:
+            logger.error(f"Failed to load persisted JWT: {e}")
             print(f"[SessionManager] Failed to load persisted JWT: {e}")
             return None
     
@@ -175,8 +184,9 @@ class SessionManager(QObject):
         try:
             if self._session_file.exists():
                 self._session_file.unlink()
-                print("[SessionManager] Persisted JWT cleared")
+                logger.info("Persisted JWT cleared")
         except Exception as e:
+            logger.error(f"Failed to clear persisted JWT: {e}")
             print(f"[SessionManager] Failed to clear persisted JWT: {e}")
     
     # ===== Getters =====
