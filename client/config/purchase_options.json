@@ -25,11 +25,19 @@
             "name": "Daily Focus Pack",
             "description": "Daily limit +200 (Permanently)",
             "cost": "$5.99",
-            "color": "#00E0FF",
+            "color": "#A855F7",
             "button_label": "Boost Daily Limit",
             "product_id": "9NNK6Q3WZN2M",
             "type": "durable",
             "style": {
+                "outline_active": "#A855F7",
+                "btn_bg_ghost": "rgba(168, 85, 247, 0.3)",
+                "btn_bg_active": "rgba(168, 85, 247, 0.85)",
+                "btn_text_ghost": "#B0B0B0",
+                "btn_text_active": "#FFFFFF",
+                "price_color": "#A855F7"
+            },
+            "style_dark": {
                 "outline_active": "#00E0FF",
                 "btn_bg_ghost": "rgba(0, 224, 255, 0.3)",
                 "btn_bg_active": "rgba(0, 224, 255, 0.7)",

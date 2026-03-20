@@ -143,11 +143,11 @@ pipeline:
       {# --- OUTPUT MODE LOGIC --- #}
       {% if output_fps == 'Smooth (2x FPS)' %}
         {# Option A: Smooth 2x FPS - Use all RIFE frames for ultra-smooth motion #}
-        {{ tool_exe }} -y -framerate {{ doubled_fps }} -i "{{ output_path_no_ext }}_final/%08d.png" -i "{{ input_path }}" -map 0:v -map 1:a? -c:v libx264 -preset slow -crf 17 -pix_fmt yuv420p -movflags +faststart "{{ output_path }}"
+        {{ tool_exe }} -y -framerate {{ doubled_fps }} -i "{{ output_path_no_ext }}_final/%08d.png" -i "{{ input_path }}" -map 0:v -map 1:a? -c:v {{ gpu_encoder }} {{ get_h264_flags(17) }} -pix_fmt yuv420p -movflags +faststart "{{ output_path }}"
       {% else %}
         {# Option B: Cinematic Original FPS - Blend frames for natural motion blur #}
         {# tblend averages adjacent frames, fps filter reduces back to original framerate #}
-        {{ tool_exe }} -y -framerate {{ doubled_fps }} -i "{{ output_path_no_ext }}_final/%08d.png" -i "{{ input_path }}" -vf "tblend=all_mode=average,fps={{ meta.fps }}" -map 0:v -map 1:a? -c:v libx264 -preset slow -crf 17 -pix_fmt yuv420p -movflags +faststart "{{ output_path }}"
+        {{ tool_exe }} -y -framerate {{ doubled_fps }} -i "{{ output_path_no_ext }}_final/%08d.png" -i "{{ input_path }}" -vf "tblend=all_mode=average,fps={{ meta.fps }}" -map 0:v -map 1:a? -c:v {{ gpu_encoder }} {{ get_h264_flags(17) }} -pix_fmt yuv420p -movflags +faststart "{{ output_path }}"
       {% endif %}
 
   # --------------------------------------------------------------------------

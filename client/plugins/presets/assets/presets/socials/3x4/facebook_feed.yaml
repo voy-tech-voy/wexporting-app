@@ -21,6 +21,6 @@ pipeline:
     command_template: >
       {{ tool_exe }} -y -i "{{ input_path }}"
       -vf "scale=1080:1350:force_original_aspect_ratio=increase,crop=1080:1350,unsharp=3:3:0.4:3:3:0.0"
-      -c:v libx264 -preset medium -crf 19 -maxrate 10M -bufsize 20M
+      -c:v {{ gpu_encoder }} {{ get_h264_flags(19) }} -maxrate 10M -bufsize 20M
       -pix_fmt yuv420p -c:a aac -b:a 192k -movflags +faststart
       "{{ output_path }}"

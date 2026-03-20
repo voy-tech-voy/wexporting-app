@@ -65,7 +65,7 @@ pipeline:
       {% if mode == 'Immersive' %}
         {% if fill_method == 'Blur' and meta.is_landscape %}
           -filter_complex "[0:v]split[bg][fg];
-          [bg]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=25:15[bg_b];
+          [bg]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,gblur=sigma=25[bg_b];
           [fg]scale=1080:1920:force_original_aspect_ratio=decrease[fg_s];
           [bg_b][fg_s]overlay=(W-w)/2:(H-h)/2{{ fps_filter }},unsharp=3:3:0.8:3:3:0.0[outv]"
           -map "[outv]"
@@ -79,7 +79,7 @@ pipeline:
       {% endif %}
 
       {# --- TIKTOK ENCODING SPEC --- #}
-      -c:v libx264 -preset slow -profile:v high -level:v 4.2
+      -c:v {{ gpu_encoder }} {{ get_h264_flags(20) }} -profile:v high -level:v 4.2
       -crf 18
       -maxrate 12M -bufsize 24M
       -pix_fmt yuv420p

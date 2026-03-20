@@ -65,7 +65,7 @@ pipeline:
       {# SCENARIO B: BLUR BACKGROUND #}
       {% elif fill_method == 'Blur' %}
         -filter_complex "[0:v]split[bg][fg];
-        [bg]scale=1080:1440:force_original_aspect_ratio=increase,crop=1080:1440,boxblur=20:10[bg_blur];
+        [bg]scale=1080:1440:force_original_aspect_ratio=increase,crop=1080:1440,gblur=sigma=25[bg_blur];
         [fg]scale=1080:1440:force_original_aspect_ratio=decrease[fg_scaled];
         [bg_blur][fg_scaled]overlay=(W-w)/2:(H-h)/2{{ fps_filter }},unsharp=5:5:0.5:5:5:0.0[outv]"
         -map "[outv]" -map 0:a?
@@ -80,7 +80,7 @@ pipeline:
       {% endif %}
 
       {# --- ENCODING SETTINGS --- #}
-      -c:v libx264 -preset medium -profile:v high -level:v 4.2
+      -c:v {{ gpu_encoder }} {{ get_h264_flags(20) }} -profile:v high -level:v 4.2
       -g {{ (meta.fps * 2)|int if meta.fps < 29 else 60 }}
       -bf 2 
       -b:v 14M -maxrate 18M -bufsize 28M

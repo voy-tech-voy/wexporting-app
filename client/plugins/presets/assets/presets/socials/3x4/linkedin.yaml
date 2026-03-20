@@ -46,7 +46,7 @@ pipeline:
       {# --- GEOMETRY (1080x1350) --- #}
       {% if fill_method == 'Blur' %}
         -filter_complex "[0:v]split[bg][fg];
-        [bg]scale=1080:1350:force_original_aspect_ratio=increase,crop=1080:1350,boxblur=15:5[bg_b];
+        [bg]scale=1080:1350:force_original_aspect_ratio=increase,crop=1080:1350,gblur=sigma=25[bg_b];
         [fg]scale=1080:1350:force_original_aspect_ratio=decrease[fg_s];
         [bg_b][fg_s]overlay=(W-w)/2:(H-h)/2,unsharp=3:3:0.5:3:3:0.0[v]"
       {% elif fill_method == 'Crop' %}
@@ -56,7 +56,7 @@ pipeline:
       {% endif %}
 
       {# --- ENCODING --- #}
-      -c:v libx264 -preset medium -crf 20
+      -c:v {{ gpu_encoder }} {{ get_h264_flags(20) }}
       -pix_fmt yuv420p
       -r 30
       -g 60

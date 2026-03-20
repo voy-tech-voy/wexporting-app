@@ -81,7 +81,7 @@ pipeline:
       "
       
       {# --- ENCODING --- #}
-      -c:v libx264 -preset slow -crf 18 -pix_fmt yuv420p
+      -c:v {{ gpu_encoder }} {{ get_h264_flags(18) }} -pix_fmt yuv420p
       
       {% if meta.has_audio %}
         -c:a aac -b:a 192k

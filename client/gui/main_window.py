@@ -841,10 +841,15 @@ class MainWindow(WindowEventMixin, QMainWindow):
     def show_purchase_dialog(self):
         """Show the Purchase Dialog (from Menu)"""
         from client.gui.dialogs.purchase_dialog import PurchaseDialog
-        
-        # Open Purchase Dialog (handles its own dimming overlay)
+        from PySide6.QtCore import QEventLoop
+
         dialog = PurchaseDialog(parent=self)
-        return dialog.exec()
+        # Use NonModal + local event loop so title bar window is never disabled
+        loop = QEventLoop()
+        dialog.finished.connect(loop.quit)
+        dialog.show()
+        loop.exec()
+        return dialog.result()
         
     def show_update_dialog(self, manifest):
         """Show dialog with available content updates."""

@@ -229,6 +229,9 @@ class ToastNotification(QFrame):
 
     def _start_fade_out(self):
         """Start fade-out animation before dismissing."""
+        if getattr(self, '_fading', False):
+            return
+        self._fading = True
         # Remove event filter to stop monitoring
         from PySide6.QtWidgets import QApplication
         QApplication.instance().removeEventFilter(self)

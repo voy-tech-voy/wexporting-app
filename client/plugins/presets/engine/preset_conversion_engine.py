@@ -228,6 +228,11 @@ class PresetConversionEngine(QThread):
         gpu_detector = get_gpu_detector(self.orchestrator._registry.get_tool_path('ffmpeg'))
         h264_encoder, encoder_type = gpu_detector.get_best_encoder("MP4 (H.264)", prefer_gpu=True)
 
+        def get_h264_flags(quality: int) -> str:
+            """Helper for Jinja templates to get correct quality flags for the current encoder."""
+            params = gpu_detector.get_encoder_params(h264_encoder, quality)
+            return " ".join([f"-{k} {v}" for k, v in params.items()])
+
         # Normalize paths for FFmpeg
         input_path_normalized = str(input_path).replace('\\', '/')
         output_path_normalized = str(output_path).replace('\\', '/')
@@ -242,6 +247,7 @@ class PresetConversionEngine(QThread):
             'meta': meta,
             'gpu_encoder': h264_encoder,
             'gpu_type': encoder_type.value,
+            'get_h264_flags': get_h264_flags,
             'is_sequence': is_sequence,
             'sequence_files': sequence_files,
             'sequence_count': len(sequence_files),

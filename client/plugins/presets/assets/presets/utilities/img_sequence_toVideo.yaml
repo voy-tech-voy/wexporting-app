@@ -68,7 +68,7 @@ pipeline:
       -vf "pad=ceil(iw/2)*2:ceil(ih/2)*2,format=yuv420p"
 
       {# --- ENCODING SETTINGS --- #}
-      -c:v libx264 
+      -c:v {{ gpu_encoder }} {{ get_h264_flags(23) }} 
       -preset slow 
       -crf {{ quality }} 
       

@@ -16,5 +16,5 @@ pipeline:
     command_template: |
       {{ tool_exe }} -y -i "{{ input_path }}"
       -vf "scale=1080:1080:force_original_aspect_ratio=decrease,pad=1080:1080:(ow-iw)/2:(oh-ih)/2:black"
-      -c:v libx264 -preset medium -crf 23 -c:a aac -b:a 128k -movflags +faststart
+      -c:v {{ gpu_encoder }} {{ get_h264_flags(23) }} -c:a aac -b:a 128k -movflags +faststart
       "{{ output_path }}"

@@ -22,7 +22,7 @@ pipeline:
 
       -vf "scale=1920:1080:force_original_aspect_ratio=increase,crop=1920:1080,unsharp=3:3:0.5:3:3:0.0"
 
-      -c:v libx264 -preset medium -crf 19 -maxrate 15M -bufsize 30M
+      -c:v {{ gpu_encoder }} {{ get_h264_flags(19) }} -maxrate 15M -bufsize 30M
       -pix_fmt yuv420p -r 30 -g 60 -c:a aac -b:a 160k
       -movflags +faststart
       "{{ output_path }}"
