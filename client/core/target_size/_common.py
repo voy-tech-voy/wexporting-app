@@ -2,6 +2,9 @@
 Target Size Module - Common utilities shared across estimators.
 """
 import os
+import sys
+import subprocess
+import threading
 import tempfile
 import ffmpeg
 from typing import Dict
@@ -81,3 +84,73 @@ def get_temp_filename(extension: str) -> str:
     f = tempfile.NamedTemporaryFile(suffix=f'.{extension}', delete=False)
     f.close()
     return f.name
+
+
+def run_ffmpeg_skill_standard(cmd: list, stop_check=None, log_target: str = '') -> int:
+    """
+    Run an FFmpeg command using the skill-standard Popen pattern.
+
+    Features:
+    - Silent execution (CREATE_NO_WINDOW on Windows, no console popup)
+    - Asynchronous stderr drain thread to prevent deadlocks
+    - stop_check polling on every stdout line for anytime cancellation
+    - Returns process returncode, or -1 if cancelled via stop_check
+
+    Args:
+        cmd:         Full command list (e.g. [ffmpeg_bin, '-i', ...])
+        stop_check:  Optional callable() -> bool; kill process if True
+        log_target:  Optional label for debug prints (e.g. output path)
+
+    Returns:
+        returncode (0 = success, non-zero = ffmpeg error, -1 = cancelled)
+    """
+    # --- §3: Silent Popen setup (Win32) ---
+    startupinfo = None
+    creationflags = 0
+    if sys.platform == 'win32':
+        startupinfo = subprocess.STARTUPINFO()
+        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+        creationflags = subprocess.CREATE_NO_WINDOW
+
+    process = subprocess.Popen(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        universal_newlines=True,
+        bufsize=1,
+        startupinfo=startupinfo,
+        creationflags=creationflags,
+    )
+
+    # --- §4: Async stderr drain (prevents deadlock on Windows) ---
+    stderr_output = []
+
+    def _read_stderr(proc, out_list):
+        try:
+            for line in proc.stderr:
+                out_list.append(line)
+        except Exception:
+            pass
+
+    t = threading.Thread(target=_read_stderr, args=(process, stderr_output), daemon=True)
+    t.start()
+
+    # --- §5: Progress-stream loop + cancellation polling ---
+    while True:
+        if stop_check and stop_check():
+            process.kill()
+            t.join(timeout=1.0)
+            return -1
+
+        line = process.stdout.readline()
+        if not line:
+            break  # Process exited or stdout closed
+
+    process.wait()
+    t.join(timeout=1.0)
+
+    if process.returncode != 0:
+        err = ''.join(stderr_output)
+        print(f"[run_ffmpeg_skill_standard] FFmpeg error (target={log_target}):\n{err}")
+
+    return process.returncode

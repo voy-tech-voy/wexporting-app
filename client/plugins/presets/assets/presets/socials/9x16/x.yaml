@@ -10,9 +10,8 @@ meta:
   version: "1.0"
 
 style:
-  accent_color: "#000000" # X Black
-  icon: "mobile"
-  glow_strength: "strong"
+  accent_color: "#000000"
+  icon: "X_icon"
 
 constraints:
   accepted_types: ["video"]

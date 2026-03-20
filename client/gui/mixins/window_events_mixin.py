@@ -41,6 +41,19 @@ class WindowEventMixin:
             self.title_bar_window.show()
         # NOTE: Blur is now ONLY on the title bar window, not main window
         self.enable_mouse_tracking_all()
+        if self.windowHandle():
+            try:
+                self.windowHandle().screenChanged.disconnect(self._on_main_screen_changed)
+            except Exception:
+                pass
+            self.windowHandle().screenChanged.connect(self._on_main_screen_changed)
+
+    def _on_main_screen_changed(self, screen):
+        """Re-sync title bar when main window moves to a new screen"""
+        if hasattr(self, 'title_bar_window'):
+            self.title_bar_window._sync_position()
+            self.title_bar_window._sync_width()
+            self.title_bar_window.enable_blur()
         
     def closeEvent(self, event):
         """Close title bar window when main window closes"""
@@ -82,6 +95,10 @@ class WindowEventMixin:
                 self.title_bar_window.hide()
             elif not self.isMinimized() and hasattr(self, 'title_bar_window'):
                 self.title_bar_window.show()
+                if self.isMaximized():
+                    self.title_bar_window.set_expanded_state(True)
+                elif not self.isMaximized():
+                    self.title_bar_window.set_expanded_state(False)
         
         # When main window is activated, also raise the title bar
         elif event.type() == event.Type.ActivationChange:

@@ -119,6 +119,11 @@ class BaseConverter(ABC):
                 pass
         
         try:
+            from client.utils.conversion_logger import log_conversion_start, log_conversion_success, log_conversion_error
+            import shlex
+            cmd_for_log = shlex.join(str(a) for a in args_list)
+            log_session = log_conversion_start("manual", cmd_for_log, "manual_conversion")
+            
             # Run FFmpeg as subprocess
             # Use CREATE_NO_WINDOW on Windows to hide console
             import sys
@@ -176,6 +181,7 @@ class BaseConverter(ABC):
             
             if self.current_process.returncode != 0:
                 stderr_text = ''.join(stderr_output)
+                log_conversion_error(log_session, stderr_text, self.current_process.returncode)
                 print(f"FFmpeg error: {stderr_text}")
                 self.current_process = None
                 import ffmpeg as _ffmpeg
@@ -185,6 +191,7 @@ class BaseConverter(ABC):
                     stderr=stderr_text.encode('utf-8')
                 )
             
+            log_conversion_success(log_session)
             self.current_process = None
             return True
             

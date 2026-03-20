@@ -8,7 +8,7 @@ import os
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QHBoxLayout, QLabel, QPushButton, QFrame, QMenu, QApplication
 )
-from PySide6.QtGui import QIcon, QMouseEvent, QAction, QFont
+from PySide6.QtGui import QIcon, QMouseEvent, QAction, QFont, QPainter, QPen, QColor
 from PySide6.QtCore import Qt, Signal, QPoint, QSize, QRect
 
 from client.utils.font_manager import AppFonts, FONT_FAMILY_APP_NAME, FONT_FAMILY
@@ -29,6 +29,78 @@ class ClickableLabel(QLabel):
         super().mousePressEvent(event)
 
 
+
+class MaxRestoreButton(QPushButton):
+    """Custom-painted maximize / restore button with controlled stroke width."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._is_expanded = False
+        self._icon_color = QColor("#cccccc")
+        self._icon_hover_color = QColor("#ffffff")
+        # Same fixed size as the other title-bar buttons
+        self.setFixedSize(45, 35)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+
+    def set_expanded(self, expanded: bool):
+        self._is_expanded = expanded
+        self.update()  # trigger repaint
+
+    def set_icon_color(self, color: QColor, hover_color: QColor = None):
+        self._icon_color = color
+        if hover_color:
+            self._icon_hover_color = hover_color
+        self.update()
+
+    def paintEvent(self, event):
+        """Draw a filled rect (background/hover) then the icon on top."""
+        super().paintEvent(event)  # draws the button bg / hover state from stylesheet
+
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, False)  # crisp pixel lines
+
+        active_color = self._icon_hover_color if self.underMouse() else self._icon_color
+        pen = QPen(active_color)
+        pen.setWidth(1)  # line thickness – change freely
+        painter.setPen(pen)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+
+        w, h = self.width(), self.height()
+        icon_w, icon_h = 16, 12  # 4:3 ratio
+        cx, cy = w // 2, h // 2
+
+        if not self._is_expanded:
+            # Maximise: single outlined rect, centred
+            x = cx - icon_w // 2
+            y = cy - icon_h // 2
+            painter.drawRect(x, y, icon_w, icon_h)
+        else:
+            # Restore: two smaller overlapping rects
+            sm_w, sm_h = 12, 9
+            # The bounding box of the pair is 15x12
+            # Offset by 3 pixels to overlap
+            offset = 3
+            
+            # Front rect (bottom-left area of bounding box)
+            fx = cx - 7
+            fy = cy - 3
+            
+            # Back rect (top-right area of bounding box)
+            bx = cx - 4
+            by = cy - 6
+            
+            # Draw back rect using lines to avoid erasing operations (clean transparency)
+            painter.drawLine(bx, by, bx + sm_w, by)  # Top line
+            painter.drawLine(bx + sm_w, by, bx + sm_w, by + sm_h)  # Right line
+            painter.drawLine(fx + sm_w, by + sm_h, bx + sm_w, by + sm_h)  # Bottom line (partial)
+            painter.drawLine(bx, by, bx, fy)  # Left line (partial)
+            
+            # Draw front rect normally
+            painter.drawRect(fx, fy, sm_w, sm_h)
+
+        painter.end()
+
+
 class TitleBarWindow(QMainWindow):
     """
     Separate OS window for the title bar with blur effect.
@@ -43,6 +115,8 @@ class TitleBarWindow(QMainWindow):
     show_about_requested = Signal()
     check_updates_requested = Signal()
     buy_credits_requested = Signal()
+    expand_requested = Signal()
+    restore_to_init_requested = Signal()
 
     logout_requested = Signal()
     
@@ -55,7 +129,10 @@ class TitleBarWindow(QMainWindow):
         self.is_dev_mode = is_dev_mode
         self._main_window = None
         self._drag_position = None
+        self._last_drag_pos = None
         self._is_dark_theme = True
+        self._is_expanded = False
+        self._last_screen_available_geom = None
         
         # Initialize native Windows blur effect (Mica on Win11, fallback on Win10)
         self._blur_effect = NativeWindowsBlurEffect(use_mica=True, enable_rounded_corners=True)
@@ -142,8 +219,8 @@ class TitleBarWindow(QMainWindow):
         
         # Theme toggle button
         self._theme_btn = QPushButton()
-        self._theme_btn.setMinimumSize(40, 35)
-        self._theme_btn.setMaximumSize(40, 35)
+        self._theme_btn.setMinimumSize(45, 35)
+        self._theme_btn.setMaximumSize(45, 35)
         self._theme_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._theme_btn.clicked.connect(self.theme_toggle_requested.emit)
         try:
@@ -164,9 +241,12 @@ class TitleBarWindow(QMainWindow):
         self._minimize_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._minimize_btn.clicked.connect(self.minimize_requested.emit)
         layout.addWidget(self._minimize_btn)
-        
-        layout.addSpacing(10)
-        
+
+        # Maximize/Restore button (custom-painted)
+        self._maxrestore_btn = MaxRestoreButton()
+        self._maxrestore_btn.clicked.connect(self._on_maxrestore_clicked)
+        layout.addWidget(self._maxrestore_btn)
+
         # Close button
         self._close_btn = QPushButton("✕")
         self._close_btn.setMinimumSize(45, 35)
@@ -229,6 +309,79 @@ class TitleBarWindow(QMainWindow):
         """Enable blur when shown"""
         super().showEvent(event)
         self.enable_blur()
+        if self.windowHandle():
+            try:
+                self.windowHandle().screenChanged.disconnect(self._on_screen_changed)
+            except Exception:
+                pass
+            self.windowHandle().screenChanged.connect(self._on_screen_changed)
+            
+            screen = self.windowHandle().screen()
+            if screen:
+                self._last_screen_available_geom = screen.availableGeometry()
+
+    def _on_screen_changed(self, screen):
+        """Re-apply blur and re-sync when title bar moves to a new screen"""
+        if not screen:
+            return
+            
+        from PySide6.QtGui import QCursor
+        new_avail_geom = screen.availableGeometry()
+        
+        if self._main_window and getattr(self, '_last_screen_available_geom', None):
+            old_geom = self._last_screen_available_geom
+            
+            # Compute ratio against the previous screen
+            if old_geom.width() > 0 and old_geom.height() > 0:
+                old_w = self._main_window.width()
+                old_h = self._main_window.height()
+                
+                w_ratio = old_w / float(old_geom.width())
+                h_ratio = old_h / float(old_geom.height())
+                
+                # Apply ratio to new screen geometry
+                new_w = int(new_avail_geom.width() * w_ratio)
+                new_h = int(new_avail_geom.height() * h_ratio)
+                
+                # Apply min/max constraints
+                new_w = max(self._main_window.minimumWidth(), min(new_w, new_avail_geom.width() - 40))
+                # Allow height to be up to 95% of the screen height
+                new_h = max(self._main_window.minimumHeight(), min(new_h, int(new_avail_geom.height() * 0.95)))
+                
+                actual_w_ratio = new_w / float(old_w) if old_w > 0 else 1.0
+                actual_h_ratio = new_h / float(old_h) if old_h > 0 else 1.0
+                
+                self._main_window.resize(new_w, new_h)
+                
+                # Re-align mouse drag anchor to prevent jumping
+                if self._drag_position is not None:
+                    # Update local drag offset relative to the new window size
+                    self._drag_position.setX(int(self._drag_position.x() * actual_w_ratio))
+                    self._drag_position.setY(int(self._drag_position.y() * actual_h_ratio))
+                    
+                    cursor_pos = QCursor.pos()
+                    
+                    # Ensure the window is placed exactly under the mouse pointer
+                    expected_x = cursor_pos.x() - self._drag_position.x()
+                    expected_y = cursor_pos.y() - self._drag_position.y()
+                    
+                    # Hard constraints: don't let it go completely outside the new screen
+                    min_x = new_avail_geom.left() - new_w + 100
+                    max_x = new_avail_geom.right() - 100
+                    min_y = new_avail_geom.top()
+                    max_y = new_avail_geom.bottom() - 50
+                    
+                    expected_x = max(min_x, min(expected_x, max_x))
+                    expected_y = max(min_y, min(expected_y, max_y))
+                    
+                    self._main_window.move(expected_x, expected_y)
+                    self._last_drag_pos = cursor_pos
+                
+        self._last_screen_available_geom = new_avail_geom
+
+        self.enable_blur()
+        self._sync_position()
+        self._sync_width()
         
     def _get_tinted_icon(self, icon_path, color):
         """Helper to tint SVG icon with specific color"""
@@ -280,33 +433,64 @@ class TitleBarWindow(QMainWindow):
         # Title label
         self._title_label.setStyleSheet(f"color: {text_color}; border: none; padding: 0px; margin: 0px; background: transparent;")
         
+        icon_normal = "#aaaaaa" if is_dark else "#666666"
+        icon_hover = "#ffffff" if is_dark else "#000000"
+
         # Button styles
         button_style = f"""
             QPushButton {{
                 background-color: {btn_bg};
-                color: {text_color};
+                color: {icon_normal};
                 border: none;
                 border-radius: {Theme.RADIUS_SM}px;
             }}
             QPushButton:hover {{
                 background-color: {btn_hover};
+                color: {icon_hover};
             }}
         """
         
         self._minimize_btn.setStyleSheet(button_style)
+        self._maxrestore_btn.setStyleSheet(button_style)
+        self._maxrestore_btn.set_icon_color(QColor(icon_normal), hover_color=QColor(icon_hover))
+        
         self._close_btn.setStyleSheet(button_style + f"""
             QPushButton:hover {{
                 background-color: {Theme.error()};
                 color: white;
             }}
         """)
+        
         self._theme_btn.setStyleSheet(button_style)
         
-        # Update theme button icon with tint
+        # Update theme button icon with tint (needs normal and hover states for SVG)
         if hasattr(self, '_sun_moon_svg_path'):
-            from PySide6.QtGui import QColor
-            icon_color = QColor(Theme.text()) # Use theme text color for icon
-            self._theme_btn.setIcon(self._get_tinted_icon(self._sun_moon_svg_path, icon_color))
+            normal_pix = self._get_tinted_icon(self._sun_moon_svg_path, QColor(icon_normal))
+            hover_pix = self._get_tinted_icon(self._sun_moon_svg_path, QColor(icon_hover))
+            
+            # The user requested .75 size of 24x21, which is 18x16
+            icon = QIcon()
+            icon.addPixmap(normal_pix.pixmap(18, 16), QIcon.Mode.Normal, QIcon.State.Off)
+            
+            self._theme_normal_pix = normal_pix
+            self._theme_hover_pix = hover_pix
+            self._theme_btn.setIcon(normal_pix)
+            self._theme_btn.setIconSize(QSize(18, 16))
+            
+            # Add dynamic hover swapping
+            if not hasattr(self._theme_btn, '_original_enterEvent'):
+                self._theme_btn._original_enterEvent = self._theme_btn.enterEvent
+                self._theme_btn._original_leaveEvent = self._theme_btn.leaveEvent
+                
+                def on_enter(e):
+                    self._theme_btn.setIcon(self._theme_hover_pix)
+                    self._theme_btn._original_enterEvent(e)
+                def on_leave(e):
+                    self._theme_btn.setIcon(self._theme_normal_pix)
+                    self._theme_btn._original_leaveEvent(e)
+                    
+                self._theme_btn.enterEvent = on_enter
+                self._theme_btn.leaveEvent = on_leave
     
     def apply_theme(self, is_dark: bool):
         """Public method to apply theme"""
@@ -314,12 +498,23 @@ class TitleBarWindow(QMainWindow):
     
     # --- Mouse events for dragging the MAIN window ---
     
+    def _on_maxrestore_clicked(self):
+        if self._is_expanded:
+            self.restore_to_init_requested.emit()
+        else:
+            self.expand_requested.emit()
+
+    def set_expanded_state(self, expanded: bool):
+        self._is_expanded = expanded
+        self._maxrestore_btn.set_expanded(expanded)
+
     def mousePressEvent(self, event: QMouseEvent):
         """Start dragging and raise the main window"""
         if event.button() == Qt.MouseButton.LeftButton and self._main_window:
             # Raise both windows to bring app to front
             self.raise_with_main_window()
             self._drag_position = event.globalPosition().toPoint() - self._main_window.frameGeometry().topLeft()
+            self._last_drag_pos = event.globalPosition().toPoint()
             event.accept()
         else:
             super().mousePressEvent(event)
@@ -327,30 +522,28 @@ class TitleBarWindow(QMainWindow):
     def mouseMoveEvent(self, event: QMouseEvent):
         """Move both windows when dragging and emulate Windows Snap when hitting edges"""
         if event.buttons() == Qt.MouseButton.LeftButton and self._drag_position is not None and self._main_window:
-            new_pos = event.globalPosition().toPoint() - self._drag_position
-            
             # --- Custom Emulated Windows Snap Logic ---
             screen = QApplication.screenAt(event.globalPosition().toPoint())
             if screen:
                 screen_geom = screen.availableGeometry()
                 mouse_pos = event.globalPosition().toPoint()
-                
+
                 # Check for screen edges (5px threshold)
                 snap_threshold = 5
-                
+
                 is_top_edge = mouse_pos.y() <= screen_geom.top() + snap_threshold
                 is_left_edge = mouse_pos.x() <= screen_geom.left() + snap_threshold
                 is_right_edge = mouse_pos.x() >= screen_geom.right() - snap_threshold
-                
+
                 # We need to account for the title bar height so it doesn't get pushed off screen
                 tb_h = self.TITLE_BAR_HEIGHT
-                
+
                 # A snapped window needs to start LOWER by tb_h, and be SHORTER by tb_h
                 snap_top = screen_geom.top() + tb_h
                 snap_height = screen_geom.height() - tb_h
-                
+
                 snapped = False
-                
+
                 if is_top_edge:
                     # Snap Maximize
                     self._main_window.setGeometry(screen_geom.left(), snap_top, screen_geom.width(), snap_height)
@@ -365,19 +558,40 @@ class TitleBarWindow(QMainWindow):
                     half_width = screen_geom.width() // 2
                     self._main_window.setGeometry(screen_geom.left() + half_width, snap_top, half_width, snap_height)
                     snapped = True
-                    
+
                 if snapped:
                     self._sync_position()
                     self._sync_width()
-                    
+                    self.set_expanded_state(True)
+
                     # Fix: User reported persistent resize pointer
                     self.setCursor(Qt.CursorShape.ArrowCursor)
                     if self._main_window:
                         self._main_window.setCursor(Qt.CursorShape.ArrowCursor)
-                        
+
                     return
+
+            # Delta-based move — immune to DPI coordinate shifts across monitors
+            current_pos = event.globalPosition().toPoint()
+            delta = current_pos - self._last_drag_pos
+            self._last_drag_pos = current_pos
             
-            # Standard move if not snapping
+            new_pos = self._main_window.pos() + delta
+            
+            # Constrain window to prevent losing it completely out of bounds
+            if screen:
+                geom = screen.availableGeometry()
+                w = self._main_window.width()
+                min_x = geom.left() - w + 100
+                max_x = geom.right() - 100
+                min_y = geom.top() - 20
+                max_y = geom.bottom() - 50
+                
+                new_x = max(min_x, min(new_pos.x(), max_x))
+                new_y = max(min_y, min(new_pos.y(), max_y))
+                new_pos.setX(new_x)
+                new_pos.setY(new_y)
+                
             self._main_window.move(new_pos)
             self._sync_position()
             event.accept()

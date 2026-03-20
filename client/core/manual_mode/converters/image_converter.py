@@ -8,7 +8,7 @@ import ffmpeg
 
 from .base_converter import BaseConverter
 from ..config.codec_config import get_image_quality_config
-from client.core.ffmpeg_utils import get_image_dimensions
+from client.core.ffmpeg_utils import get_image_dimensions, run_ffmpeg_hidden
 from client.core.tool_registry import get_ffmpeg_path
 
 
@@ -59,13 +59,7 @@ class ImageConverter(BaseConverter):
             ffmpeg_cmd = get_ffmpeg_path()
             
             # Run FFmpeg
-            ffmpeg.run(
-                output,
-                cmd=ffmpeg_cmd,
-                capture_stdout=True,
-                capture_stderr=True,
-                quiet=True
-            )
+            run_ffmpeg_hidden(output, cmd=ffmpeg_cmd, quiet=True)
             
             # Emit progress complete (blue bar)
             self.emit_progress(1.0)

@@ -8,6 +8,7 @@ meta:
   description: "Creates a multi-resolution 16/32/48/256 icon pack in one file."
   version: "1.0"
   output_extension: ".ico"
+  credit_cost: 8
 
 style:
   accent_color: "#61DAFB"         # Favicon Blue

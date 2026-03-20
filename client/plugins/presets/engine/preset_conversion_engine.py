@@ -1,4 +1,4 @@
-﻿"""
+"""
 Preset Conversion Engine - Async execution with immediate cancellation.
 
 Follows the same pattern as TargetSizeConversionEngine and ManualModeConversionEngine:
@@ -358,6 +358,9 @@ class PresetConversionEngine(QThread):
                 # Non-FFmpeg command, run as-is
                 cmd_with_progress = cmd
             
+            from client.utils.conversion_logger import log_conversion_start, log_conversion_success, log_conversion_error
+            log_session = log_conversion_start("preset", cmd_with_progress, f"step_{step_num}_of_{total_steps}")
+            
             # Create process with Popen (always use shell=True to preserve complex arguments)
             self._current_process = subprocess.Popen(
                 cmd_with_progress,
@@ -440,15 +443,21 @@ class PresetConversionEngine(QThread):
             # Capture stderr for error reporting
             if returncode != 0:
                 stderr_output = b''.join(stderr_chunks).decode('utf-8', errors='ignore')
+                log_conversion_error(log_session, stderr_output, returncode)
                 print(f"[PresetEngine] Command failed with code {returncode}")
                 print(f"[PresetEngine] === STDERR (last 500 chars) ===")
                 print(stderr_output[-500:] if len(stderr_output) > 500 else stderr_output)
                 print(f"[PresetEngine] === END STDERR ===")
+            else:
+                log_conversion_success(log_session)
             
             self._current_process = None
             return returncode == 0
             
         except Exception as e:
+            if 'log_session' in locals():
+                import traceback
+                log_conversion_error(log_session, f"Exception: {str(e)}\n{traceback.format_exc()}", -1)
             print(f"[PresetEngine] Exception executing command: {e}")
             import traceback
             traceback.print_exc()

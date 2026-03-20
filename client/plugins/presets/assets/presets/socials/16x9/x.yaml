@@ -11,8 +11,7 @@ meta:
 
 style:
   accent_color: "#000000"
-  icon: "landscape"
-  glow_strength: "medium"
+  icon: "X_icon"
 
 pipeline:
   - tool: "ffmpeg"

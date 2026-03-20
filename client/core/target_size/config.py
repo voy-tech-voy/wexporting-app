@@ -6,9 +6,9 @@ Easy selection of estimator versions per tab/codec for production.
 # Default estimator versions per media type and format
 PRODUCTION_DEFAULTS = {
     'image': {
-        'jpg': 'v5',
-        'webp': 'v7',
-        'png': 'v5',
+        'jpg': 'v7',
+        'webp': 'v9',
+        'png': 'v7',
         'avif': 'v2',
     },
     'video': {
@@ -18,9 +18,9 @@ PRODUCTION_DEFAULTS = {
         'webm_av1': 'v6',
     },
     'loop': {
-        'gif': 'v24',
-        'webm_loop': 'v2',  # VP9 loop
-        'webm_av1_loop': 'v6',  # AV1 loop
+        'gif': 'v26',
+        'webm_loop': 'v7',  # VP9 loop
+        'webm_av1_loop': 'v7',  # AV1 loop
     }
 }
 

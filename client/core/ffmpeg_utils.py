@@ -33,6 +33,53 @@ def get_selected_ffprobe_path() -> str:
     return get_ffprobe_path()
 
 
+def probe_hidden(file_path: str, cmd: str = None) -> dict:
+    """Run ffprobe with CREATE_NO_WINDOW. Returns parsed JSON like ffmpeg.probe()."""
+    import subprocess
+    import sys
+    import json
+    from client.core.tool_registry import get_ffprobe_path
+    ffprobe_bin = cmd or get_ffprobe_path()
+    args = [ffprobe_bin, '-v', 'quiet', '-print_format', 'json',
+            '-show_streams', '-show_format', file_path]
+    creationflags = subprocess.CREATE_NO_WINDOW if sys.platform == 'win32' else 0
+    startupinfo = None
+    if sys.platform == 'win32':
+        startupinfo = subprocess.STARTUPINFO()
+        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+    result = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                            creationflags=creationflags, startupinfo=startupinfo)
+    return json.loads(result.stdout)
+
+
+def run_ffmpeg_hidden(stream, cmd='ffmpeg', quiet=False):
+    """
+    Run an ffmpeg-python stream with CREATE_NO_WINDOW on Windows.
+    Drop-in replacement for ffmpeg.run() that prevents console popups.
+    Returns (stdout, stderr) bytes.
+    """
+    import subprocess
+    import sys
+    args = ffmpeg.compile(stream, cmd=cmd)
+
+    creationflags = subprocess.CREATE_NO_WINDOW if sys.platform == 'win32' else 0
+    startupinfo = None
+    if sys.platform == 'win32':
+        startupinfo = subprocess.STARTUPINFO()
+        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+
+    result = subprocess.run(
+        args,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        creationflags=creationflags,
+        startupinfo=startupinfo
+    )
+    if result.returncode != 0 and not quiet:
+        raise ffmpeg.Error('ffmpeg', result.stdout, result.stderr)
+    return result.stdout, result.stderr
+
+
 def map_ui_quality_to_crf(ui_quality: int, codec: str = 'generic') -> int:
     """
     Map UI quality value (0-100) to CRF value.
@@ -61,7 +108,7 @@ def get_image_dimensions(file_path: str) -> tuple:
     Returns (width, height) after applying rotation, or (0, 0) if unable to determine
     """
     try:
-        probe = ffmpeg.probe(file_path)
+        probe = probe_hidden(file_path)
         # Try video stream first (for images, they're treated as single-frame videos)
         video_stream = next((stream for stream in probe['streams'] if stream['codec_type'] == 'video'), None)
         if video_stream:
@@ -97,7 +144,7 @@ def get_video_dimensions(file_path: str) -> tuple:
     Returns (width, height) or (0, 0) if unable to determine
     """
     try:
-        probe = ffmpeg.probe(file_path)
+        probe = probe_hidden(file_path)
         video_stream = next((stream for stream in probe['streams'] if stream['codec_type'] == 'video'), None)
         if video_stream:
             width = int(video_stream['width'])
@@ -113,7 +160,7 @@ def get_video_duration(file_path: str) -> float:
     Returns duration in seconds or 0.0 if unable to determine
     """
     try:
-        probe = ffmpeg.probe(file_path)
+        probe = probe_hidden(file_path)
         duration = float(probe['format']['duration'])
         return duration
     except Exception:
@@ -125,7 +172,7 @@ def has_audio_stream(file_path: str) -> bool:
     Returns True if audio stream exists, False otherwise
     """
     try:
-        probe = ffmpeg.probe(file_path)
+        probe = probe_hidden(file_path)
         audio_stream = next((stream for stream in probe['streams'] if stream['codec_type'] == 'audio'), None)
         return audio_stream is not None
     except Exception:

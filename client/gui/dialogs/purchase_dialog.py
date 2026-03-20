@@ -6,15 +6,14 @@ from PySide6.QtWidgets import (
     QPushButton, QProgressBar, QApplication, QWidget, QScrollArea,
     QSizePolicy, QFrame
 )
-from PySide6.QtCore import Qt, QTimer, Signal, QPropertyAnimation, QEasingCurve, Property, QThread
-from PySide6.QtGui import QFont, QIcon, QColor, QPainter, QBrush
+from PySide6.QtCore import Qt, QTimer, Signal, QPropertyAnimation, QEasingCurve, Property, QThread, QEvent, QRect
+from PySide6.QtGui import QFont, QIcon, QColor, QPainter, QBrush, QCursor, QEnterEvent
 
 from client.utils.font_manager import AppFonts
 from client.gui.theme import Theme
 from client.gui.utils.winrt_interop import WinRTInterop
 from client.gui.utils.window_effects import WindowEffects
 from client.core.auth import get_store_auth_provider
-from PySide6.QtCore import QEvent
 
 import logging
 logger = logging.getLogger("PurchaseDialog")
@@ -380,6 +379,7 @@ class PurchaseOptionCard(QWidget):
     
     def enterEvent(self, event):
         """Animate to hover state."""
+        logger.debug(f"[PurchaseOptionCard] enterEvent triggered for {self.product_id}")
         # Border
         self.border_anim.stop()
         self.border_anim.setStartValue(self._border_color)
@@ -402,6 +402,7 @@ class PurchaseOptionCard(QWidget):
     
     def leaveEvent(self, event):
         """Animate back to normal state."""
+        logger.debug(f"[PurchaseOptionCard] leaveEvent triggered for {self.product_id}")
         # Border
         self.border_anim.stop()
         self.border_anim.setStartValue(self._border_color)
@@ -446,9 +447,14 @@ class PurchaseDialog(QDialog):
         # Load purchase options
         self.options = self._load_purchase_options()
         
+        # Dragging state
+        self._drag_start_pos = None
+        self._is_dragging = False
+        
         # Frameless, full-screen overlay dialog
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Dialog)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        self.setMouseTracking(True)
         
         self._setup_ui()
 
@@ -495,6 +501,7 @@ class PurchaseDialog(QDialog):
         # Content Container (The "Frosted Glass" Frame)
         self.content_panel = QFrame()
         self.content_panel.setObjectName("ContentPanel")
+        self.content_panel.setMouseTracking(True)
         self.content_panel.setMinimumSize(550, 400)
         self.content_panel.setMaximumSize(850, 500)
         
@@ -532,8 +539,11 @@ class PurchaseDialog(QDialog):
         
         # Container for option cards
         cards_container = QWidget()
-        cards_container.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        # NOTE: Do NOT use WA_TranslucentBackground here — on Windows it causes
+        # the widget to fail hit-testing on transparent pixels, silently dropping
+        # enterEvent/leaveEvent on child card widgets.
         cards_container.setStyleSheet("background: transparent;")
+        cards_container.setMouseTracking(True)
         
         # HORIZONTAL LAYOUT for cards
         container_layout = QHBoxLayout(cards_container)
@@ -551,6 +561,9 @@ class PurchaseDialog(QDialog):
             self.option_cards.append(card)
         
         scroll.setWidget(cards_container)
+        # Enable mouse tracking so hover events propagate to child cards
+        scroll.setMouseTracking(True)
+        scroll.viewport().setMouseTracking(True)
         layout.addWidget(scroll, 1)
         
         # Progress Indicator (Hidden by default)
@@ -607,7 +620,50 @@ class PurchaseDialog(QDialog):
             parent_geo = self.parent().frameGeometry()
             self.setGeometry(parent_geo)
             logger.debug(f"[PurchaseDialog] Dialog geometry set to: {self.geometry()}, parent: {parent_geo}")
+        
+        # When the dialog appears automatically (e.g. after credits toast),
+        # the mouse may already be stationary over a card. enterEvent only fires
+        # when the mouse MOVES into a widget — not when a widget appears under it.
+        # Defer briefly to let geometry settle and window effects apply.
+        QTimer.singleShot(100, self._check_initial_hover)
     
+    def _check_initial_hover(self):
+        """
+        Manually trigger enterEvent for a card if the mouse is already over it
+        when the dialog appears. enterEvent only fires when the mouse moves IN,
+        not when the widget appears under a stationary cursor.
+        """
+        global_pos = QCursor.pos()
+        logger.debug(f"[PurchaseDialog] Checking initial hover at {global_pos}")
+        
+        # Use widgetAt() for robust hit-testing
+        widget = QApplication.widgetAt(global_pos)
+        if not widget:
+            return
+            
+        logger.debug(f"  - Widget under mouse: {widget}")
+        
+        # Find if this widget is one of our cards or inside one
+        hovered_card = None
+        for card in self.option_cards:
+            if widget == card or card.isAncestorOf(widget):
+                hovered_card = card
+                break
+                
+        # Fallback: Manual rect check in case widgetAt() is obscured by the dialog's own overlay
+        if not hovered_card:
+            for card in self.option_cards:
+                card_rect_global = QRect(card.mapToGlobal(card.rect().topLeft()), card.size())
+                if card_rect_global.contains(global_pos):
+                    hovered_card = card
+                    break
+        
+        if hovered_card:
+            logger.debug(f"  -> Mouse is OVER card {hovered_card.product_id}. Triggering enterEvent.")
+            local_pos = hovered_card.mapFromGlobal(global_pos)
+            event = QEnterEvent(local_pos, local_pos, global_pos)
+            hovered_card.enterEvent(event)
+
     def mousePressEvent(self, event):
         """Handle mouse press for dragging or closing."""
         self._drag_start_pos = None

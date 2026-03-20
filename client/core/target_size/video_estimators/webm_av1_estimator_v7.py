@@ -5,22 +5,22 @@ import threading
 import ffmpeg
 from typing import Dict, Optional
 from client.core.target_size._estimator_protocol import EstimatorProtocol
-from client.core.target_size._common import get_ffmpeg_binary
+from client.core.target_size._common import get_ffmpeg_binary, run_ffmpeg_skill_standard
 
 class Estimator(EstimatorProtocol):
     """
-    VP9 Loop Estimator v6 (VP9 for Loopable WebM)
+    AV1 Video Estimator v5.2 (SVT-AV1 Strict + Audio Preservation)
     Strategy: 2-Pass VBR with constrained VBV Buffering.
     
-    Based on AV1 loop estimator v6, adapted for VP9 codec:
-    - No audio processing (loops are video-only)
-    - WebM container output
-    - Optimized for loopable content
-    - Uses libvpx-vp9 instead of libsvtav1
+    Changes in v5.2:
+    - Audio is NEVER removed if present.
+    - Audio bitrate is dynamically compressed (down to 16kbps) to fit budget.
+    - Dynamic Overhead Calculation.
+    - Strict BPP enforcement.
     """
 
     def get_output_extension(self) -> str:
-        return 'webm'
+        return 'mp4'
 
     def get_media_metadata(self, file_path: str) -> dict:
         try:
@@ -49,14 +49,14 @@ class Estimator(EstimatorProtocol):
                 'width': width,
                 'height': height,
                 'fps': fps,
-                'has_audio': False  # Loops never have audio
+                'has_audio': audio is not None
             }
         except:
             return {'duration': 0, 'width': 0, 'height': 0, 'fps': 30, 'has_audio': False}
 
     def estimate(self, input_path: str, target_size_bytes: int, **options) -> Dict:
         """
-        Calculates strict parameters to force VP9 into the target box (no audio for loops).
+        Calculates strict parameters to force SVT-AV1 into the target box while preserving audio.
         """
         meta = self.get_media_metadata(input_path)
         if meta['duration'] == 0:
@@ -77,20 +77,48 @@ class Estimator(EstimatorProtocol):
 
         total_bits = target_size_bytes * 8 * overhead_safety
         
-        # --- 2. NO AUDIO FOR LOOPS ---
-        # Loops are video-only, so all bits go to video
-        video_bits = total_bits
-        video_bps = max(video_bits / meta['duration'], 5000) # Floor 5kbps
+        # --- 2. ADAPTIVE AUDIO BUDGETING ---
+        audio_kbps = 0
+        if meta['has_audio']:
+            # Start with a healthy default for Opus
+            proposed_audio_kbps = 96
+            
+            # Helper: Calculate how much % of the budget this audio takes
+            def get_audio_ratio(kbps):
+                audio_total_bits = (kbps * 1000) * meta['duration']
+                return audio_total_bits / total_bits
+
+            # Progressively reduce audio quality if it eats too much of the file
+            # We assume video needs at least 70-80% of the space to look decent
+            if get_audio_ratio(96) > 0.20: proposed_audio_kbps = 64
+            if get_audio_ratio(64) > 0.20: proposed_audio_kbps = 48
+            if get_audio_ratio(48) > 0.25: proposed_audio_kbps = 32
+            if get_audio_ratio(32) > 0.30: proposed_audio_kbps = 24
+            
+            # Absolute floor: 16kbps (Opus is still intelligible for speech here)
+            # If even 16kbps takes up > 50% of the file, we keep it anyway 
+            # because the user requested audio, but video will suffer heavily.
+            if get_audio_ratio(24) > 0.40: proposed_audio_kbps = 16
+            
+            audio_kbps = proposed_audio_kbps
+            
+        audio_bits = (audio_kbps * 1000) * meta['duration']
+        video_bits = total_bits - audio_bits
         
-        print(f"[VP9_LOOP_v6] target_size_bytes={target_size_bytes}, duration={meta['duration']}, video_bps={video_bps}, bitrate_kbps={int(video_bps/1000)}")
+        # Ensure we don't have negative video bits (extreme edge case)
+        if video_bits < 0:
+            video_bits = total_bits * 0.10 # Give video 10% regardless, file will overshoot slightly
+            
+        video_bps = max(video_bits / meta['duration'], 5000) # Floor 5kbps
         
         # --- 3. RESOLUTION & BPP OPTIMIZATION ---
         # Check for overrides (e.g. from user transforms)
         width = options.get('override_width', meta['width'])
         height = options.get('override_height', meta['height'])
         
-        # VP9 target BPP (slightly higher than AV1 since VP9 is less efficient)
-        target_bpp = 0.08  # VP9 needs more bits per pixel than AV1
+        # SVT-AV1 target BPP. 
+        # Since we might have squeezed audio tight, we need to be careful with video resolution.
+        target_bpp = 0.065 
         
         def get_bpp(w, h):
             pixels = w * h
@@ -104,11 +132,16 @@ class Estimator(EstimatorProtocol):
                 width = width - (width % 2)
                 height = height - (height % 2)
             
+        # If explicit height override wasn't provided but width was, recalculate height based on aspect ratio of the *overridden* width
+        # But wait, above logic updates width/height in tandem.
+        # If overrides were provided, they are the starting point.
+        
         return {
             'video_bitrate_kbps': int(video_bps / 1000),
+            'audio_bitrate_kbps': int(audio_kbps),
             'resolution_w': width,
             'resolution_h': height,
-            'codec': 'libvpx-vp9',
+            'codec': 'libsvtav1',
             # Derived Params for Execute (VBV Constraints)
             'maxrate_kbps': int((video_bps / 1000) * 1.2), 
             'bufsize_kbps': int((video_bps / 1000) * 2.0),
@@ -119,8 +152,10 @@ class Estimator(EstimatorProtocol):
     def execute(self, input_path: str, output_path: str, target_size_bytes: int, 
                 status_callback=None, stop_check=None, **options) -> bool:
         """
-        Execute 2-Pass VP9 conversion with VBV Constraints.
+        Execute 2-Pass SVT-AV1 conversion with VBV Constraints.
         """
+        self._current_stop_check = stop_check
+
         
         def emit(msg: str):
             if status_callback: status_callback(msg)
@@ -139,10 +174,11 @@ class Estimator(EstimatorProtocol):
 
             cmd = ffmpeg.compile(stream_obj, overwrite_output=True)
             
-            # Replace cmd[0] with actual FFMPEG_BINARY path (ffmpeg.compile returns just 'ffmpeg')
-            cmd[0] = get_ffmpeg_binary()
+            # Replace cmd[0] with actual FFMPEG_BINARY path
+            ffmpeg_bin = get_ffmpeg_binary()
+            cmd[0] = ffmpeg_bin
             
-            print(f"[VP9_LOOP_v6 DEBUG] Command: {cmd}")
+            print(f"[V6 DEBUG] Command: {cmd}")
             
             process = subprocess.Popen(
                 cmd,
@@ -169,7 +205,7 @@ class Estimator(EstimatorProtocol):
 
             if process.returncode != 0:
                 error_msg = b''.join(stderr_chunks).decode('utf-8', errors='ignore')
-                print(f"[VP9_LOOP_v6 ERROR] FFmpeg failed. Command: {cmd}\nError Output:\n{error_msg}")
+                print(f"[V6 ERROR] FFmpeg failed. Command: {cmd}\nError Output:\n{error_msg}")
                 emit(f"FFmpeg Error: {error_msg[-300:]}")
                 return False
             return True
@@ -204,15 +240,15 @@ class Estimator(EstimatorProtocol):
         if vf_filters:
             vf_args['vf'] = ','.join(vf_filters)
 
-        emit(f"Target: {params['resolution_w']}x{params['resolution_h']} @ {bitrate} (Loop, no audio)")
+        emit(f"Target: {params['resolution_w']}x{params['resolution_h']} @ {bitrate} (Audio: {params['audio_bitrate_kbps']}k)")
 
         # PASS 1
         null_output = "NUL" if os.name == 'nt' else "/dev/null"
         
         pass1_args = {
-            'vcodec': 'libvpx-vp9',
+            'vcodec': 'libsvtav1',
             'b:v': bitrate,
-            'cpu-used': 4,  # VP9 speed preset (0-5, higher=faster)
+            'preset': 8,
             'pass': 1,
             'f': 'null',
             'an': None
@@ -227,14 +263,19 @@ class Estimator(EstimatorProtocol):
         if not run_ffmpeg_process("Pass 1/2: Analysis...", pass1_stream):
             return False
 
-        # PASS 2 - No audio for loops
+        # PASS 2
+        audio_args = {}
+        if params['audio_bitrate_kbps'] > 0:
+            audio_args['c:a'] = 'aac'  # Use AAC for MP4 container
+            audio_args['b:a'] = f"{params['audio_bitrate_kbps']}k"
+        
         pass2_args = {
-            'vcodec': 'libvpx-vp9',
+            'vcodec': 'libsvtav1',
             'b:v': bitrate,
-            'cpu-used': 1,  # Slower for better quality in pass 2
+            'preset': 5,
             'pass': 2,
-            'an': None  # No audio in loops
         }
+        pass2_args.update(audio_args)
         pass2_args.update(vf_args)
 
         pass2_stream = (

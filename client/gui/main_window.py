@@ -73,7 +73,8 @@ class MainWindow(WindowEventMixin, QMainWindow):
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setAcceptDrops(True) # Ensure window accepts drops for the overlay logic
             
-        self.setGeometry(*self._compute_initial_geometry())
+        self._initial_geometry = self._compute_initial_geometry()
+        self.setGeometry(*self._initial_geometry)
         self.setMinimumSize(800, 700)
         self.setMouseTracking(True)  # Enable mouse tracking for edge resize cursors
         
@@ -251,6 +252,19 @@ class MainWindow(WindowEventMixin, QMainWindow):
         self.title_bar_window.check_updates_requested.connect(self.check_for_updates_manual)
         self.title_bar_window.buy_credits_requested.connect(self.show_purchase_dialog)
         self.title_bar_window.logout_requested.connect(self.logout)
+        self.title_bar_window.expand_requested.connect(self._expand_window)
+        self.title_bar_window.restore_to_init_requested.connect(self._restore_to_init)
+
+    def _expand_window(self):
+        screen = QApplication.screenAt(self.pos()) or QApplication.primaryScreen()
+        avail = screen.availableGeometry()
+        tb_h = self.title_bar_window.TITLE_BAR_HEIGHT
+        self.setGeometry(avail.left(), avail.top() + tb_h, avail.width(), avail.height() - tb_h)
+        self.title_bar_window.set_expanded_state(True)
+
+    def _restore_to_init(self):
+        self.setGeometry(*self._initial_geometry)
+        self.title_bar_window.set_expanded_state(False)
 
     
     def create_control_bar(self, parent_layout):
@@ -344,14 +358,25 @@ class MainWindow(WindowEventMixin, QMainWindow):
         )
 
         # Wire start-button hover → credit preview
-        self.output_footer.hover_preview_requested.connect(
-            lambda: self.output_footer.show_cost_preview(
-                self.conversion_conductor.get_preview_cost(
-                    self.drag_drop_area.get_files(),
-                    self.command_panel.get_conversion_params()
-                )
+        def _handle_preview_request():
+            if self.conversion_conductor and self.conversion_conductor._active_preset is not None:
+                ap = self.conversion_conductor._active_preset
+                params = {
+                    'preset_id': ap.id,
+                    'preset_category': ap.category,
+                    'credit_cost': ap.credit_cost,
+                    'is_user_preset': ap.is_user_preset
+                }
+            else:
+                params = self.command_panel.get_conversion_params()
+                
+            cost = self.conversion_conductor.get_preview_cost(
+                self.drag_drop_area.get_files(),
+                params
             )
-        )
+            self.output_footer.show_cost_preview(cost)
+            
+        self.output_footer.hover_preview_requested.connect(_handle_preview_request)
     
     # =========================================================================
     # MODE CONDUCTOR DELEGATION
