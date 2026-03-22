@@ -1,0 +1,62 @@
+# ============================================================================
+# BACKGROUND REMOVER (FLAT COLOR → ALPHA)
+# ============================================================================
+meta:
+  id: "utility_bg_remover"
+  name: "Background\nRemover"
+  category: "utility"
+  description: "Strips flat-color backgrounds from logos and graphics. Outputs transparent PNG."
+  version: "1.0"
+  output_extension: ".png"
+
+style:
+  accent_color: "#9C27B0"
+  icon: "text:BG"
+  glow_strength: "normal"
+
+constraints:
+  accepted_types: ["image"]
+  accepted_extensions: [".png", ".jpg", ".jpeg", ".bmp", ".tiff", ".webp"]
+
+parameters:
+  - id: "bg_color"
+    label: "Background Color"
+    type: "segmented_pill"
+    options: ["White", "Black", "Green"]
+    default: "White"
+    tooltip: "Color of the background to remove"
+
+  - id: "threshold"
+    label: "Threshold"
+    type: "slider"
+    min_value: 0
+    max_value: 50
+    default: 10
+    tooltip: "Color tolerance — higher values remove more similar shades"
+
+  - id: "feather"
+    label: "Feather"
+    type: "slider"
+    min_value: 0
+    max_value: 5
+    default: 1
+    tooltip: "Edge softening radius — smooths jagged alpha edges"
+
+pipeline:
+  - tool: "magick"
+    description: "Removing background and generating alpha"
+    filename_suffix: "_nobg"
+    command_template: |
+      "{{ tool_exe }}" "{{ input_path }}"
+      -fuzz {{ threshold }}% -transparent "{{ bg_color | lower }}"
+      {% if feather > 0 %}-channel A -blur 0x{{ feather }} -level 30%,100% +channel{% endif %}
+      "{{ output_path }}"
+
+# ============================================================================
+# CHECKLIST
+# ============================================================================
+# [x] Unique id: utility_bg_remover
+# [x] Category: utility
+# [x] Logic: Uses -fuzz for threshold tolerance, -transparent for color keying,
+#     -channel A -blur for feathering, -level to prevent alpha bleed.
+# [x] Output: Transparent PNG with clean alpha edges.
