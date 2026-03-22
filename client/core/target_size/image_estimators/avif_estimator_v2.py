@@ -502,6 +502,12 @@ class Estimator(EstimatorProtocol):
                 stderr_output = b''.join(stderr_chunks).decode('utf-8', errors='ignore') if stderr_chunks else 'No stderr'
                 print(f"[AVIF_v2 FFMPEG ERROR] {stderr_output}")
                 emit(f"FFmpeg error (code {process.returncode})")
+                from client.utils.error_reporter import log_error
+                log_error(
+                    Exception(f"FFmpeg avif failed (returncode={process.returncode})"),
+                    context="avif_estimator_v2",
+                    additional_info={"stderr_tail": stderr_output[-2000:]}
+                )
                 return False
             
             if os.path.exists(output_path):
@@ -518,6 +524,8 @@ class Estimator(EstimatorProtocol):
             import traceback
             emit(f"Error: {str(e)}")
             print(f"[AVIF_v2 ERROR] {traceback.format_exc()}")
+            from client.utils.error_reporter import log_error
+            log_error(e, context="avif_estimator_v2 / execute")
             return False
 
 

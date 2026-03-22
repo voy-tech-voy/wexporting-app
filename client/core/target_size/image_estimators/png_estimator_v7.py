@@ -255,6 +255,8 @@ class Estimator(EstimatorProtocol):
             return False
         except Exception as e:
             emit(f"Error: {str(e)}")
+            from client.utils.error_reporter import log_error
+            log_error(e, context="png_estimator_v7 / execute")
             return False
 
 

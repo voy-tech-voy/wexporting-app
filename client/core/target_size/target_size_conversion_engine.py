@@ -209,7 +209,7 @@ class TargetSizeConversionEngine(QThread):
             True if compatible, False otherwise
         """
         if conversion_mode == 'image':
-            return is_image_file(file_path)
+            return is_image_file(file_path) and not file_path.lower().endswith('.svg')
         elif conversion_mode == 'video':
             return is_video_file(file_path)
         elif conversion_mode == 'loop':
@@ -357,6 +357,8 @@ class TargetSizeConversionEngine(QThread):
             return all_success
             
         except Exception as e:
+            from client.utils.error_reporter import log_error
+            log_error(e, context="_convert_video / target_size_conversion_engine")
             self.status_updated.emit(f"Video conversion error: {str(e)}")
             return False
     

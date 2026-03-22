@@ -1,0 +1,17 @@
+Traceback (most recent call last):
+  File "<frozen runpy>", line 131, in _get_module_details
+  File "<frozen importlib.util>", line 94, in find_spec
+ModuleNotFoundError: No module named 'scour'
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "main.py", line 803, in <module>
+  File "main.py", line 771, in main_with_protection
+  File "client\utils\crash_reporter.py", line 421, in run_with_crash_protection
+    result = main_func(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "main.py", line 480, in main
+  File "<frozen runpy>", line 222, in run_module
+  File "<frozen runpy>", line 140, in _get_module_details
+ImportError: Error while finding module specification for 'scour.scour' (ModuleNotFoundError: No module named 'scour')

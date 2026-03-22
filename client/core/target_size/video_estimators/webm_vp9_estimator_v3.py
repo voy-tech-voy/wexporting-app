@@ -170,6 +170,12 @@ class Estimator(EstimatorProtocol):
             if process.returncode != 0:
                 error_msg = b''.join(stderr_chunks).decode('utf-8', errors='ignore')
                 emit(f"Pass 1 failed: {error_msg[-200:]}")
+                from client.utils.error_reporter import log_error
+                log_error(
+                    Exception(f"FFmpeg webm_vp9 Pass 1 failed (returncode={process.returncode})"),
+                    context="webm_vp9_estimator_v3",
+                    additional_info={"command": cmd, "stderr_tail": error_msg[-2000:]}
+                )
                 return False
             
             # PASS 2
@@ -211,6 +217,12 @@ class Estimator(EstimatorProtocol):
             if process.returncode != 0:
                 error_msg = b''.join(stderr_chunks).decode('utf-8', errors='ignore')
                 emit(f"Pass 2 failed: {error_msg[-200:]}")
+                from client.utils.error_reporter import log_error
+                log_error(
+                    Exception(f"FFmpeg webm_vp9 Pass 2 failed (returncode={process.returncode})"),
+                    context="webm_vp9_estimator_v3",
+                    additional_info={"command": cmd2, "stderr_tail": error_msg[-2000:]}
+                )
                 return False
             
             self._cleanup_passlog(passlogfile)
@@ -223,6 +235,8 @@ class Estimator(EstimatorProtocol):
                 
         except Exception as e:
             emit(f"Error: {str(e)}")
+            from client.utils.error_reporter import log_error
+            log_error(e, context="webm_vp9_estimator_v3 / execute")
             return False
     
     def _build_stream(self, input_path: str, resolution_scale: float, rotation: Optional[str]):

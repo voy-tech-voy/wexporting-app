@@ -324,6 +324,13 @@ class Estimator(EstimatorProtocol):
         cmd.extend(['-i', input_path, '-filter_complex', ";".join(chain), output_path])
 
         rc = run_ffmpeg_skill_standard(cmd, stop_check=stop_check, log_target=output_path)
+        if rc != 0:
+            from client.utils.error_reporter import log_error
+            log_error(
+                Exception(f"FFmpeg gif failed (returncode={rc})"),
+                context="gif_estimator_v26",
+                additional_info={"command": cmd}
+            )
         if rc == 0:
             emit_progress(1.0)
         return rc == 0

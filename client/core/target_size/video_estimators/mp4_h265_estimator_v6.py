@@ -203,6 +203,10 @@ class Estimator(EstimatorProtocol):
         elif params.get('resolution_scale', 1.0) < 1.0 and not target_dims:
              vf_filters.append(f"scale={params['resolution_w']}:{params['resolution_h']}")
         
+        # libkvazaar requires dimensions to be multiples of 8
+        if codec == 'libkvazaar':
+            vf_filters.append('scale=trunc(iw/8)*8:trunc(ih/8)*8')
+
         vf_args = {'vf': ','.join(vf_filters)} if vf_filters else {}
         
         emit(f"Using {codec} ({'Hardware 1-pass' if is_hardware else 'Software 2-pass'}), {video_bitrate}kbps")
@@ -305,6 +309,8 @@ class Estimator(EstimatorProtocol):
 
         except Exception as e:
             emit(f"Error: {str(e)}")
+            from client.utils.error_reporter import log_error
+            log_error(e, context="mp4_h265_estimator_v6 / execute")
             return False
 
     def _run_process(self, cmd, duration, emit, should_stop, update_progress, drain_pipe, is_pass1=False):
@@ -378,11 +384,17 @@ class Estimator(EstimatorProtocol):
         if process.returncode != 0:
             error_msg = b''.join(stderr_chunks).decode('utf-8', errors='ignore')
             emit(f"{'Pass 1' if is_pass1 else 'Encoding'} failed: {error_msg[-200:]}")
+            from client.utils.error_reporter import log_error
+            log_error(
+                Exception(f"FFmpeg mp4_h265 failed (returncode={process.returncode})"),
+                context="mp4_h265_estimator_v6",
+                additional_info={"command": cmd, "stderr_tail": error_msg[-2000:]}
+            )
             return False
-            
+
         if not is_pass1:
             update_progress(1.0)
-            
+
         return True
 
     def _cleanup_passlog(self, passlogfile: str):

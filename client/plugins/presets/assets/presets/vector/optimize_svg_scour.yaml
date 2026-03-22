@@ -56,20 +56,17 @@ pipeline:
   # --------------------------------------------------------------------------
   # STEP 1: OPTIMIZE SVG
   # --------------------------------------------------------------------------
-  - tool: "ffmpeg"  # Placeholder tool to enable execution
+  - tool: "scour"
     description: "Optimizing SVG vectors..."
     filename_suffix: "_optimized"
     command_template: |
-      {# --- SCOUR COMMAND LOGIC --- #}
-      {# Running via python -m scour to ensure we use the venv's installed package #}
-      
       {# --- FLAGS --- #}
       {% set flags = '--enable-viewboxing --enable-comment-stripping --shorten-ids' if shorten_ids else '--enable-viewboxing --enable-comment-stripping' %}
-      
+
       {% if remove_metadata %}
         {% set flags = flags + ' --remove-metadata --strip-xml-prolog --remove-titles --remove-descriptions' %}
       {% endif %}
-      
+
       {% if indent_type == 'None (Minified)' %}
         {% set indent_arg = '--indent=none' %}
       {% elif indent_type == 'Space' %}
@@ -77,15 +74,13 @@ pipeline:
       {% else %}
         {% set indent_arg = '--indent=tab' %}
       {% endif %}
-      
-      {# Execute Scour #}
-      {# Note: We use 'python_exe' assuming it's injected by CommandBuilder #}
-      "{{ python_exe }}" -m scour.scour -i "{{ input_path }}" -o "{{ output_path }}" --set-precision={{ precision }} {{ flags }} {{ indent_arg }}
+
+      "{{ tool_exe }}" -i "{{ input_path }}" -o "{{ output_path }}" --set-precision={{ precision }} {{ flags }} {{ indent_arg }}
 
 # ============================================================================
 # CHECKLIST
 # ============================================================================
-# [x] Tool: Uses 'python -m scour' for cross-platform compatibility
+# [x] Tool: Uses bundled scour.exe (tools/scour.exe) via tool registry
 # [x] Input: Restricts to .svg files
 # [x] Parameters: Precision, metadata removal, ID shortening, indentation
 # [x] Output: Forces .svg extension

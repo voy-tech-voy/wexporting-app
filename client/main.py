@@ -460,6 +460,17 @@ def initialize_main_window(skip_splash=False):
 
 def main():
     """Main application entry point with comprehensive error handling"""
+    # Suppress console flash for every subprocess call in the frozen app.
+    # Patches subprocess.Popen globally so subprocess.run() is also covered.
+    if getattr(sys, 'frozen', False) and os.name == 'nt':
+        import subprocess as _sp
+        _OrigPopen = _sp.Popen
+        class _SilentPopen(_OrigPopen):
+            def __init__(self, *args, **kwargs):
+                kwargs['creationflags'] = kwargs.get('creationflags', 0) | 0x08000000  # CREATE_NO_WINDOW
+                super().__init__(*args, **kwargs)
+        _sp.Popen = _SilentPopen
+
     # PyInstaller frozen app: support `app.exe -m module args...` like Python itself.
     # Without this, builder.py's `python_exe = sys.executable` causes the preset
     # runner to re-launch the app instead of running the target module (e.g. scour).
@@ -467,6 +478,16 @@ def main():
         import runpy
         sys.argv = sys.argv[2:]  # strip exe and '-m', leave module + its args
         runpy.run_module(sys.argv[0], run_name='__main__', alter_sys=True)
+        sys.exit(0)
+
+    # PyInstaller frozen app: support `app.exe script.py args...` for preset scripts.
+    if getattr(sys, 'frozen', False) and len(sys.argv) >= 2 and sys.argv[1].endswith('.py'):
+        import runpy, pathlib as _pathlib
+        script = sys.argv[1]
+        if not _pathlib.Path(script).is_absolute():
+            script = str(_pathlib.Path(sys._MEIPASS) / script)
+        sys.argv = [script] + sys.argv[2:]
+        runpy.run_path(script, run_name='__main__')
         sys.exit(0)
 
     profile_startup = '--profile-startup' in sys.argv

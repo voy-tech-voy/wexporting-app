@@ -1,4 +1,5 @@
 import os
+import tempfile
 import time
 import subprocess
 import threading
@@ -207,6 +208,12 @@ class Estimator(EstimatorProtocol):
                 error_msg = b''.join(stderr_chunks).decode('utf-8', errors='ignore')
                 print(f"[V6 ERROR] FFmpeg failed. Command: {cmd}\nError Output:\n{error_msg}")
                 emit(f"FFmpeg Error: {error_msg[-300:]}")
+                from client.utils.error_reporter import log_error
+                log_error(
+                    Exception(f"FFmpeg AV1 failed (returncode={process.returncode})"),
+                    context="webm_av1_estimator_v7",
+                    additional_info={"command": cmd, "stderr_tail": error_msg[-2000:]}
+                )
                 return False
             return True
 
@@ -244,12 +251,14 @@ class Estimator(EstimatorProtocol):
 
         # PASS 1
         null_output = "NUL" if os.name == 'nt' else "/dev/null"
-        
+        passlogfile = os.path.join(tempfile.gettempdir(), f'ffmpeg2pass_{os.getpid()}_{id(self)}')
+
         pass1_args = {
             'vcodec': 'libsvtav1',
             'b:v': bitrate,
             'preset': 8,
             'pass': 1,
+            'passlogfile': passlogfile,
             'f': 'null',
             'an': None
         }
@@ -274,6 +283,7 @@ class Estimator(EstimatorProtocol):
             'b:v': bitrate,
             'preset': 5,
             'pass': 2,
+            'passlogfile': passlogfile,
         }
         pass2_args.update(audio_args)
         pass2_args.update(vf_args)
@@ -289,9 +299,11 @@ class Estimator(EstimatorProtocol):
         if os.path.exists(output_path):
             actual_mb = os.path.getsize(output_path) / (1024 * 1024)
             emit(f"[OK] Complete: {actual_mb:.2f} MB")
-            try:
-                if os.path.exists("ffmpeg2pass-0.log"): os.remove("ffmpeg2pass-0.log")
-            except: pass
+            for suffix in ['.log', '.log.mbtree', '-0.log', '-0.log.mbtree']:
+                try:
+                    p = passlogfile + suffix
+                    if os.path.exists(p): os.remove(p)
+                except: pass
             return True
         else:
             emit("Output file missing")

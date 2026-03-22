@@ -1,4 +1,5 @@
 import os
+import tempfile
 import time
 import subprocess
 import threading
@@ -170,6 +171,12 @@ class Estimator(EstimatorProtocol):
             error_msg = b''.join(stderr_chunks).decode('utf-8', errors='ignore')
             print(f"[VP9_LOOP_v7 ERROR] FFmpeg failed.\nError: {error_msg}")
             emit(f"FFmpeg Error: {error_msg[-300:]}")
+            from client.utils.error_reporter import log_error
+            log_error(
+                Exception(f"FFmpeg webm_vp9_loop failed (returncode={process.returncode})"),
+                context="webm_vp9_loop_estimator_v7",
+                additional_info={"command": cmd, "stderr_tail": error_msg[-2000:]}
+            )
             return False
 
         update_progress(1.0)
@@ -218,6 +225,7 @@ class Estimator(EstimatorProtocol):
         emit(f"Target: {params['resolution_w']}x{params['resolution_h']} @ {bitrate} (Loop, no audio)")
 
         null_output = "NUL" if os.name == 'nt' else "/dev/null"
+        passlogfile = os.path.join(tempfile.gettempdir(), f'ffmpeg2pass_{os.getpid()}_{id(self)}')
 
         # --- PASS 1 (0 → 0.50) ---
         emit("Pass 1/2: Analyzing...")
@@ -226,6 +234,7 @@ class Estimator(EstimatorProtocol):
             'b:v': bitrate,
             'cpu-used': 8,  # Pass 1 is null-output analysis only; max speed
             'pass': 1,
+            'passlogfile': passlogfile,
             'f': 'null',
             'an': None,
             'progress': 'pipe:1',
@@ -251,6 +260,7 @@ class Estimator(EstimatorProtocol):
             'b:v': bitrate,
             'cpu-used': 6,  # Speed-quality balance; bitrate constraint controls size accuracy
             'pass': 2,
+            'passlogfile': passlogfile,
             'an': None,
             'progress': 'pipe:1',
             'nostats': None,
@@ -272,9 +282,11 @@ class Estimator(EstimatorProtocol):
             actual_mb = os.path.getsize(output_path) / (1024 * 1024)
             emit(f"[OK] Complete: {actual_mb:.2f} MB")
             emit_progress(1.0)
-            try:
-                if os.path.exists("ffmpeg2pass-0.log"): os.remove("ffmpeg2pass-0.log")
-            except: pass
+            for suffix in ['.log', '.log.mbtree', '-0.log', '-0.log.mbtree']:
+                try:
+                    p = passlogfile + suffix
+                    if os.path.exists(p): os.remove(p)
+                except: pass
             return True
         else:
             emit("Output file missing")

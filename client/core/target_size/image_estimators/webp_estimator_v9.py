@@ -344,6 +344,12 @@ class Estimator(EstimatorProtocol):
 
             if rc != 0:
                 emit(f"FFmpeg error (code {rc})")
+                from client.utils.error_reporter import log_error
+                log_error(
+                    Exception(f"FFmpeg WebP failed (rc={rc})"),
+                    context="webp_estimator_v9",
+                    additional_info={"command": cmd}
+                )
                 return False
 
             if os.path.exists(output_path):
@@ -360,6 +366,8 @@ class Estimator(EstimatorProtocol):
             import traceback
             emit(f"Error: {str(e)}")
             print(f"[WebP_v9 ERROR] {traceback.format_exc()}")
+            from client.utils.error_reporter import log_error
+            log_error(e, context="webp_estimator_v9 / execute")
             return False
 
 

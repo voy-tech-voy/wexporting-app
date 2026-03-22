@@ -106,7 +106,12 @@ class VideoConverter(BaseConverter):
             
             # Apply rotation
             video_stream = self._apply_rotation(video_stream)
-            
+
+            # libkvazaar requires dimensions to be multiples of 8
+            if codec_config.ffmpeg_codec == 'libkvazaar':
+                video_stream = ffmpeg.filter(video_stream, 'scale',
+                                             w='trunc(iw/8)*8', h='trunc(ih/8)*8')
+
             # Build output arguments
             output_args = self._build_output_args(codec_config, audio_exists)
             

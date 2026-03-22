@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(find /V/_MY_APPS/ImgApp_1 -name *offline* -type f)",
-      "Bash(xargs grep:*)"
+      "Bash(xargs grep:*)",
+      "Bash(find \"V:/_MY_APPS/ImgApp_1/client/plugins/presets/assets/presets\" -name \"*.yaml\" -exec grep -l \"\\\\.jpg\\\\|jpg\\\\|jpeg\" {})",
+      "Bash(find /V/_MY_APPS/ImgApp_1 -name *.txt -path *requirements* -type f)"
     ]
   }
 }

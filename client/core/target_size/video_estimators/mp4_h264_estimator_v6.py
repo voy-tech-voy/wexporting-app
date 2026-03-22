@@ -309,13 +309,15 @@ class Estimator(EstimatorProtocol):
 
         except Exception as e:
             emit(f"Error: {str(e)}")
+            from client.utils.error_reporter import log_error
+            log_error(e, context="mp4_h264_estimator_v6 / execute")
             return False
 
     def _run_process(self, cmd, duration, emit, should_stop, update_progress, drain_pipe, is_pass1=False):
         import subprocess
         import threading
         import re
-        
+
         ffmpeg_bin = get_ffmpeg_path()
         cmd[0] = ffmpeg_bin
         
@@ -372,11 +374,17 @@ class Estimator(EstimatorProtocol):
         if process.returncode != 0:
             error_msg = b''.join(stderr_chunks).decode('utf-8', errors='ignore')
             emit(f"{'Pass 1' if is_pass1 else 'Encoding'} failed: {error_msg[-200:]}")
+            from client.utils.error_reporter import log_error
+            log_error(
+                Exception(f"FFmpeg mp4_h264 failed (returncode={process.returncode})"),
+                context="mp4_h264_estimator_v6",
+                additional_info={"command": cmd, "stderr_tail": error_msg[-2000:]}
+            )
             return False
-            
+
         if not is_pass1:
             update_progress(1.0)
-            
+
         return True
 
     def _cleanup_passlog(self, passlogfile: str):

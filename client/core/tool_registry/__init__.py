@@ -140,6 +140,19 @@ def _register_default_tools(registry: ToolRegistry) -> None:
         file_filter="FFmpeg Executable (ffmpeg.exe);;All Files (*.*)" if os.name == 'nt' else "All Files (*)"
     ))
     
+    # Scour SVG Optimizer
+    registry.register(ToolDescriptor(
+        id="scour",
+        display_name="Scour SVG Optimizer",
+        env_var_name="SCOUR_BINARY",
+        binary_name="scour.exe" if os.name == 'nt' else "scour",
+        version_args=["--version"],
+        version_pattern=r"Scour (\d+[\.\d]*)",
+        is_bundled=True,
+        bundle_subpath="tools",
+        file_filter="Scour Executable (scour.exe);;All Files (*.*)" if os.name == 'nt' else "All Files (*)"
+    ))
+
     # ImageMagick
     from .validators import validate_imagemagick
     registry.register(ToolDescriptor(

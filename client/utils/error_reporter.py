@@ -31,17 +31,17 @@ class WindowsErrorReporter:
             log_filename = f"imgapp_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
             self.log_file = self.log_dir / log_filename
             
-            # Set up logging configuration
-            logging.basicConfig(
-                level=logging.DEBUG,
-                format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-                handlers=[
-                    logging.FileHandler(str(self.log_file), encoding='utf-8')
-                ]
-            )
-            
-            # Use root logger so that all modules in the app are captured
-            self.logger = logging.getLogger()
+            # Attach handler directly — basicConfig() is a no-op if any handler
+            # already exists on the root logger (e.g. added by Qt before startup).
+            file_handler = logging.FileHandler(str(self.log_file), encoding='utf-8')
+            file_handler.setLevel(logging.DEBUG)
+            formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+            file_handler.setFormatter(formatter)
+
+            root_logger = logging.getLogger()
+            root_logger.setLevel(logging.DEBUG)
+            root_logger.addHandler(file_handler)
+            self.logger = root_logger
             self.logger.info(f"Logging initialized: {self.log_file}")
             
         except Exception as e:

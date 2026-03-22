@@ -11,6 +11,7 @@ from pathlib import Path
 from PySide6.QtCore import QThread, Signal
 import subprocess
 import os
+import sys
 import time
 
 if TYPE_CHECKING:
@@ -350,7 +351,7 @@ class PresetConversionEngine(QThread):
                 # Find the position after the ffmpeg executable
                 import re
                 # Match ffmpeg executable (handles paths with spaces)
-                ffmpeg_pattern = r'(["\']?[^"\']*ffmpeg[^"\']*\.exe["\']?|ffmpeg)'
+                ffmpeg_pattern = r'["\']?[^"\']*[/\\]ffmpeg[^"\']*\.exe["\']?'
                 match = re.search(ffmpeg_pattern, cmd, re.IGNORECASE)
                 
                 if match:
@@ -368,11 +369,14 @@ class PresetConversionEngine(QThread):
             log_session = log_conversion_start("preset", cmd_with_progress, f"step_{step_num}_of_{total_steps}")
             
             # Create process with Popen (always use shell=True to preserve complex arguments)
+            # In frozen builds, set cwd to _MEIPASS so relative tool paths (tools/models/, tools/realesrgan/, etc.) resolve correctly
+            _cwd = sys._MEIPASS if getattr(sys, 'frozen', False) else None
             self._current_process = subprocess.Popen(
                 cmd_with_progress,
                 shell=True,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
+                cwd=_cwd,
                 creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
             )
             

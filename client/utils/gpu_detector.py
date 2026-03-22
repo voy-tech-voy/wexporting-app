@@ -118,11 +118,32 @@ class GPUDetector:
                     if encoder_name in ENCODER_DEFINITIONS:
                         available.append(encoder_name)
                         
-            self._available_encoders = available
+            # Verify hardware encoders actually work on this machine.
+            # ffmpeg -encoders lists all compiled-in encoders, not just usable ones.
+            verified = []
+            for enc in available:
+                if enc in ENCODER_DEFINITIONS and ENCODER_DEFINITIONS[enc].encoder_type != EncoderType.CPU:
+                    try:
+                        probe = subprocess.run(
+                            [self.ffmpeg_path, "-hide_banner", "-loglevel", "error",
+                             "-f", "lavfi", "-i", "nullsrc=s=16x16:d=0.1",
+                             "-vcodec", enc, "-f", "null", "-"],
+                            capture_output=True, timeout=5
+                        )
+                        if probe.returncode == 0:
+                            verified.append(enc)
+                        else:
+                            print(f"GPU Detector: {enc} listed but not usable (probe failed), skipping")
+                    except Exception as e:
+                        print(f"GPU Detector: {enc} probe error: {e}, skipping")
+                else:
+                    verified.append(enc)
+
+            self._available_encoders = verified
             self._build_encoder_map()
-            
-            print(f"GPU Detector: Found encoders: {available}")
-            return available
+
+            print(f"GPU Detector: Found encoders: {verified}")
+            return verified
             
         except subprocess.TimeoutExpired:
             print("GPU Detector: FFmpeg encoder detection timed out")
