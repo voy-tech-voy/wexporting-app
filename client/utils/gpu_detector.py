@@ -126,7 +126,7 @@ class GPUDetector:
                     try:
                         probe = subprocess.run(
                             [self.ffmpeg_path, "-hide_banner", "-loglevel", "error",
-                             "-f", "lavfi", "-i", "nullsrc=s=16x16:d=0.1",
+                             "-f", "lavfi", "-i", "nullsrc=s=320x240:d=0.04",
                              "-vcodec", enc, "-f", "null", "-"],
                             capture_output=True, timeout=5
                         )

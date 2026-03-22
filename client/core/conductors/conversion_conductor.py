@@ -58,6 +58,8 @@ class ConversionConductor(QObject):
         self.conversion_engine = None
         self._active_preset = None
         self._completed_files_count = 0
+        self._per_file_cost = 0
+        self._energy_mgr = None
     
     def set_active_preset(self, preset):
         """Set the active preset (called by MainWindow when preset is applied)."""
@@ -434,6 +436,9 @@ class ConversionConductor(QObject):
             if f == source_file:
                 self.drag_drop_area.set_file_completed(i)
                 self._completed_files_count += 1
+                # Deduct credits on success (item-based: failed items are not charged)
+                if self._energy_mgr and self._per_file_cost > 0:
+                    self._energy_mgr.consume(self._per_file_cost)
                 break
     
     def on_file_skipped(self, source_file):
@@ -584,15 +589,17 @@ class ConversionConductor(QObject):
         conversion_type = self._detect_conversion_type(params)
         per_output_cost = energy_mgr.calculate_cost(conversion_type, params)
         total_cost = total_outputs * per_output_cost
-        
-        # Request energy (job-based: server for large, local for small)
-        # Note: JWT token is accessed via SessionManager.instance().jwt_token
-        
-        if not energy_mgr.request_job_energy(total_cost, conversion_type, params):
-            # Insufficient energy
+
+        # Affordability gate: check upfront but do NOT deduct yet
+        if not energy_mgr.can_afford(total_cost):
             self._show_insufficient_energy_dialog(total_cost, energy_mgr.get_balance())
             return False
-        
+
+        # Store per-file cost for item-based deduction on completion
+        num_files = len(files)
+        self._per_file_cost = (total_cost // num_files) if num_files > 0 else 0
+        self._energy_mgr = energy_mgr
+
         return True
     
     def _check_energy_for_preset(self, files):

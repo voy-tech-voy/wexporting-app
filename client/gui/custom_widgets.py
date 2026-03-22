@@ -2799,9 +2799,7 @@ class LoopFormatSelector(QWidget):
 
 class HardwareAwareCodecButton(QPushButton):
     """
-    Checkable button for codec selection with hardware acceleration visual effects.
-    Replaces circuit trace with internal glow on hover.
-    Now optimized for Segmented Controls.
+    Checkable button for codec selection. Optimized for Segmented Controls.
     """
     def __init__(self, text="", parent=None):
         super().__init__(text, parent)
@@ -2810,103 +2808,12 @@ class HardwareAwareCodecButton(QPushButton):
         # Fixed size policy to match other segmented buttons
         self.setMinimumHeight(40)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        
-        # GPU state
+
+        # GPU state (kept for API compatibility)
         self._gpu_available = False
-        self._is_hovered = False
-        
-        # Glow Animation properties
-        self._glow_opacity = 0.0
-        self._glow_direction = 1
-        self._glow_timer = QTimer(self)
-        self._glow_timer.timeout.connect(self._update_glow)
-        self._glow_timer.setInterval(33) # ~30 FPS
-        
+
     def set_gpu_available(self, available: bool):
         self._gpu_available = available
-        self.update()
-        
-    def enterEvent(self, event):
-        self._is_hovered = True
-        if self._gpu_available:
-            self._glow_timer.start()
-        super().enterEvent(event)
-        
-    def leaveEvent(self, event):
-        self._is_hovered = False
-        self._glow_timer.stop()
-        self._glow_opacity = 0.0
-        self.update()
-        super().leaveEvent(event)
-        
-    def _update_glow(self):
-        """Pulse the internal glow opacity"""
-        # Pulse between 0.05 and 0.25 opacity
-        step = 0.015
-        self._glow_opacity += step * self._glow_direction
-        
-        if self._glow_opacity >= 0.25:
-            self._glow_opacity = 0.25
-            self._glow_direction = -1
-        elif self._glow_opacity <= 0.05:
-            self._glow_opacity = 0.05
-            self._glow_direction = 1
-        self.update()
-        
-    def paintEvent(self, event):
-        # Let default painting happen (background, border, text)
-        super().paintEvent(event)
-        
-        if self._gpu_available:
-            painter = QPainter(self)
-            painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-            
-            # Always draw bolt icon if GPU available
-            self._draw_bolt_icon(painter)
-            
-            # Draw internal glow only on hover
-            if self._is_hovered:
-                self._draw_internal_glow(painter)
-                
-            painter.end()
-            
-    def _draw_bolt_icon(self, painter):
-        # Position in top-right corner
-        icon_size = 8
-        x = self.width() - icon_size - 6
-        y = 6
-        
-        painter.setPen(Qt.PenStyle.NoPen)
-        # Cyan if checked or hovered, dimmer turquoise if not
-        color = QColor("#00F3FF") if self.isChecked() or self._is_hovered else QColor("#00AAAA")
-        if not self.isChecked() and not self._is_hovered:
-             color.setAlpha(180)
-             
-        painter.setBrush(QBrush(color))
-        
-        # Simple bolt polygon
-        bolt = [
-            QPoint(x + 5, y),
-            QPoint(x + 1, y + 4),
-            QPoint(x + 4, y + 4),
-            QPoint(x + 3, y + 8),
-            QPoint(x + 7, y + 3),
-            QPoint(x + 4, y + 3),
-        ]
-        painter.drawPolygon(bolt)
-
-    def _draw_internal_glow(self, painter):
-        """Draw a pulsing internal glow"""
-        color = QColor("#00F3FF")
-        color.setAlphaF(self._glow_opacity)
-        
-        painter.setBrush(QBrush(color))
-        painter.setPen(Qt.PenStyle.NoPen)
-        
-        # Draw rounded rect slightly inside border
-        # Assuming 8px border radius for button, let's use 6px for glow
-        rect = self.rect().adjusted(2, 2, -2, -2)
-        painter.drawRoundedRect(rect, 6, 6)
 
 
 class VideoCodecSelector(GenericSegmentedControl):
