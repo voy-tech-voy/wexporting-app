@@ -130,17 +130,19 @@ pipeline:
         {% if is_video %}-c:v {{ gpu_encoder }} {{ get_h264_flags(18) }} -pix_fmt yuv420p -c:a copy{% else %}-frames:v 1 -q:v 1{% endif %}
         "{{ output_path }}"
         {% elif layout == 'Diagonal' %}
-          {# Lightweight diagonal grid: rows × 3 columns, each row shifted right for diagonal look #}
+          {# Rotated diagonal: grid on oversized transparent canvas, rotated -30°, overlaid centered #}
           {% set wm_w = (meta.width * size / 100) | int %}
           {% set base_w = meta.width if meta.width > 0 else 1280 %}
           {% set base_h = meta.height if meta.height > 0 else 720 %}
-          {% set n_cols = 3 %}
-          {% set total = rows * n_cols %}
-          {% set x_gap = base_w // n_cols %}
-          {% set y_gap = base_h // rows %}
-          {% set x_shift = x_gap // rows %}
+          {% set cw = base_w * 2 %}
+          {% set ch = base_h * 2 %}
+          {% set n_cols = 4 %}
+          {% set n_rows = rows + 1 %}
+          {% set total = n_rows * n_cols %}
+          {% set x_gap = cw // n_cols %}
+          {% set y_gap = ch // n_rows %}
         {{ tool_exe }} -y -i "{{ input_path }}" -i "{{ watermark_file }}"
-        -filter_complex "[1:v]scale={{ wm_w }}:-1,format=rgba,colorchannelmixer=aa={{ op }},split={{ total }}{% for i in range(total) %}[wm{{ i }}]{% endfor %};{% set ns = namespace(idx=0, prev='[0:v]') %}{% for r in range(rows) %}{% for c in range(n_cols) %}{% set x = c * x_gap + r * x_shift %}{% set y = (r * y_gap + y_gap * 3 // 10) %}{% if ns.idx < total - 1 %}{{ ns.prev }}[wm{{ ns.idx }}]overlay={{ x }}:{{ y }}[t{{ ns.idx }}];{% set ns.prev = '[t' + ns.idx|string + ']' %}{% else %}{{ ns.prev }}[wm{{ ns.idx }}]overlay={{ x }}:{{ y }}{% endif %}{% set ns.idx = ns.idx + 1 %}{% endfor %}{% endfor %}"
+        -filter_complex "[1:v]scale={{ wm_w }}:-1,format=rgba,colorchannelmixer=aa={{ op }},split={{ total }}{% for i in range(total) %}[wm{{ i }}]{% endfor %};color=c=black@0.0:s={{ cw }}x{{ ch }},format=rgba,trim=duration=0.04[canvas];{% set ns = namespace(idx=0, prev='[canvas]') %}{% for r in range(n_rows) %}{% for c in range(n_cols) %}{% set x = c * x_gap %}{% set y = r * y_gap %}{% if ns.idx < total - 1 %}{{ ns.prev }}[wm{{ ns.idx }}]overlay={{ x }}:{{ y }}[t{{ ns.idx }}];{% set ns.prev = '[t' + ns.idx|string + ']' %}{% else %}{{ ns.prev }}[wm{{ ns.idx }}]overlay={{ x }}:{{ y }}[grid];{% endif %}{% set ns.idx = ns.idx + 1 %}{% endfor %}{% endfor %}[grid]rotate=-PI/6:c=black@0.0:ow={{ base_w }}:oh={{ base_h }}[rotated];[0:v][rotated]overlay=0:0"
         {% if is_video %}-c:v {{ gpu_encoder }} {{ get_h264_flags(18) }} -pix_fmt yuv420p -c:a copy{% else %}-frames:v 1 -q:v 1{% endif %}
         "{{ output_path }}"
         {% elif layout == 'Random' %}
@@ -174,21 +176,25 @@ pipeline:
         {% if is_video %}-c:v {{ gpu_encoder }} {{ get_h264_flags(18) }} -pix_fmt yuv420p -c:a copy{% else %}-frames:v 1 -q:v 1{% endif %}
         "{{ output_path }}"
         {% elif layout == 'Diagonal' %}
-          {# Lightweight diagonal: rows × 3 drawtext instances, each row shifted right #}
-          {% set n_cols = 3 %}
-          {% set x_gap = 1.0 / n_cols %}
-          {% set y_gap = 1.0 / rows %}
-          {% set x_shift = x_gap / rows %}
-          {% set ns = namespace(filters=[]) %}
-          {% for r in range(rows) %}
+          {# Rotated diagonal: text grid on oversized transparent canvas, rotated -30°, overlaid centered #}
+          {% set base_w = meta.width if meta.width > 0 else 1280 %}
+          {% set base_h = meta.height if meta.height > 0 else 720 %}
+          {% set cw = base_w * 2 %}
+          {% set ch = base_h * 2 %}
+          {% set n_cols = 4 %}
+          {% set n_rows = rows + 1 %}
+          {% set x_gap = cw // n_cols %}
+          {% set y_gap = ch // n_rows %}
+          {% set ns = namespace(draws='') %}
+          {% for r in range(n_rows) %}
             {% for c in range(n_cols) %}
-              {% set xf = (c * x_gap + r * x_shift) | round(3) %}
-              {% set yf = (r * y_gap + y_gap * 0.3) | round(3) %}
-              {% set ns.filters = ns.filters + ["drawtext=text='" + txt + "':" + dt_base + ":x=W*" + xf|string + ":y=H*" + yf|string] %}
+              {% set x = c * x_gap %}
+              {% set y = r * y_gap %}
+              {% set ns.draws = ns.draws + ",drawtext=text='" + txt + "':" + dt_base + ":x=" + x|string + ":y=" + y|string %}
             {% endfor %}
           {% endfor %}
         {{ tool_exe }} -y -i "{{ input_path }}"
-        -vf "{{ ns.filters | join(',') }}"
+        -filter_complex "color=c=black@0.0:s={{ cw }}x{{ ch }},format=rgba,trim=duration=0.04{{ ns.draws }}[txt];[txt]rotate=-PI/6:c=black@0.0:ow={{ base_w }}:oh={{ base_h }}[wm];[0:v][wm]overlay=0:0"
         {% if is_video %}-c:v {{ gpu_encoder }} {{ get_h264_flags(18) }} -pix_fmt yuv420p -c:a copy{% else %}-frames:v 1 -q:v 1{% endif %}
         "{{ output_path }}"
         {% endif %}
@@ -211,7 +217,7 @@ pipeline:
 #
 # [x] FILE mode layout modes:
 #     - Corner: 1 overlay at chosen corner, 20px margin
-#     - Diagonal: rows × 3 overlays (9-24 max), each row shifted right for diagonal look
+#     - Diagonal: (rows+1)×4 overlays on 2x canvas, rotated -30°, cropped to video size
 #     - Random: 3 overlays at pseudo-random positions
 #
 # [x] TEXT mode:
@@ -221,7 +227,7 @@ pipeline:
 #     Layouts:
 #       - Corner: 1 drawtext at chosen corner (tw/th for text dimensions)
 #       - Random: 3 drawtext at fixed pseudo-random positions
-#       - Diagonal: rows × 3 drawtext via -vf (no filter_complex needed)
+#       - Diagonal: (rows+1)×4 drawtext on 2x canvas, rotated -30° via filter_complex
 #     Special chars: single-quotes stripped, colons escaped (\:)
 #
 # [x] Visibility rules:
