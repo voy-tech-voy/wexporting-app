@@ -220,6 +220,7 @@ class PresetGallery(BlurBackgroundMixin, QWidget):
         
         self._parameter_form = ParameterForm()
         self._param_panel = DynamicParameterPanel()
+        self._param_value_cache: Dict[str, Dict] = {}  # preset_id → last known values
         self._param_panel.go_to_lab_clicked.connect(self._on_go_to_lab)
         main_layout.addWidget(self._param_panel)
     
@@ -442,6 +443,9 @@ class PresetGallery(BlurBackgroundMixin, QWidget):
             except RuntimeError:
                 # Card was deleted, ignore
                 pass
+            # Save form values before losing the reference
+            if self._selected_card is not None and hasattr(self._selected_card, 'preset'):
+                self._param_value_cache[self._selected_card.preset.id] = self._parameter_form.get_values()
             self._selected_card = None
             
         if clicked_already_selected:
@@ -458,6 +462,11 @@ class PresetGallery(BlurBackgroundMixin, QWidget):
         # Show parameter panel with description
         if preset.parameters:
             self._parameter_form.set_parameters(preset.parameters, self._meta)
+
+            # Restore previously entered values for this preset (survives deselect/reselect)
+            if preset.id in self._param_value_cache:
+                self._parameter_form.set_values(self._param_value_cache[preset.id])
+
             self._param_panel.set_content(
                 title=f"{preset.name} Settings",
                 parameter_form=self._parameter_form,
@@ -490,8 +499,10 @@ class PresetGallery(BlurBackgroundMixin, QWidget):
     def deselect_card(self):
         """Deselect current card, hide parameter window, and emit deselection."""
         had_selection = self._selected_card is not None
-        
+
         if self._selected_card is not None:
+            # Save form values before clearing the selection
+            self._param_value_cache[self._selected_card.preset.id] = self._parameter_form.get_values()
             try:
                 if shiboken6.isValid(self._selected_card):
                     self._selected_card.set_selected(False)

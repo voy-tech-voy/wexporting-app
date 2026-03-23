@@ -24,6 +24,7 @@ class ParameterType(Enum):
     SLIDER = "slider"
     DROPDOWN = "dropdown"
     TEXT = "text"
+    FILE_INPUT = "file_input"
 
 
 @dataclass

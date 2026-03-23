@@ -314,156 +314,130 @@ class PresetConversionEngine(QThread):
     def _execute_command(self, cmd: str, step_num: int, total_steps: int) -> bool:
         """
         Execute a command with cancellation support and real-time progress tracking.
-        
-        Uses the unified async pattern from target_size and manual engines:
-        - subprocess.Popen with -progress pipe:1 for FFmpeg
-        - Async threads for stdout (progress) and stderr (error capture)
-        - Poll loop for immediate cancellation
-        
-        Args:
-            cmd: Command to execute
-            step_num: Current step number (for progress)
-            total_steps: Total number of steps
-            
-        Returns:
-            True if command succeeded, False otherwise
+
+        Follows conversion_run_skill.md:
+        - startupinfo + CREATE_NO_WINDOW for silent Windows execution
+        - Daemon stderr drain thread to prevent buffer deadlock
+        - Main-thread readline loop with inline should_stop check for immediate cancellation
         """
         import threading
         import re
-        
-        def drain_pipe(pipe, collected: list):
-            """Drain pipe in background thread to prevent buffer deadlock."""
+
+        def read_stderr(proc, out_list):
+            """Drain stderr line-by-line in background to prevent deadlock."""
             try:
-                while True:
-                    chunk = pipe.read(4096)
-                    if not chunk:
-                        break
-                    collected.append(chunk)
+                for line in proc.stderr:
+                    out_list.append(line)
             except:
                 pass
-        
+
         try:
             # Detect if this is an FFmpeg command for progress parsing
             is_ffmpeg = 'ffmpeg' in cmd.lower()
-            
+
             if is_ffmpeg:
-                # Inject progress flags into command string (preserves complex arguments)
-                # Find the position after the ffmpeg executable
-                import re
-                # Match ffmpeg executable (handles paths with spaces)
+                # Inject -progress pipe:1 -nostats right after the ffmpeg executable
                 ffmpeg_pattern = r'["\']?[^"\']*[/\\]ffmpeg[^"\']*\.exe["\']?'
                 match = re.search(ffmpeg_pattern, cmd, re.IGNORECASE)
-                
                 if match:
                     insert_pos = match.end()
-                    # Insert progress flags right after ffmpeg executable
                     cmd_with_progress = cmd[:insert_pos] + ' -progress pipe:1 -nostats' + cmd[insert_pos:]
                 else:
-                    # Fallback: just use original command
                     cmd_with_progress = cmd
             else:
-                # Non-FFmpeg command, run as-is
                 cmd_with_progress = cmd
-            
+
             from client.utils.conversion_logger import log_conversion_start, log_conversion_success, log_conversion_error
             log_session = log_conversion_start("preset", cmd_with_progress, f"step_{step_num}_of_{total_steps}")
-            
-            # Create process with Popen (always use shell=True to preserve complex arguments)
-            # In frozen builds, set cwd to _MEIPASS so relative tool paths (tools/models/, tools/realesrgan/, etc.) resolve correctly
+
+            # Silent Windows execution: both startupinfo and CREATE_NO_WINDOW required
+            startupinfo = None
+            creationflags = 0
+            if sys.platform == 'win32':
+                startupinfo = subprocess.STARTUPINFO()
+                startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+                creationflags = subprocess.CREATE_NO_WINDOW
+
             _cwd = sys._MEIPASS if getattr(sys, 'frozen', False) else None
             self._current_process = subprocess.Popen(
                 cmd_with_progress,
                 shell=True,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
+                universal_newlines=True,
+                bufsize=1,
                 cwd=_cwd,
-                creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
+                startupinfo=startupinfo,
+                creationflags=creationflags,
             )
-            
-            # Store reference for poll loop
+
             process = self._current_process
-            
-            # Start stderr drain thread (prevents deadlock)
-            stderr_chunks = []
-            stderr_thread = threading.Thread(target=drain_pipe, args=(process.stderr, stderr_chunks))
-            stderr_thread.daemon = True
+
+            # Daemon stderr drain thread — prevents deadlock on Windows
+            stderr_output = []
+            stderr_thread = threading.Thread(target=read_stderr, args=(process, stderr_output), daemon=True)
             stderr_thread.start()
-            
-            # Parse progress from stdout if FFmpeg
+
             if is_ffmpeg:
+                # Main-thread readline loop: check should_stop on every progress tick
                 time_pattern = re.compile(r'out_time_ms=(\d+)')
-                
-                def parse_progress():
-                    """Parse FFmpeg progress output in background thread."""
+                while True:
+                    if self.should_stop:
+                        print(f"[PresetEngine] Cancelling command...")
+                        process.kill()
+                        self._current_process = None
+                        return False
+
+                    line = process.stdout.readline()
+                    if not line:
+                        break
+
+                    time_match = time_pattern.search(line)
+                    if time_match:
+                        current_time_s = int(time_match.group(1)) / 1000000.0
+                        # Progress available here if needed: current_time_s / meta.duration
+
+                    if 'progress=end' in line:
+                        break
+            else:
+                # Non-FFmpeg: drain stdout in background, check should_stop via poll
+                def drain_stdout(proc):
                     try:
-                        while True:
-                            line = process.stdout.readline()
-                            if not line:
-                                break
-                            
-                            line_str = line if isinstance(line, str) else line.decode('utf-8', errors='ignore')
-                            
-                            # Parse time progress
-                            time_match = time_pattern.search(line_str)
-                            if time_match:
-                                current_time_ms = int(time_match.group(1))
-                                current_time_s = current_time_ms / 1000000.0  # microseconds to seconds
-                                
-                                # Emit progress (we don't have duration here, so just emit raw time)
-                                # The engine will handle overall progress calculation
-                                # For now, just indicate activity
-                                pass
-                            
-                            # Check for completion
-                            if 'progress=end' in line_str:
-                                break
+                        for _ in proc.stdout:
+                            pass
                     except:
                         pass
-                
-                stdout_thread = threading.Thread(target=parse_progress)
-                stdout_thread.daemon = True
+
+                stdout_thread = threading.Thread(target=drain_stdout, args=(process,), daemon=True)
                 stdout_thread.start()
-            else:
-                # Drain stdout for non-FFmpeg commands
-                stdout_chunks = []
-                stdout_thread = threading.Thread(target=drain_pipe, args=(process.stdout, stdout_chunks))
-                stdout_thread.daemon = True
-                stdout_thread.start()
-            
-            # Poll loop for cancellation check
-            while process.poll() is None:
-                if self.should_stop:
-                    print(f"[PresetEngine] Cancelling command...")
-                    process.kill()
-                    process.wait(timeout=1)  # Wait for process to terminate
-                    self._current_process = None
-                    return False
-                
-                # Sleep briefly to avoid busy-waiting
-                time.sleep(0.1)  # Check every 100ms
-            
-            # Wait for threads to finish
-            stderr_thread.join(timeout=1)
-            if is_ffmpeg:
-                stdout_thread.join(timeout=1)
-            
-            # Get return code
+
+                while process.poll() is None:
+                    if self.should_stop:
+                        print(f"[PresetEngine] Cancelling command...")
+                        process.kill()
+                        self._current_process = None
+                        return False
+                    time.sleep(0.1)
+
+            if process:
+                process.wait()
+            stderr_thread.join(timeout=1.0)
+
             returncode = process.returncode
-            
-            # Capture stderr for error reporting
+
             if returncode != 0:
-                stderr_output = b''.join(stderr_chunks).decode('utf-8', errors='ignore')
-                log_conversion_error(log_session, stderr_output, returncode)
+                stderr_text = "".join(stderr_output)
+                log_conversion_error(log_session, stderr_text, returncode)
                 print(f"[PresetEngine] Command failed with code {returncode}")
                 print(f"[PresetEngine] === STDERR (last 500 chars) ===")
-                print(stderr_output[-500:] if len(stderr_output) > 500 else stderr_output)
+                print(stderr_text[-500:] if len(stderr_text) > 500 else stderr_text)
                 print(f"[PresetEngine] === END STDERR ===")
             else:
                 log_conversion_success(log_session)
-            
+
             self._current_process = None
             return returncode == 0
-            
+
         except Exception as e:
             if 'log_session' in locals():
                 import traceback

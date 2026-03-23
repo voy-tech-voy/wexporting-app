@@ -4,7 +4,10 @@
       "Bash(find /V/_MY_APPS/ImgApp_1 -name *offline* -type f)",
       "Bash(xargs grep:*)",
       "Bash(find \"V:/_MY_APPS/ImgApp_1/client/plugins/presets/assets/presets\" -name \"*.yaml\" -exec grep -l \"\\\\.jpg\\\\|jpg\\\\|jpeg\" {})",
-      "Bash(find /V/_MY_APPS/ImgApp_1 -name *.txt -path *requirements* -type f)"
+      "Bash(find /V/_MY_APPS/ImgApp_1 -name *.txt -path *requirements* -type f)",
+      "Bash(cd /tmp)",
+      "Bash(magick -size 1000x1000 xc:white -fill \"navy\" -font Arial -pointsize 120 -gravity center -draw \"text 0,0 ''LOGO''\" -fill \"darkred\" -draw \"rectangle 200,600 800,700\" test_logo_real.png)",
+      "Bash(time magick:*)"
     ]
   }
 }

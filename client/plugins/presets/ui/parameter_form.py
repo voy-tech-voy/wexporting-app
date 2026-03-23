@@ -6,9 +6,9 @@ Supports visibility rules evaluated via Jinja2.
 """
 from typing import Dict, Any, List, Optional
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QCheckBox, QSlider, QComboBox, QPushButton,
-    QButtonGroup, QFrame
+    QButtonGroup, QFrame, QLineEdit, QFileDialog
 )
 from PySide6.QtCore import Qt, Signal
 from client.gui.custom_widgets import ThemedCheckBox
@@ -321,7 +321,69 @@ class ParameterForm(QWidget):
                 }}
             """)
             widget.currentTextChanged.connect(lambda: self._on_value_changed())
-        
+
+        elif param.type == ParameterType.FILE_INPUT:
+            file_container = QWidget()
+            file_layout = QHBoxLayout(file_container)
+            file_layout.setContentsMargins(0, 0, 0, 0)
+            file_layout.setSpacing(8)
+
+            line_edit = QLineEdit()
+            line_edit.setReadOnly(True)
+            line_edit.setPlaceholderText("No file selected...")
+            if param.default:
+                line_edit.setText(str(param.default))
+            line_edit.setStyleSheet(f"""
+                QLineEdit {{
+                    background-color: {Theme.param_bg()};
+                    color: {Theme.text()};
+                    border: 1px solid {Theme.color('border_dim')};
+                    border-radius: {Theme.RADIUS_MD}px;
+                    padding: 8px 12px;
+                    font-size: {Theme.FONT_SIZE_LG}px;
+                }}
+            """)
+
+            browse_btn = QPushButton("Browse")
+            browse_btn.setMinimumWidth(80)
+            browse_btn.setMinimumHeight(36)
+            browse_btn.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: {Theme.success()};
+                    color: white;
+                    border: none;
+                    font-weight: bold;
+                    font-size: {Theme.FONT_SIZE_LG}px;
+                    border-radius: {Theme.RADIUS_MD}px;
+                    padding: 8px 16px;
+                }}
+                QPushButton:hover {{
+                    background-color: {Theme.color('surface_hover')};
+                    color: {Theme.text()};
+                }}
+            """)
+
+            # Build file filter from options (extensions list)
+            if param.options:
+                ext_list = " ".join(f"*{ext}" for ext in param.options)
+                file_filter = f"Images ({ext_list});;All Files (*)"
+            else:
+                file_filter = "All Files (*)"
+
+            def on_browse(checked=False, le=line_edit, ff=file_filter):
+                path, _ = QFileDialog.getOpenFileName(self, "Select File", "", ff)
+                if path:
+                    le.setText(path)
+                    self._on_value_changed()
+
+            browse_btn.clicked.connect(on_browse)
+
+            file_layout.addWidget(line_edit, 1)
+            file_layout.addWidget(browse_btn)
+
+            widget = file_container
+            widget._line_edit = line_edit
+
         if widget:
             # For toggles, widget is already added in special order
             if param.type != ParameterType.TOGGLE:
@@ -387,11 +449,38 @@ class ParameterForm(QWidget):
                 values[param.id] = widget.value()
             elif param.type == ParameterType.DROPDOWN:
                 values[param.id] = widget.currentText()
+            elif param.type == ParameterType.FILE_INPUT:
+                values[param.id] = widget._line_edit.text() if hasattr(widget, '_line_edit') else param.default
             else:
                 values[param.id] = param.default
         
         return values
     
+    def set_values(self, values: Dict[str, Any]):
+        """Restore parameter values into existing widgets (used to persist values across form rebuilds)."""
+        for param in self._parameters:
+            widget = self._widgets.get(param.id)
+            if not widget or param.id not in values:
+                continue
+            val = values[param.id]
+            if param.type == ParameterType.TOGGLE:
+                widget.setChecked(bool(val))
+            elif param.type == ParameterType.MULTI_TOGGLE:
+                if hasattr(widget, '_checkboxes'):
+                    selected = val.split(',') if isinstance(val, str) else (val or [])
+                    for opt, cb in widget._checkboxes.items():
+                        cb.setChecked(opt in selected)
+            elif param.type == ParameterType.SLIDER:
+                if hasattr(widget, '_slider'):
+                    widget._slider.setValue(int(val))
+            elif param.type == ParameterType.SEGMENTED_PILL:
+                widget.setValue(str(val))
+            elif param.type == ParameterType.DROPDOWN:
+                widget.setCurrentText(str(val))
+            elif param.type == ParameterType.FILE_INPUT:
+                if hasattr(widget, '_line_edit'):
+                    widget._line_edit.setText(str(val))
+
     def set_meta(self, meta: Dict[str, Any]):
         """Update meta context and re-evaluate visibility."""
         self._meta = meta

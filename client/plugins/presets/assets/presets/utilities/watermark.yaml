@@ -1,0 +1,135 @@
+# ============================================================================
+# WATERMARK OVERLAY
+# ============================================================================
+meta:
+  id: "utility_watermark"
+  name: "Watermark"
+  category: "utility"
+  description: "Overlay a watermark image onto photos and videos. Output format matches input (jpg→jpg, mp4→mp4)."
+  version: "3.0"
+  # No output_extension — preserves input format: jpg→jpg, mp4→mp4, mov→mov, etc.
+
+style:
+  accent_color: "#1E88E5"
+  icon: "text:WM"
+  glow_strength: "normal"
+
+constraints:
+  accepted_types: ["image", "video"]
+  accepted_extensions: [".png", ".jpg", ".jpeg", ".bmp", ".tiff", ".webp", ".mp4", ".mov", ".mkv", ".avi", ".webm"]
+
+parameters:
+  - id: "watermark_file"
+    label: "Watermark Image"
+    type: "file_input"
+    default: ""
+    options: [".png", ".jpg", ".jpeg", ".svg", ".webp"]
+    tooltip: "Select the watermark image file (PNG with transparency recommended)"
+
+  - id: "layout"
+    label: "Layout"
+    type: "segmented_pill"
+    options: ["Corner", "Diagonal", "Random"]
+    default: "Corner"
+    tooltip: "Corner: single placement | Diagonal: repeating rows across image | Random: scattered placement"
+
+  - id: "corner_position"
+    label: "Corner"
+    type: "segmented_pill"
+    options: ["Top-Left", "Top-Right", "Bottom-Left", "Bottom-Right"]
+    default: "Bottom-Right"
+    tooltip: "Which corner to place the watermark"
+    visibility_rule: "layout == 'Corner'"
+
+  - id: "opacity"
+    label: "Opacity"
+    type: "slider"
+    min_value: 5
+    max_value: 100
+    default: 30
+    tooltip: "Watermark transparency (5=nearly invisible, 100=fully opaque)"
+
+  - id: "size"
+    label: "Size %"
+    type: "slider"
+    min_value: 5
+    max_value: 80
+    default: 20
+    tooltip: "Watermark size as a percentage of the input image/video width"
+    visibility_rule: "layout != 'Diagonal'"
+
+  - id: "rows"
+    label: "Rows"
+    type: "slider"
+    min_value: 1
+    max_value: 8
+    default: 3
+    tooltip: "Number of watermark rows — each row height equals one gap height (1 row + 1 gap per unit)"
+    visibility_rule: "layout == 'Diagonal'"
+
+pipeline:
+  - tool: "ffmpeg"
+    description: "Applying watermark overlay"
+    filename_suffix: "_watermarked"
+    command_template: |
+      {% set video_exts = ['.mp4', '.mov', '.mkv', '.avi', '.webm'] %}
+      {% set input_ext = '.' + input_path.split('.')[-1] | lower %}
+      {% set is_video = input_ext in video_exts %}
+      {% set op = opacity / 100.0 %}
+      {% if layout == 'Corner' %}
+        {% set wm_w = (meta.width * size / 100) | int %}
+        {% if corner_position == 'Top-Left' %}{% set pos = '20:20' %}
+        {% elif corner_position == 'Top-Right' %}{% set pos = 'W-w-20:20' %}
+        {% elif corner_position == 'Bottom-Left' %}{% set pos = '20:H-h-20' %}
+        {% else %}{% set pos = 'W-w-20:H-h-20' %}
+        {% endif %}
+      {{ tool_exe }} -y -i "{{ input_path }}" -i "{{ watermark_file }}"
+      -filter_complex "[1:v]scale={{ wm_w }}:-1,format=rgba,colorchannelmixer=aa={{ op }}[wm];[0:v][wm]overlay={{ pos }}"
+      {% if is_video %}-c:v {{ gpu_encoder }} {{ get_h264_flags(18) }} -c:a copy{% else %}-frames:v 1 -q:v 1{% endif %}
+      "{{ output_path }}"
+      {% elif layout == 'Diagonal' %}
+        {% set base_h = meta.height if meta.height > 0 else 720 %}
+        {% set base_w = meta.width if meta.width > 0 else 1280 %}
+        {# period = total height per row+gap pair; wm_h = half of that #}
+        {% set period = [base_h // rows, 16] | max %}
+        {% set wm_h = [period // 2, 4] | max %}
+        {% set col_w = wm_h %}
+        {# step_y: how much y advances per column step — controls the diagonal angle (~27°) #}
+        {% set step_y = [col_w // 2, 1] | max %}
+        {# n_top: virtual rows above the image needed to cover the top-right corner #}
+        {% set n_top = base_w // col_w * step_y // period %}
+        {% set n_rows_render = n_top + rows + 1 %}
+        {% set cols = base_w // col_w + 2 %}
+        {% set total = n_rows_render * cols %}
+      {{ tool_exe }} -y -i "{{ input_path }}" -i "{{ watermark_file }}"
+      -filter_complex "[1:v]scale=-1:{{ wm_h }},format=rgba,colorchannelmixer=aa={{ op }},split={{ total }}{% for i in range(total) %}[wm{{ i }}]{% endfor %};{% set ns = namespace(idx=0, prev='[0:v]') %}{% for ri in range(n_rows_render) %}{% set y_base = (ri - n_top) * period %}{% for c in range(cols) %}{% set x = c * col_w %}{% set y = y_base + c * step_y %}{% if ns.idx < total - 1 %}{{ ns.prev }}[wm{{ ns.idx }}]overlay={{ x }}:{{ y }}[t{{ ns.idx }}];{% set ns.prev = '[t' + ns.idx|string + ']' %}{% else %}{{ ns.prev }}[wm{{ ns.idx }}]overlay={{ x }}:{{ y }}{% endif %}{% set ns.idx = ns.idx + 1 %}{% endfor %}{% endfor %}"
+      {% if is_video %}-c:v {{ gpu_encoder }} {{ get_h264_flags(18) }} -c:a copy{% else %}-frames:v 1 -q:v 1{% endif %}
+      "{{ output_path }}"
+      {% elif layout == 'Random' %}
+        {% set wm_w = (meta.width * size / 100) | int %}
+      {{ tool_exe }} -y -i "{{ input_path }}" -i "{{ watermark_file }}"
+      -filter_complex "[1:v]scale={{ wm_w }}:-1,format=rgba,colorchannelmixer=aa={{ op }},split=3[wm1][wm2][wm3];[0:v][wm1]overlay=W*0.65:H*0.12[t1];[t1][wm2]overlay=W*0.15:H*0.55[t2];[t2][wm3]overlay=W*0.45:H*0.78"
+      {% if is_video %}-c:v {{ gpu_encoder }} {{ get_h264_flags(18) }} -c:a copy{% else %}-frames:v 1 -q:v 1{% endif %}
+      "{{ output_path }}"
+      {% endif %}
+
+# ============================================================================
+# CHECKLIST
+# ============================================================================
+# [x] Unique id: utility_watermark
+# [x] Category: utility
+# [x] Tool: FFmpeg (handles both images and videos natively)
+# [x] Output format: preserves input format (jpg→jpg, mp4→mp4, mov→mov)
+# [x] Quality preservation:
+#     Videos: gpu_encoder + get_h264_flags(18) (visually lossless CRF)
+#     Images: -q:v 1 (highest JPEG quality; PNG is always lossless)
+# [x] Layout modes:
+#     - Corner: single overlay at chosen corner, 20px margin
+#     - Diagonal: sheared grid — each column step advances y by step_y=col_w/2 (~27°)
+#         period = base_h / rows  (row+gap height)
+#         wm_h = period / 2  (watermark height = gap height)
+#         n_top virtual rows above frame ensure top-right corner coverage
+#         split=N with unique [wmN] pads — valid filter_complex
+#     - Random: 3 copies at pseudo-random positions
+# [x] size: visible for Corner + Random (% of input width)
+# [x] rows: visible for Diagonal only (1–8, controls density)
