@@ -7,7 +7,14 @@
       "Bash(find /V/_MY_APPS/ImgApp_1 -name *.txt -path *requirements* -type f)",
       "Bash(cd /tmp)",
       "Bash(magick -size 1000x1000 xc:white -fill \"navy\" -font Arial -pointsize 120 -gravity center -draw \"text 0,0 ''LOGO''\" -fill \"darkred\" -draw \"rectangle 200,600 800,700\" test_logo_real.png)",
-      "Bash(time magick:*)"
+      "Bash(time magick:*)",
+      "WebSearch",
+      "Bash(\"V:/_MY_APPS/ImgApp_1/tools/ffmpeg/ffmpeg.exe\" -y -i \"C:/Users/V/Pictures/IMAGE_CONVERT_APP_testing/test_video_converted_720w.mp4\" -vf \"drawtext=text=''''test'''':fontfile=''''C:/Windows/Fonts/arial.ttf'''':fontsize=48:fontcolor=white@0.3:x=10:y=10\" -c:v h264_nvenc -preset p7 -cq 18 -rc vbr -c:a copy -t 1 \"C:/Users/V/Pictures/IMAGE_CONVERT_APP_testing/output/drawtext_test.mp4\")",
+      "Bash(\"V:/_MY_APPS/ImgApp_1/tools/ffmpeg/ffmpeg.exe\" -y -i \"C:/Users/V/Pictures/IMAGE_CONVERT_APP_testing/test_video_converted_720w.mp4\" -vf \"drawtext=text=''''test'''':fontfile=C\\\\:/Windows/Fonts/arial.ttf:fontsize=48:fontcolor=white@0.3:x=10:y=10\" -c:v h264_nvenc -preset p7 -cq 18 -rc vbr -c:a copy -t 1 \"C:/Users/V/Pictures/IMAGE_CONVERT_APP_testing/output/drawtext_test.mp4\")",
+      "Bash(\"V:/_MY_APPS/ImgApp_1/tools/ffmpeg/ffmpeg.exe\" -y -i \"C:/Users/V/Pictures/IMAGE_CONVERT_APP_testing/test_video_converted_720w.mp4\" -vf \"drawtext=text=test:font=Arial:fontsize=48:fontcolor=white@0.3:x=10:y=10\" -c:v h264_nvenc -preset p7 -cq 18 -rc vbr -c:a copy -t 1 \"C:/Users/V/Pictures/IMAGE_CONVERT_APP_testing/output/drawtext_test.mp4\")",
+      "Bash(\"V:/_MY_APPS/ImgApp_1/tools/ffmpeg/ffmpeg.exe\" -y -i \"C:/Users/V/Pictures/IMAGE_CONVERT_APP_testing/test_video_converted_720w.mp4\" -vf \"drawtext=text=test:font=Arial:fontsize=48:fontcolor=white@0.3:x=10:y=10,format=yuv420p\" -c:v h264_nvenc -preset p7 -cq 18 -rc vbr -c:a copy -t 1 \"C:/Users/V/Pictures/IMAGE_CONVERT_APP_testing/output/drawtext_test.mp4\")",
+      "Bash(\"V:/_MY_APPS/ImgApp_1/tools/ffmpeg/ffmpeg.exe\" -y -i \"C:/Users/V/Pictures/IMAGE_CONVERT_APP_testing/test_video_converted_720w.mp4\" -vf \"drawtext=text=''''test'''':fontfile=tools/fonts/arial.ttf:fontsize=48:fontcolor=white@0.3:x=10:y=10,format=yuv420p\" -c:v h264_nvenc -preset p7 -cq 18 -rc vbr -c:a copy -t 1 \"C:/Users/V/Pictures/IMAGE_CONVERT_APP_testing/output/drawtext_test3.mp4\")",
+      "Bash(python:*)"
     ]
   }
 }

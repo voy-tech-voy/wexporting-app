@@ -280,12 +280,32 @@ class ParameterForm(QWidget):
             widget.setMinimumHeight(40)  # Ensure buttons aren't cut off
             widget.value_changed.connect(lambda: self._on_value_changed())
             
+        elif param.type == ParameterType.TEXT:
+            widget = QLineEdit()
+            widget.setPlaceholderText(param.tooltip or "Enter text...")
+            if param.default:
+                widget.setText(str(param.default))
+            widget.setStyleSheet(f"""
+                QLineEdit {{
+                    background-color: {Theme.param_bg()};
+                    color: {Theme.text()};
+                    border: 1px solid {Theme.color('border_dim')};
+                    border-radius: {Theme.RADIUS_MD}px;
+                    padding: 8px 12px;
+                    font-size: {Theme.FONT_SIZE_LG}px;
+                }}
+                QLineEdit:focus {{
+                    border: 1px solid {Theme.border_focus()};
+                }}
+            """)
+            widget.textChanged.connect(lambda: self._on_value_changed())
+
         elif param.type == ParameterType.DROPDOWN:
             widget = QComboBox()
             widget.addItems(param.options)
             if param.default in param.options:
                 widget.setCurrentText(str(param.default))
-            
+
             # Apply theme-aware styling
             widget.setStyleSheet(f"""
                 QComboBox {{
@@ -449,6 +469,8 @@ class ParameterForm(QWidget):
                 values[param.id] = widget.value()
             elif param.type == ParameterType.DROPDOWN:
                 values[param.id] = widget.currentText()
+            elif param.type == ParameterType.TEXT:
+                values[param.id] = widget.text() if isinstance(widget, QLineEdit) else param.default
             elif param.type == ParameterType.FILE_INPUT:
                 values[param.id] = widget._line_edit.text() if hasattr(widget, '_line_edit') else param.default
             else:
@@ -477,6 +499,9 @@ class ParameterForm(QWidget):
                 widget.setValue(str(val))
             elif param.type == ParameterType.DROPDOWN:
                 widget.setCurrentText(str(val))
+            elif param.type == ParameterType.TEXT:
+                if isinstance(widget, QLineEdit):
+                    widget.setText(str(val))
             elif param.type == ParameterType.FILE_INPUT:
                 if hasattr(widget, '_line_edit'):
                     widget._line_edit.setText(str(val))

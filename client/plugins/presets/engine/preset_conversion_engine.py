@@ -358,7 +358,12 @@ class PresetConversionEngine(QThread):
                 startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
                 creationflags = subprocess.CREATE_NO_WINDOW
 
-            _cwd = sys._MEIPASS if getattr(sys, 'frozen', False) else None
+            if getattr(sys, 'frozen', False):
+                _cwd = sys._MEIPASS
+            else:
+                # Development: set cwd to project root so relative paths (e.g. tools/fonts/) work
+                from client.core.tool_registry.bundled import get_dev_tools_dir
+                _cwd = str(Path(get_dev_tools_dir()).parent)
             self._current_process = subprocess.Popen(
                 cmd_with_progress,
                 shell=True,

@@ -5,8 +5,8 @@ meta:
   id: "utility_watermark"
   name: "Watermark"
   category: "utility"
-  description: "Overlay a watermark image onto photos and videos. Output format matches input (jpg→jpg, mp4→mp4)."
-  version: "3.0"
+  description: "Overlay a watermark image or text onto photos and videos. Output format matches input (jpg→jpg, mp4→mp4)."
+  version: "4.0"
   # No output_extension — preserves input format: jpg→jpg, mp4→mp4, mov→mov, etc.
 
 style:
@@ -19,12 +19,43 @@ constraints:
   accepted_extensions: [".png", ".jpg", ".jpeg", ".bmp", ".tiff", ".webp", ".mp4", ".mov", ".mkv", ".avi", ".webm"]
 
 parameters:
+  - id: "watermark_type"
+    label: "Type"
+    type: "segmented_pill"
+    options: ["File", "Text"]
+    default: "File"
+    tooltip: "File: overlay an image | Text: render custom text watermark"
+
   - id: "watermark_file"
     label: "Watermark Image"
     type: "file_input"
     default: ""
     options: [".png", ".jpg", ".jpeg", ".svg", ".webp"]
     tooltip: "Select the watermark image file (PNG with transparency recommended)"
+    visibility_rule: "watermark_type == 'File'"
+
+  - id: "watermark_text"
+    label: "Text"
+    type: "text"
+    default: "© 2025"
+    tooltip: "Watermark text to render"
+    visibility_rule: "watermark_type == 'Text'"
+
+  - id: "font_style"
+    label: "Font Style"
+    type: "segmented_pill"
+    options: ["Modern", "Classic", "Bold"]
+    default: "Modern"
+    tooltip: "Modern: Arial (clean sans-serif) | Classic: Times New Roman | Bold: Impact"
+    visibility_rule: "watermark_type == 'Text'"
+
+  - id: "font_color"
+    label: "Font Color"
+    type: "segmented_pill"
+    options: ["White", "Black", "Yellow"]
+    default: "White"
+    tooltip: "Text color for the watermark"
+    visibility_rule: "watermark_type == 'Text'"
 
   - id: "layout"
     label: "Layout"
@@ -56,7 +87,16 @@ parameters:
     max_value: 80
     default: 20
     tooltip: "Watermark size as a percentage of the input image/video width"
-    visibility_rule: "layout != 'Diagonal'"
+    visibility_rule: "watermark_type == 'File'"
+
+  - id: "font_size"
+    label: "Font Size"
+    type: "slider"
+    min_value: 10
+    max_value: 200
+    default: 48
+    tooltip: "Font size in pixels"
+    visibility_rule: "watermark_type == 'Text'"
 
   - id: "rows"
     label: "Rows"
@@ -76,41 +116,82 @@ pipeline:
       {% set input_ext = '.' + input_path.split('.')[-1] | lower %}
       {% set is_video = input_ext in video_exts %}
       {% set op = opacity / 100.0 %}
-      {% if layout == 'Corner' %}
-        {% set wm_w = (meta.width * size / 100) | int %}
-        {% if corner_position == 'Top-Left' %}{% set pos = '20:20' %}
-        {% elif corner_position == 'Top-Right' %}{% set pos = 'W-w-20:20' %}
-        {% elif corner_position == 'Bottom-Left' %}{% set pos = '20:H-h-20' %}
-        {% else %}{% set pos = 'W-w-20:H-h-20' %}
+      {% if watermark_type == 'File' %}
+        {# ── FILE MODE ─────────────────────────────────────────────────── #}
+        {% if layout == 'Corner' %}
+          {% set wm_w = (meta.width * size / 100) | int %}
+          {% if corner_position == 'Top-Left' %}{% set pos = '20:20' %}
+          {% elif corner_position == 'Top-Right' %}{% set pos = 'W-w-20:20' %}
+          {% elif corner_position == 'Bottom-Left' %}{% set pos = '20:H-h-20' %}
+          {% else %}{% set pos = 'W-w-20:H-h-20' %}
+          {% endif %}
+        {{ tool_exe }} -y -i "{{ input_path }}" -i "{{ watermark_file }}"
+        -filter_complex "[1:v]scale={{ wm_w }}:-1,format=rgba,colorchannelmixer=aa={{ op }}[wm];[0:v][wm]overlay={{ pos }}"
+        {% if is_video %}-c:v {{ gpu_encoder }} {{ get_h264_flags(18) }} -pix_fmt yuv420p -c:a copy{% else %}-frames:v 1 -q:v 1{% endif %}
+        "{{ output_path }}"
+        {% elif layout == 'Diagonal' %}
+          {# Lightweight diagonal grid: rows × 3 columns, each row shifted right for diagonal look #}
+          {% set wm_w = (meta.width * size / 100) | int %}
+          {% set base_w = meta.width if meta.width > 0 else 1280 %}
+          {% set base_h = meta.height if meta.height > 0 else 720 %}
+          {% set n_cols = 3 %}
+          {% set total = rows * n_cols %}
+          {% set x_gap = base_w // n_cols %}
+          {% set y_gap = base_h // rows %}
+          {% set x_shift = x_gap // rows %}
+        {{ tool_exe }} -y -i "{{ input_path }}" -i "{{ watermark_file }}"
+        -filter_complex "[1:v]scale={{ wm_w }}:-1,format=rgba,colorchannelmixer=aa={{ op }},split={{ total }}{% for i in range(total) %}[wm{{ i }}]{% endfor %};{% set ns = namespace(idx=0, prev='[0:v]') %}{% for r in range(rows) %}{% for c in range(n_cols) %}{% set x = c * x_gap + r * x_shift %}{% set y = (r * y_gap + y_gap * 3 // 10) %}{% if ns.idx < total - 1 %}{{ ns.prev }}[wm{{ ns.idx }}]overlay={{ x }}:{{ y }}[t{{ ns.idx }}];{% set ns.prev = '[t' + ns.idx|string + ']' %}{% else %}{{ ns.prev }}[wm{{ ns.idx }}]overlay={{ x }}:{{ y }}{% endif %}{% set ns.idx = ns.idx + 1 %}{% endfor %}{% endfor %}"
+        {% if is_video %}-c:v {{ gpu_encoder }} {{ get_h264_flags(18) }} -pix_fmt yuv420p -c:a copy{% else %}-frames:v 1 -q:v 1{% endif %}
+        "{{ output_path }}"
+        {% elif layout == 'Random' %}
+          {% set wm_w = (meta.width * size / 100) | int %}
+        {{ tool_exe }} -y -i "{{ input_path }}" -i "{{ watermark_file }}"
+        -filter_complex "[1:v]scale={{ wm_w }}:-1,format=rgba,colorchannelmixer=aa={{ op }},split=3[wm1][wm2][wm3];[0:v][wm1]overlay=W*0.65:H*0.12[t1];[t1][wm2]overlay=W*0.15:H*0.55[t2];[t2][wm3]overlay=W*0.45:H*0.78"
+        {% if is_video %}-c:v {{ gpu_encoder }} {{ get_h264_flags(18) }} -pix_fmt yuv420p -c:a copy{% else %}-frames:v 1 -q:v 1{% endif %}
+        "{{ output_path }}"
         {% endif %}
-      {{ tool_exe }} -y -i "{{ input_path }}" -i "{{ watermark_file }}"
-      -filter_complex "[1:v]scale={{ wm_w }}:-1,format=rgba,colorchannelmixer=aa={{ op }}[wm];[0:v][wm]overlay={{ pos }}"
-      {% if is_video %}-c:v {{ gpu_encoder }} {{ get_h264_flags(18) }} -c:a copy{% else %}-frames:v 1 -q:v 1{% endif %}
-      "{{ output_path }}"
-      {% elif layout == 'Diagonal' %}
-        {% set base_h = meta.height if meta.height > 0 else 720 %}
-        {% set base_w = meta.width if meta.width > 0 else 1280 %}
-        {# period = total height per row+gap pair; wm_h = half of that #}
-        {% set period = [base_h // rows, 16] | max %}
-        {% set wm_h = [period // 2, 4] | max %}
-        {% set col_w = wm_h %}
-        {# step_y: how much y advances per column step — controls the diagonal angle (~27°) #}
-        {% set step_y = [col_w // 2, 1] | max %}
-        {# n_top: virtual rows above the image needed to cover the top-right corner #}
-        {% set n_top = base_w // col_w * step_y // period %}
-        {% set n_rows_render = n_top + rows + 1 %}
-        {% set cols = base_w // col_w + 2 %}
-        {% set total = n_rows_render * cols %}
-      {{ tool_exe }} -y -i "{{ input_path }}" -i "{{ watermark_file }}"
-      -filter_complex "[1:v]scale=-1:{{ wm_h }},format=rgba,colorchannelmixer=aa={{ op }},split={{ total }}{% for i in range(total) %}[wm{{ i }}]{% endfor %};{% set ns = namespace(idx=0, prev='[0:v]') %}{% for ri in range(n_rows_render) %}{% set y_base = (ri - n_top) * period %}{% for c in range(cols) %}{% set x = c * col_w %}{% set y = y_base + c * step_y %}{% if ns.idx < total - 1 %}{{ ns.prev }}[wm{{ ns.idx }}]overlay={{ x }}:{{ y }}[t{{ ns.idx }}];{% set ns.prev = '[t' + ns.idx|string + ']' %}{% else %}{{ ns.prev }}[wm{{ ns.idx }}]overlay={{ x }}:{{ y }}{% endif %}{% set ns.idx = ns.idx + 1 %}{% endfor %}{% endfor %}"
-      {% if is_video %}-c:v {{ gpu_encoder }} {{ get_h264_flags(18) }} -c:a copy{% else %}-frames:v 1 -q:v 1{% endif %}
-      "{{ output_path }}"
-      {% elif layout == 'Random' %}
-        {% set wm_w = (meta.width * size / 100) | int %}
-      {{ tool_exe }} -y -i "{{ input_path }}" -i "{{ watermark_file }}"
-      -filter_complex "[1:v]scale={{ wm_w }}:-1,format=rgba,colorchannelmixer=aa={{ op }},split=3[wm1][wm2][wm3];[0:v][wm1]overlay=W*0.65:H*0.12[t1];[t1][wm2]overlay=W*0.15:H*0.55[t2];[t2][wm3]overlay=W*0.45:H*0.78"
-      {% if is_video %}-c:v {{ gpu_encoder }} {{ get_h264_flags(18) }} -c:a copy{% else %}-frames:v 1 -q:v 1{% endif %}
-      "{{ output_path }}"
+      {% else %}
+        {# ── TEXT MODE ─────────────────────────────────────────────────── #}
+        {# Bundled fonts in tools/fonts/ — relative path avoids Windows colon escaping issues #}
+        {% set font_files = {'Modern': 'arial.ttf', 'Classic': 'times.ttf', 'Bold': 'impact.ttf'} %}
+        {% set ff = 'tools/fonts/' + font_files[font_style] %}
+        {% set fc = font_color | lower %}
+        {% set txt = watermark_text | replace("'", "") | replace(":", "\\:") %}
+        {% set dt_base = "fontfile=" + ff + ":fontsize=" + font_size|string + ":fontcolor=" + fc + "@" + op|string %}
+        {% if layout == 'Corner' %}
+          {% if corner_position == 'Top-Left' %}{% set tx = '20' %}{% set ty = '20' %}
+          {% elif corner_position == 'Top-Right' %}{% set tx = 'W-tw-20' %}{% set ty = '20' %}
+          {% elif corner_position == 'Bottom-Left' %}{% set tx = '20' %}{% set ty = 'H-th-20' %}
+          {% else %}{% set tx = 'W-tw-20' %}{% set ty = 'H-th-20' %}
+          {% endif %}
+        {{ tool_exe }} -y -i "{{ input_path }}"
+        -vf "drawtext=text='{{ txt }}':{{ dt_base }}:x={{ tx }}:y={{ ty }}"
+        {% if is_video %}-c:v {{ gpu_encoder }} {{ get_h264_flags(18) }} -pix_fmt yuv420p -c:a copy{% else %}-frames:v 1 -q:v 1{% endif %}
+        "{{ output_path }}"
+        {% elif layout == 'Random' %}
+        {{ tool_exe }} -y -i "{{ input_path }}"
+        -vf "drawtext=text='{{ txt }}':{{ dt_base }}:x=W*0.65:y=H*0.12,drawtext=text='{{ txt }}':{{ dt_base }}:x=W*0.15:y=H*0.55,drawtext=text='{{ txt }}':{{ dt_base }}:x=W*0.45:y=H*0.78"
+        {% if is_video %}-c:v {{ gpu_encoder }} {{ get_h264_flags(18) }} -pix_fmt yuv420p -c:a copy{% else %}-frames:v 1 -q:v 1{% endif %}
+        "{{ output_path }}"
+        {% elif layout == 'Diagonal' %}
+          {# Lightweight diagonal: rows × 3 drawtext instances, each row shifted right #}
+          {% set n_cols = 3 %}
+          {% set x_gap = 1.0 / n_cols %}
+          {% set y_gap = 1.0 / rows %}
+          {% set x_shift = x_gap / rows %}
+          {% set ns = namespace(filters=[]) %}
+          {% for r in range(rows) %}
+            {% for c in range(n_cols) %}
+              {% set xf = (c * x_gap + r * x_shift) | round(3) %}
+              {% set yf = (r * y_gap + y_gap * 0.3) | round(3) %}
+              {% set ns.filters = ns.filters + ["drawtext=text='" + txt + "':" + dt_base + ":x=W*" + xf|string + ":y=H*" + yf|string] %}
+            {% endfor %}
+          {% endfor %}
+        {{ tool_exe }} -y -i "{{ input_path }}"
+        -vf "{{ ns.filters | join(',') }}"
+        {% if is_video %}-c:v {{ gpu_encoder }} {{ get_h264_flags(18) }} -pix_fmt yuv420p -c:a copy{% else %}-frames:v 1 -q:v 1{% endif %}
+        "{{ output_path }}"
+        {% endif %}
       {% endif %}
 
 # ============================================================================
@@ -121,15 +202,34 @@ pipeline:
 # [x] Tool: FFmpeg (handles both images and videos natively)
 # [x] Output format: preserves input format (jpg→jpg, mp4→mp4, mov→mov)
 # [x] Quality preservation:
-#     Videos: gpu_encoder + get_h264_flags(18) (visually lossless CRF)
+#     Videos: gpu_encoder + get_h264_flags(18) + pix_fmt yuv420p (visually lossless CRF)
 #     Images: -q:v 1 (highest JPEG quality; PNG is always lossless)
-# [x] Layout modes:
-#     - Corner: single overlay at chosen corner, 20px margin
-#     - Diagonal: sheared grid — each column step advances y by step_y=col_w/2 (~27°)
-#         period = base_h / rows  (row+gap height)
-#         wm_h = period / 2  (watermark height = gap height)
-#         n_top virtual rows above frame ensure top-right corner coverage
-#         split=N with unique [wmN] pads — valid filter_complex
-#     - Random: 3 copies at pseudo-random positions
-# [x] size: visible for Corner + Random (% of input width)
-# [x] rows: visible for Diagonal only (1–8, controls density)
+#
+# [x] WATERMARK TYPES:
+#     File: overlay image with transparency (existing logic, unchanged)
+#     Text: ffmpeg drawtext filter — no second input needed
+#
+# [x] FILE mode layout modes:
+#     - Corner: 1 overlay at chosen corner, 20px margin
+#     - Diagonal: rows × 3 overlays (9-24 max), each row shifted right for diagonal look
+#     - Random: 3 overlays at pseudo-random positions
+#
+# [x] TEXT mode:
+#     Font styles (bundled in tools/fonts/ — avoids Windows colon path issues):
+#       Modern→arial.ttf, Classic→times.ttf, Bold→impact.ttf
+#     Font color: White, Black, Yellow — with opacity via @alpha syntax
+#     Layouts:
+#       - Corner: 1 drawtext at chosen corner (tw/th for text dimensions)
+#       - Random: 3 drawtext at fixed pseudo-random positions
+#       - Diagonal: rows × 3 drawtext via -vf (no filter_complex needed)
+#     Special chars: single-quotes stripped, colons escaped (\:)
+#
+# [x] Visibility rules:
+#     watermark_file   → watermark_type == 'File'
+#     watermark_text   → watermark_type == 'Text'
+#     font_style       → watermark_type == 'Text'
+#     font_color       → watermark_type == 'Text'
+#     font_size        → watermark_type == 'Text'
+#     size             → watermark_type == 'File'
+#     rows             → layout == 'Diagonal'
+#     corner_position  → layout == 'Corner'
