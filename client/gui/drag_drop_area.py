@@ -246,7 +246,7 @@ class DragDropArea(QWidget):
         """
         try:
             from client.core.tool_registry import get_registry
-            from client.plugins.presets import PresetOrchestrator
+            from client.plugins.presets.orchestrator import PresetOrchestrator
             
             registry = get_registry()
             # Parent gallery to DragDropArea (self) not file_list_widget for full width
