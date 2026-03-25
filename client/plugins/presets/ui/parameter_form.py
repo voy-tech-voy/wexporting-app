@@ -19,6 +19,19 @@ from client.plugins.presets.logic.models import ParameterDefinition, ParameterTy
 from client.gui.theme import Theme
 
 
+class _WheelIgnoreFilter(QWidget):
+    """Event filter that ignores wheel events so scroll passes through to parent scroll area."""
+    def eventFilter(self, obj, event):
+        from PySide6.QtCore import QEvent
+        if event.type() == QEvent.Type.Wheel:
+            event.ignore()
+            return True
+        return super().eventFilter(obj, event)
+
+# Singleton filter instance (safe to share - stateless)
+_WHEEL_IGNORE = _WheelIgnoreFilter()
+
+
 class SegmentedPill(QWidget):
     """Segmented button group for multi-option selection"""
     
@@ -131,8 +144,9 @@ class ParameterForm(QWidget):
         self._is_dark = True  # Default to dark mode
         
         self._layout = QVBoxLayout(self)
-        self._layout.setContentsMargins(0, 4, 0, 20)  # Bottom padding prevents last param being clipped in scroll area
-        self._layout.setSpacing(12)  # Consistent spacing between parameters
+        self._layout.setContentsMargins(0, 0, 0, 16)  # Bottom padding prevents last param being clipped in scroll area
+        self._layout.setSpacing(8)  # Consistent spacing between parameters
+
         
         self._apply_styles()
     
@@ -261,6 +275,7 @@ class ParameterForm(QWidget):
             slider.setMinimum(int(param.min_value or 0))
             slider.setMaximum(int(param.max_value or 100))
             slider.setValue(int(param.default or 50))
+            slider.installEventFilter(_WHEEL_IGNORE)  # Don't change value on scroll
             
             value_label = QLabel(str(slider.value()))
             value_label.setMinimumWidth(40)
@@ -305,6 +320,7 @@ class ParameterForm(QWidget):
             widget.addItems(param.options)
             if param.default in param.options:
                 widget.setCurrentText(str(param.default))
+            widget.installEventFilter(_WHEEL_IGNORE)  # Don't change value on scroll
 
             # Apply theme-aware styling
             widget.setStyleSheet(f"""

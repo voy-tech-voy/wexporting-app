@@ -15,7 +15,7 @@ meta:
 
 style:
   accent_color: "#FFD700"         # Gold for Utility/Production
-  icon: "text:Video\nto\nimages"
+  icon: "vid_to_img"
   glow_strength: "normal"
 
 constraints:

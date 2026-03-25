@@ -11,7 +11,7 @@ meta:
 
 style:
   accent_color: "#9C27B0"
-  icon: "text:BG"
+  icon: "remove_bg"
   glow_strength: "normal"
 
 constraints:

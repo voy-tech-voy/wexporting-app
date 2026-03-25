@@ -34,15 +34,15 @@ class DynamicParameterPanel(QFrame):
         
         # Layout constants
         self.PANEL_PADDING_H = 24  # Horizontal padding
-        self.PANEL_PADDING_TOP = 16
-        self.PANEL_PADDING_BOTTOM = 24
-        self.TITLE_SPACING = 12  # Space below title
+        self.PANEL_PADDING_TOP = 8
+        self.PANEL_PADDING_BOTTOM = 12
+        self.TITLE_SPACING = 4  # Space below title
         
         # Height calculation
         self.MIN_PANEL_HEIGHT = 80  # Minimum visible height
         self.HEIGHT_BUFFER = 8  # Small buffer for rounding errors
         self.LAYOUT_SETTLE_DELAY = 23  # ms to wait for Qt layout to settle
-        self.MAX_FORM_HEIGHT_RATIO = 0.75  # Form scroll area capped at 75% of gallery height
+        self.MAX_FORM_HEIGHT_RATIO = 0.60  # Panel capped at 60% of gallery height
 
         
         # Animation state
@@ -72,7 +72,7 @@ class DynamicParameterPanel(QFrame):
         # Description label (always visible, below title)
         self._description_label = QLabel()
         self._description_label.setObjectName("ParamPanelDescription")
-        self._description_label.setWordWrap(True)
+        self._description_label.setWordWrap(False)  # Single line; \ n ignored
         self._update_description_style()
         self._layout.addWidget(self._description_label)
         
@@ -129,7 +129,10 @@ class DynamicParameterPanel(QFrame):
         self._scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self._scroll_area.setFrameShape(QFrame.Shape.NoFrame)
         self._scroll_area.hide()  # Hidden until a form is loaded
+        # Right padding so form content doesn't touch the scrollbar
+        self._scroll_area.setViewportMargins(0, 0, 14, 0)
         self._layout.addWidget(self._scroll_area)
+
         
         # Parameter form container (set via set_content)
         self._parameter_form = None
@@ -153,6 +156,10 @@ class DynamicParameterPanel(QFrame):
         """Set height using setFixedHeight for smooth shrink animations."""
         self._current_animated_height = h
         self.setFixedHeight(h)
+    
+    def eventFilter(self, obj, event):
+        """Pass all events through - no custom filtering needed."""
+        return super().eventFilter(obj, event)
     
     def _apply_styles(self):
         """Apply panel styling."""
@@ -179,15 +186,14 @@ class DynamicParameterPanel(QFrame):
             }}
             QScrollBar:vertical {{
                 background: {Theme.color('scrollbar_bg')};
-                width: 8px;
+                width: 10px;
                 border: none;
-                border-radius: 4px;
-                margin: 4px 2px 4px 2px;
+                border-radius: 5px;
             }}
             QScrollBar::handle:vertical {{
                 background: {Theme.color('scrollbar_thumb')};
-                border-radius: 4px;
-                min-height: 28px;
+                border-radius: 5px;
+                min-height: 30px;
             }}
             QScrollBar::handle:vertical:hover {{
                 background: {Theme.border_focus()};
@@ -322,13 +328,14 @@ class DynamicParameterPanel(QFrame):
         if getattr(self, '_is_minimized', False):
             self._is_minimized = False
             
-        self._title_label.setText(title)
+        self._title_label.setText(title.replace('\n', ' '))
         
         # Always show description (or default message if empty)
         if description:
-            self._description_label.setText(description)
+            self._description_label.setText(description.replace('\n', ' '))
         else:
             self._description_label.setText("No parameters required for this preset.")
+
         
         # Show/hide Go to Lab button based on preset type
         if preset and preset.raw_yaml.get('meta', {}).get('execution_mode') == 'lab_mode_reference':
@@ -391,8 +398,8 @@ class DynamicParameterPanel(QFrame):
                 self._pending_height_update = True
                 QTimer.singleShot(self.LAYOUT_SETTLE_DELAY, self._update_height_animated)
     
-    def _max_form_height(self) -> int:
-        """Return max allowed height for the scroll area (75% of gallery/parent height)."""
+    def _max_panel_height(self) -> int:
+        """Return max allowed height for the entire panel (50% of gallery/parent height)."""
         parent = self.parent()
         if parent:
             return int(parent.height() * self.MAX_FORM_HEIGHT_RATIO)
@@ -400,8 +407,8 @@ class DynamicParameterPanel(QFrame):
 
     def _calculate_content_height(self) -> int:
         """
-        Calculate exact height needed for current content, capped so the panel
-        never exceeds MAX_FORM_HEIGHT_RATIO of the parent (gallery) height.
+        Calculate exact height needed for current content, capped so the entire
+        panel never exceeds MAX_FORM_HEIGHT_RATIO of the parent (gallery) height.
         """
         # Process pending events to ensure layout is fully updated
         QApplication.processEvents()
@@ -433,14 +440,18 @@ class DynamicParameterPanel(QFrame):
             form_hint = self._parameter_form.sizeHint()
             form_height = form_hint.height() if form_hint.height() > 0 else self._calculate_form_height_manual()
             
-            # Cap form height at 75% of parent
-            max_form = self._max_form_height()
-            capped_form = min(form_height, max_form)
+            # Cap the total panel at MAX_FORM_HEIGHT_RATIO of parent height
+            max_panel = self._max_panel_height()
+            available_for_form = max(0, max_panel - chrome_height - self.HEIGHT_BUFFER)
+            capped_form = min(form_height, available_for_form)
             self._scroll_area.setMaximumHeight(capped_form)
             
             chrome_height += capped_form
         
-        return max(chrome_height + self.HEIGHT_BUFFER, self.MIN_PANEL_HEIGHT)
+        total = chrome_height + self.HEIGHT_BUFFER
+        # Also cap the total panel itself
+        max_panel = self._max_panel_height()
+        return max(min(total, max_panel), self.MIN_PANEL_HEIGHT)
 
     
     def _calculate_form_height_manual(self) -> int:

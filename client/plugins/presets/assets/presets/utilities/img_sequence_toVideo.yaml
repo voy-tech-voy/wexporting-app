@@ -7,7 +7,7 @@
 
 meta:
   id: "image_sequence_to_mp4"
-  name: "Image Sequence\nto Video"
+  name: "Image Sequenc\nto Video"
   category: "utility"
   description: "Merges a sequence of numbered images into a video. Image sequences visible in the file list will be stitched into a video."
   version: "1.1"
@@ -15,7 +15,7 @@ meta:
 
 style:
   accent_color: "#A855F7"         # Creative Purple
-  icon: "text:stitch images"
+  icon: "sewing"
   glow_strength: "strong"
 
 constraints:

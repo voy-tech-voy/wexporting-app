@@ -16,7 +16,8 @@ meta:
 
 style:
   accent_color: "#FFB13B"         # SVG Logo Orange
-  icon: "Small\nSVG"
+  icon: "zigzag3"
+  
   glow_strength: "normal"
 
 constraints:

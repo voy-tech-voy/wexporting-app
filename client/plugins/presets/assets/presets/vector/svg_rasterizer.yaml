@@ -12,7 +12,10 @@ meta:
 constraints:
   accepted_types: ["image"]
   accepted_extensions: [".svg"]
-
+style:
+  accent_color: "#FFB13B"         # SVG Logo Orange
+  icon: "svgpng2"
+  
 pipeline:
   - tool: "magick"
     description: "Rasterizing vector at 300 DPI"

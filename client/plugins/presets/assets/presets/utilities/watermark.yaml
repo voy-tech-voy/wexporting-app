@@ -11,7 +11,7 @@ meta:
 
 style:
   accent_color: "#1E88E5"
-  icon: "text:WM"
+  icon: "wmark2"
   glow_strength: "normal"
 
 constraints:

@@ -4,7 +4,7 @@
 meta:
   id: "utility_favicon_master"
   name: "Favicon (.ico)"
-  category: "utility"
+  category: "web"
   description: "Creates a multi-resolution 16/32/48/256 icon pack in one file."
   version: "1.0"
   output_extension: ".ico"
