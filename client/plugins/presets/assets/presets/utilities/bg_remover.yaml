@@ -66,9 +66,23 @@ parameters:
 
   - id: "invert"
     label: "Invert Result"
+    type: "segmented_pill"
+    options: ["Off", "All", "Blacks"]
+    default: "Off"
+    tooltip: "Off = no invert | All = negate all colors | Blacks = invert only dark pixels to white"
+
+  - id: "hug_content"
+    label: "Hug Content"
     type: "toggle"
     default: false
-    tooltip: "Negates the final output colors"
+    tooltip: "Trims canvas to the bounding box of non-transparent pixels — removes all empty margins"
+
+  - id: "boost_contrast"
+    label: "Boost Contrast"
+    type: "segmented_pill"
+    options: ["Off", "All", "Greys"]
+    default: "Off"
+    tooltip: "Off = none | All = S-curve on all channels | Greys = S-curve on luminance only (light greys→white, dark greys→black)"
 
 pipeline:
   - tool: "magick"
@@ -82,15 +96,18 @@ pipeline:
       -compose Difference -composite
       -separate -evaluate-sequence Max
       -level {{ threshold }}%,100%
+      -threshold 50%
       -alpha off
       "{{ input_path }}" +swap
       -compose CopyOpacity -composite
-      {% if bg_color == 'White' %}-channel RGB -fx "u.a > 0.001 ? (u - (1-u.a)) / u.a : 0" +channel{% endif %}
-      {% if bg_color == 'Black' %}-channel RGB -fx "u.a > 0.001 ? u / u.a : 0" +channel{% endif %}
       {% if defringe > 0 %}-channel A -morphology Erode Disk:{{ defringe }} +channel{% endif %}
       {% if edge_blend > 0 %}-channel RGB -statistic median {{ edge_blend * 2 + 1 }}x{{ edge_blend * 2 + 1 }} +channel{% endif %}
       {% if feather > 0 %}-channel A -blur 0x{{ feather }} -level 30%,100% +channel{% endif %}
-      {% if invert %}-channel RGB -negate +channel{% endif %}
+      {% if invert == 'All' %}-channel RGB -negate +channel{% endif %}
+      {% if invert == 'Blacks' %}-channel RGB -fx "(0.299*p.r+0.587*p.g+0.114*p.b<0.5)&&(max(max(p.r,p.g),p.b)-min(min(p.r,p.g),p.b)<0.15)?1-u:u" +channel{% endif %}
+      {% if boost_contrast == 'All' %}-sigmoidal-contrast 5,50%{% endif %}
+      {% if boost_contrast == 'Greys' %}-channel RGB -fx "chr=max(max(u.r,u.g),u.b)-min(min(u.r,u.g),u.b); chr<0.15 ? u*u*(3-2*u) : u" +channel{% endif %}
+      {% if hug_content %}-trim +repage{% endif %}
       "{{ output_path }}"
       {% else %}
       "{{ tool_exe }}" "{{ input_path }}"
@@ -98,7 +115,11 @@ pipeline:
       {% if defringe > 0 %}-channel A -morphology Erode Disk:{{ defringe }} +channel{% endif %}
       {% if edge_blend > 0 %}-channel RGB -statistic median {{ edge_blend * 2 + 1 }}x{{ edge_blend * 2 + 1 }} +channel{% endif %}
       {% if feather > 0 %}-channel A -blur 0x{{ feather }} -level 30%,100% +channel{% endif %}
-      {% if invert %}-channel RGB -negate +channel{% endif %}
+      {% if invert == 'All' %}-channel RGB -negate +channel{% endif %}
+      {% if invert == 'Blacks' %}-channel RGB -fx "(0.299*p.r+0.587*p.g+0.114*p.b<0.5)&&(max(max(p.r,p.g),p.b)-min(min(p.r,p.g),p.b)<0.15)?1-u:u" +channel{% endif %}
+      {% if boost_contrast == 'All' %}-sigmoidal-contrast 5,50%{% endif %}
+      {% if boost_contrast == 'Greys' %}-channel RGB -fx "chr=max(max(u.r,u.g),u.b)-min(min(u.r,u.g),u.b); chr<0.15 ? u*u*(3-2*u) : u" +channel{% endif %}
+      {% if hug_content %}-trim +repage{% endif %}
       "{{ output_path }}"
       {% endif %}
 
@@ -108,12 +129,9 @@ pipeline:
 # [x] Unique id: utility_bg_remover
 # [x] Category: utility
 # [x] Logic (dematte ON):
-#     1. Color distance from bg → max per-channel diff → continuous alpha
-#     2. -alpha off before CopyOpacity (prevents inherited zero-alpha bug)
-#     3. Un-premultiply via -fx to mathematically remove bg from edge RGB
-#        White: fg = (pixel - (1-alpha)) / alpha
-#        Black: fg = pixel / alpha
-#        Green: skips un-premult, uses defringe/edge_blend instead
+#     1. Color distance from bg → max per-channel diff → distance grayscale
+#     2. -level clips sub-threshold distances → -threshold 50% binarizes → hard 0/1 alpha
+#     3. No un-premultiplication — preserves solid foreground RGB values
 #     4. Defringe (alpha erode), edge blend (median), feather (alpha blur)
 # [x] Logic (dematte OFF):
 #     Binary fuzz/transparent fallback with same post-processing chain

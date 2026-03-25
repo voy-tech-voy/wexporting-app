@@ -1,4 +1,4 @@
-﻿"""
+"""
 Presets Plugin - Parameter Form
 
 Dynamically generates UI widgets from preset parameter definitions.
@@ -131,7 +131,7 @@ class ParameterForm(QWidget):
         self._is_dark = True  # Default to dark mode
         
         self._layout = QVBoxLayout(self)
-        self._layout.setContentsMargins(0, 4, 0, 4)  # Minimal vertical margins
+        self._layout.setContentsMargins(0, 4, 0, 20)  # Bottom padding prevents last param being clipped in scroll area
         self._layout.setSpacing(12)  # Consistent spacing between parameters
         
         self._apply_styles()

@@ -1,4 +1,4 @@
-from PySide6.QtWidgets import QFrame, QVBoxLayout, QLabel, QApplication, QPushButton
+from PySide6.QtWidgets import QFrame, QVBoxLayout, QLabel, QApplication, QPushButton, QScrollArea, QWidget
 from PySide6.QtCore import QPropertyAnimation, QEasingCurve, Signal, QTimer, Property, Qt
 from PySide6.QtGui import QPixmap, QPainter, QIcon
 from PySide6.QtSvg import QSvgRenderer
@@ -42,6 +42,8 @@ class DynamicParameterPanel(QFrame):
         self.MIN_PANEL_HEIGHT = 80  # Minimum visible height
         self.HEIGHT_BUFFER = 8  # Small buffer for rounding errors
         self.LAYOUT_SETTLE_DELAY = 23  # ms to wait for Qt layout to settle
+        self.MAX_FORM_HEIGHT_RATIO = 0.75  # Form scroll area capped at 75% of gallery height
+
         
         # Animation state
         self._anim: Optional[QPropertyAnimation] = None
@@ -119,8 +121,19 @@ class DynamicParameterPanel(QFrame):
         
         self._layout.addWidget(self._go_to_lab_btn)
         
-        # Parameter form container (will be set via set_content)
+        # Scroll area wrapping the parameter form
+        self._scroll_area = QScrollArea()
+        self._scroll_area.setObjectName("ParamScrollArea")
+        self._scroll_area.setWidgetResizable(True)
+        self._scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self._scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self._scroll_area.setFrameShape(QFrame.Shape.NoFrame)
+        self._scroll_area.hide()  # Hidden until a form is loaded
+        self._layout.addWidget(self._scroll_area)
+        
+        # Parameter form container (set via set_content)
         self._parameter_form = None
+
         
         # Initially hidden
         self.hide()
@@ -148,11 +161,42 @@ class DynamicParameterPanel(QFrame):
         
         is_dark = ThemeManager.instance().is_dark_mode()
         panel_bg = get_color("gallery_param_panel_bg", is_dark)
+        scrollbar_bg = get_color("gallery_param_panel_bg", is_dark)
+        
+        from client.gui.theme import Theme
         
         self.setStyleSheet(f"""
             QFrame#DynamicParamPanel {{
                 background: {panel_bg};
                 border-radius: 8px;
+            }}
+            QScrollArea#ParamScrollArea {{
+                background: transparent;
+                border: none;
+            }}
+            QScrollArea#ParamScrollArea > QWidget > QWidget {{
+                background: transparent;
+            }}
+            QScrollBar:vertical {{
+                background: {Theme.color('scrollbar_bg')};
+                width: 8px;
+                border: none;
+                border-radius: 4px;
+                margin: 4px 2px 4px 2px;
+            }}
+            QScrollBar::handle:vertical {{
+                background: {Theme.color('scrollbar_thumb')};
+                border-radius: 4px;
+                min-height: 28px;
+            }}
+            QScrollBar::handle:vertical:hover {{
+                background: {Theme.border_focus()};
+            }}
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
+                height: 0px;
+            }}
+            QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {{
+                background: none;
             }}
         """)
     
@@ -307,22 +351,28 @@ class DynamicParameterPanel(QFrame):
         
         # Remove old parameter form if exists
         if self._parameter_form and self._parameter_form != parameter_form:
-            self._layout.removeWidget(self._parameter_form)
             # Disconnect old signals
             try:
                 self._parameter_form.values_changed.disconnect(self._on_content_changed)
             except:
                 pass
+            self._scroll_area.takeWidget() # Remove widget from scroll area
         
         # Add new parameter form if provided and not already added
         if parameter_form and self._parameter_form != parameter_form:
             self._parameter_form = parameter_form
-            self._layout.addWidget(self._parameter_form)
+            # Prevent form from stretching to fill scroll viewport (would defeat scrolling)
+            from PySide6.QtWidgets import QSizePolicy
+            parameter_form.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Minimum)
+            self._scroll_area.setWidget(self._parameter_form)
+            self._scroll_area.show()
             # Connect to values_changed to detect visibility changes
             self._parameter_form.values_changed.connect(self._on_content_changed)
         elif not parameter_form:
             # No parameters - just show title and description
             self._parameter_form = None
+            self._scroll_area.hide()
+
         
         # Force layout update
         if self._parameter_form:
@@ -341,14 +391,17 @@ class DynamicParameterPanel(QFrame):
                 self._pending_height_update = True
                 QTimer.singleShot(self.LAYOUT_SETTLE_DELAY, self._update_height_animated)
     
+    def _max_form_height(self) -> int:
+        """Return max allowed height for the scroll area (75% of gallery/parent height)."""
+        parent = self.parent()
+        if parent:
+            return int(parent.height() * self.MAX_FORM_HEIGHT_RATIO)
+        return 400  # Sensible fallback
+
     def _calculate_content_height(self) -> int:
         """
-        Calculate exact height needed for current content.
-        
-        Uses Qt's built-in size hint system after ensuring layout is up to date.
-        
-        Returns:
-            Required height in pixels
+        Calculate exact height needed for current content, capped so the panel
+        never exceeds MAX_FORM_HEIGHT_RATIO of the parent (gallery) height.
         """
         # Process pending events to ensure layout is fully updated
         QApplication.processEvents()
@@ -362,48 +415,33 @@ class DynamicParameterPanel(QFrame):
         title_hint = self._title_label.sizeHint()
         desc_hint = self._description_label.sizeHint()
         
-        # Calculate total height
-        height = 0
+        # Calculate fixed chrome height (margins + title + spacing + desc + button)
+        chrome_height = 0
+        chrome_height += self.PANEL_PADDING_TOP + self.PANEL_PADDING_BOTTOM
+        chrome_height += max(title_hint.height(), 24)
+        chrome_height += self.TITLE_SPACING
+        chrome_height += max(desc_hint.height(), 20)
         
-        # Panel margins (top + bottom)
-        height += self.PANEL_PADDING_TOP + self.PANEL_PADDING_BOTTOM
-        
-        # Title height
-        title_height = max(title_hint.height(), 24)
-        height += title_height
-        
-        # Spacing between title and description
-        height += self.TITLE_SPACING
-        
-        # Description height
-        desc_height = max(desc_hint.height(), 20)
-        height += desc_height
-        
-        # Go to Lab button (if visible)
         if self._go_to_lab_btn.isVisible():
-            height += self.TITLE_SPACING  # Spacing before button
+            chrome_height += self.TITLE_SPACING
             btn_hint = self._go_to_lab_btn.sizeHint()
-            btn_height = max(btn_hint.height(), 52)  # min-height is 52px
-            height += btn_height
+            chrome_height += max(btn_hint.height(), 52)
         
-        # Spacing between description/button and form (if form exists)
         if self._parameter_form:
-            height += 8  # Additional spacing
+            chrome_height += 8  # Gap between desc and form
             
-            # Form height - use the larger of sizeHint or calculated from visible widgets
             form_hint = self._parameter_form.sizeHint()
-            form_height = form_hint.height()
+            form_height = form_hint.height() if form_hint.height() > 0 else self._calculate_form_height_manual()
             
-            # Fallback: manually calculate if sizeHint seems wrong
-            if form_height <= 0:
-                form_height = self._calculate_form_height_manual()
+            # Cap form height at 75% of parent
+            max_form = self._max_form_height()
+            capped_form = min(form_height, max_form)
+            self._scroll_area.setMaximumHeight(capped_form)
             
-            height += form_height
+            chrome_height += capped_form
         
-        # Small buffer for any rounding issues
-        height += self.HEIGHT_BUFFER
-        
-        return max(height, self.MIN_PANEL_HEIGHT)
+        return max(chrome_height + self.HEIGHT_BUFFER, self.MIN_PANEL_HEIGHT)
+
     
     def _calculate_form_height_manual(self) -> int:
         """
