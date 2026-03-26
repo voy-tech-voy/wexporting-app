@@ -14,7 +14,7 @@ class NoiseParams:
     """
     
     # Texture generation parameters
-    texture_size = 32  # Base size before scaling (32 → 64)
+    texture_size = 32  # Base size before scaling (32 -> 64)
     max_alpha = 12  # Maximum noise opacity (0-255)
     void_cluster_passes = 3  # Number of blue noise refinement passes
     

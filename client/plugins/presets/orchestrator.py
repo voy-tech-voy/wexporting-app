@@ -9,9 +9,7 @@ from PySide6.QtWidgets import QWidget
 from PySide6.QtCore import QObject, Signal
 
 from client.plugins.presets.logic import PresetManager, CommandBuilder, PresetDefinition, MediaAnalyzer, CustomPresetGenerator
-from client.plugins.presets.ui import PresetGallery, ParameterForm
 from client.utils.gpu_detector import get_gpu_detector
-
 if TYPE_CHECKING:
     from client.core.tool_registry.protocol import ToolRegistryProtocol
     from client.plugins.presets.engine import PresetConversionEngine
@@ -67,7 +65,8 @@ class PresetOrchestrator(QObject):
         self._analyzer = MediaAnalyzer(registry)
         self._custom_preset_generator = CustomPresetGenerator()
         
-        # Initialize UI
+        # Initialize UI inside __init__ to avoid PyInstaller crash
+        from client.plugins.presets.ui.gallery import PresetGallery
         self._gallery = PresetGallery(parent_widget)
         self._gallery.preset_selected.connect(self._on_preset_selected)
         self._gallery.dismissed.connect(self._on_gallery_dismissed)
@@ -320,6 +319,7 @@ class PresetOrchestrator(QObject):
         self._selected_preset = preset
         
         if self._parameter_form is None:
+            from client.plugins.presets.ui.parameter_form import ParameterForm
             self._parameter_form = ParameterForm()
         
         self._parameter_form.set_parameters(preset.parameters, meta or {})
@@ -363,7 +363,7 @@ class PresetOrchestrator(QObject):
         return [p for p in self._presets if p.is_available]
     
     @property
-    def gallery(self) -> PresetGallery:
+    def gallery(self):
         """Get the gallery widget."""
         return self._gallery
     
@@ -373,7 +373,7 @@ class PresetOrchestrator(QObject):
         return self._analyzer
     
     @property
-    def parameter_form(self) -> Optional[ParameterForm]:
+    def parameter_form(self):
         """Get the parameter form widget."""
         return self._parameter_form
     

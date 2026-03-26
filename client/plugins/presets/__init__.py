@@ -16,7 +16,8 @@ from client.plugins.presets.logic import (
 # PyInstaller's headless dependency scanner subprocess to crash.
 # Import them directly where needed:
 #   from client.plugins.presets.orchestrator import PresetOrchestrator
-#   from client.plugins.presets.ui import PresetCard, PresetGallery
+#   from client.plugins.presets.ui.gallery import PresetGallery
+#   from client.plugins.presets.ui.card import PresetCard
 
 __all__ = [
     'PresetManager',

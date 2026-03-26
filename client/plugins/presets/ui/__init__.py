@@ -3,15 +3,7 @@ Presets Plugin - UI Module
 
 Exports UI components for preset selection.
 """
-from .card import PresetCard
-from .gallery import PresetGallery
-from .parameter_form import ParameterForm, SegmentedPill
-from .filter_bar import CategoryFilterBar
+# Removed early imports to avoid PyInstaller crashing due to headless QWidget initialization.
+# Import the specific UI files you need directly (e.g. from client.plugins.presets.ui.gallery import PresetGallery)
 
-__all__ = [
-    'PresetCard',
-    'PresetGallery',
-    'ParameterForm',
-    'SegmentedPill',
-    'CategoryFilterBar',
-]
+__all__ = []
