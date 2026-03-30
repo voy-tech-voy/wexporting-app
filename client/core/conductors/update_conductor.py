@@ -1,4 +1,4 @@
-﻿"""
+"""
 Update Conductor
 
 Decouples application update logic from MainWindow.
@@ -7,6 +7,7 @@ Manages the async UpdateClient using a QThread to prevent UI blocking.
 
 import asyncio
 import logging
+from typing import Optional
 from PySide6.QtCore import QObject, QThread, Signal
 from client.core.update_client import UpdateClient, UpdateManifest
 from client.config import config
@@ -133,21 +134,23 @@ class UpdateConductor(QObject):
         self.jwt_token = jwt_token
         logger.info("UpdateConductor: JWT token updated")
 
-    def _get_current_jwt(self) -> str:
+    def _get_current_jwt(self) -> Optional[str]:
         """Get JWT from SessionManager, falling back to stored value."""
         try:
             from client.core.session_manager import get_session_manager
             token = get_session_manager().jwt_token
-            if token:
+            if token and token not in ("", "FREE_TIER"):
                 return token
         except Exception:
             pass
-        return self.jwt_token  # fallback (dev mode / "FREE_TIER")
+        stored = self.jwt_token
+        # Return None if the stored value is a placeholder — prevents server errors
+        return stored if stored and stored not in ("", "FREE_TIER") else None
 
     def check_for_updates(self):
         """
         Start checking for updates in background.
-        Does nothing if check is already running.
+        Does nothing if check is already running or no valid JWT.
         """
         if self.check_worker:
             try:
@@ -159,8 +162,12 @@ class UpdateConductor(QObject):
                 logger.warning("UpdateWorker C++ object was deleted")
                 self.check_worker = None
 
-        logger.info("Starting update check...")
         token = self._get_current_jwt()
+        if not token:
+            logger.info("Skipping update check — no valid JWT available yet")
+            return
+
+        logger.info("Starting update check...")
         self.check_worker = UpdateWorker(self.server_url, token)
         self.check_worker.check_complete.connect(self._handle_check_result)
         self.check_worker.finished.connect(self.check_worker.deleteLater)

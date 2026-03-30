@@ -3,4 +3,7 @@ Pillow>=10.0.0
 requests>=2.31.0
 pyinstaller>=6.0.0
 winrt-Windows.Services.Store>=3.2.0
+winrt-Windows.Foundation>=3.2.0
+winrt-Windows.Foundation.Collections>=3.2.0
+winrt-Windows.System>=3.2.0
 PyJWT>=2.8.0

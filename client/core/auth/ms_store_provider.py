@@ -17,6 +17,9 @@ from .store_auth_provider import IStoreAuthProvider, AuthResult
 
 logger = logging.getLogger("MSStoreProvider")
 
+# Product IDs that are consumables (can be repurchased after fulfillment)
+_CONSUMABLE_PRODUCT_IDS = {'9PFHR7GMBT0T'}  # credits_500
+
 
 def _get_stable_user_id() -> str:
     """
@@ -125,8 +128,9 @@ class MSStoreProvider(IStoreAuthProvider):
                     # This checks for durable add-ons (lifetime purchase)
                     addons_result = await self._store_context.get_user_collection_async(["Durable"])
                     
-                    for addon in addons_result.products:
-                        if "lifetime" in addon.store_id.lower() or "premium" in addon.store_id.lower():
+                    # .products is IMapView<string, StoreProduct> — iterating yields keys (strings)
+                    for store_id_key in addons_result.products:
+                        if "lifetime" in store_id_key.lower() or "premium" in store_id_key.lower():
                             self._is_premium = True
                             break
                     
@@ -394,7 +398,7 @@ class MSStoreProvider(IStoreAuthProvider):
                 # 2. Fetch Product (to ensure validity)
                 logger.info(f"Fetching product details for {product_id}...")
                 products_result = await self._store_context.get_store_products_async(
-                    ["Product"], [product_id]
+                    ["Consumable", "Durable", "UnmanagedConsumable"], [product_id]
                 )
                 
                 product = products_result.products.lookup(product_id) if products_result.products.has_key(product_id) else None
@@ -408,16 +412,17 @@ class MSStoreProvider(IStoreAuthProvider):
                 result = await self._store_context.request_purchase_async(product_id)
                 
                 status = result.status
-                transaction_id = result.transaction_id
-                
+
                 # 4. Result Handling
                 if status == StorePurchaseStatus.SUCCEEDED:
                     logger.info("Purchase SUCCEEDED.")
-                    return transaction_id
+                    # StorePurchaseResult has no transaction_id — generate a tracking ID for fulfillment
+                    import time as _time
+                    return f"tx_{product_id}_{int(_time.time())}"
 
                 elif status == StorePurchaseStatus.ALREADY_PURCHASED:
                     logger.info("Product ALREADY_PURCHASED — checking for unfulfilled balance.")
-                    is_consumable = 'energy' in product_id.lower() or 'day_pass' in product_id.lower()
+                    is_consumable = product_id in _CONSUMABLE_PRODUCT_IDS
 
                     if is_consumable:
                         try:
@@ -430,7 +435,7 @@ class MSStoreProvider(IStoreAuthProvider):
                                 await self._store_context.report_consumable_fulfillment_async(
                                     product_id,
                                     remaining,
-                                    transaction_id or "recovery"
+                                    "recovery"
                                 )
                             else:
                                 logger.info(f"No unfulfilled balance found for {product_id}.")
@@ -468,7 +473,7 @@ class MSStoreProvider(IStoreAuthProvider):
             is_valid = self.validate_receipt(None, product_id)
 
             if is_valid:
-                is_consumable = 'energy' in product_id.lower() or 'day_pass' in product_id.lower()
+                is_consumable = product_id in _CONSUMABLE_PRODUCT_IDS
                 if is_consumable:
                     logger.info(f"Fulfilling consumable: {product_id}")
                     self.report_fulfillment(product_id, tx_id)
@@ -494,8 +499,7 @@ class WinRTInterop:
     Interop helper: parents a WinRT UI object to a Win32 HWND.
 
     IInitializeWithWindow (GUID 3E68D4BD-7135-4D10-8018-9FB6D9F33FA1) exposes
-    a single method Initialize(HWND). Called via raw vtable pointer using ctypes.
-    Vtable layout: [0]=QI, [1]=AddRef, [2]=Release, [3]=Initialize
+    a single method Initialize(HWND).
     """
 
     class InitializeWithWindow:
@@ -503,44 +507,86 @@ class WinRTInterop:
         def Initialize(winrt_obj, hwnd: int) -> bool:
             """
             Parent winrt_obj to the Win32 window identified by hwnd.
-
-            Args:
-                winrt_obj: A winrt Python object (StoreContext).
-                hwnd:      HWND integer from window.winId().
-
-            Returns:
-                True if succeeded, False on any error.
             """
             try:
                 import ctypes
                 import ctypes.wintypes
 
-                # Retrieve the raw COM pointer from the winrt Python wrapper.
-                raw_ptr = getattr(winrt_obj, '_as_parameter_', None)
-                if raw_ptr is None:
-                    logger.warning("IInitializeWithWindow: winrt object has no _as_parameter_")
+                class PyWinRTObject(ctypes.Structure):
+                    _fields_ = [
+                        ("ob_refcnt", ctypes.c_ssize_t),
+                        ("ob_type", ctypes.c_void_p),
+                        ("com_ptr", ctypes.c_void_p)
+                    ]
+
+                class GUID(ctypes.Structure):
+                    _fields_ = [
+                        ("Data1", ctypes.c_ulong),
+                        ("Data2", ctypes.c_ushort),
+                        ("Data3", ctypes.c_ushort),
+                        ("Data4", ctypes.c_ubyte * 8)
+                    ]
+                    def __init__(self, data1, data2, data3, data4):
+                        super().__init__()
+                        self.Data1 = data1
+                        self.Data2 = data2
+                        self.Data3 = data3
+                        for i in range(8):
+                            self.Data4[i] = data4[i]
+
+                IID_IInitializeWithWindow = GUID(
+                    0x3E68D4BD, 0x7135, 0x4D10, 
+                    (0x80, 0x18, 0x9F, 0xB6, 0xD9, 0xF3, 0x3F, 0xA1)
+                )
+
+                # 1. Retrieve the raw COM pointer from the winrt Python wrapper memory
+                obj_struct = PyWinRTObject.from_address(id(winrt_obj))
+                raw_ptr = obj_struct.com_ptr
+
+                if not raw_ptr:
+                    logger.warning("IInitializeWithWindow: failed to get com_ptr from python object")
                     return False
 
-                # Dereference vtable pointer (first field of COM object is vtable ptr)
-                vtable_p = ctypes.cast(raw_ptr, ctypes.POINTER(ctypes.c_void_p))
-                vtable = ctypes.cast(vtable_p[0], ctypes.POINTER(ctypes.c_void_p))
+                # 2. QueryInterface for IInitializeWithWindow
+                vtable_p = ctypes.cast(raw_ptr, ctypes.POINTER(ctypes.POINTER(ctypes.c_void_p)))
+                vtable = vtable_p[0]
 
-                # Slot 3: HRESULT Initialize(HWND hwnd)
-                Initialize_fn = ctypes.WINFUNCTYPE(
-                    ctypes.HRESULT,        # return type
-                    ctypes.c_void_p,       # this
-                    ctypes.wintypes.HWND,  # hwnd
-                )(vtable[3])
+                QueryInterface = ctypes.WINFUNCTYPE(
+                    ctypes.HRESULT,
+                    ctypes.c_void_p,
+                    ctypes.POINTER(GUID),
+                    ctypes.POINTER(ctypes.c_void_p)
+                )(vtable[0])
 
-                hr = Initialize_fn(raw_ptr, hwnd)
-                if hr != 0:
-                    logger.warning(
-                        f"IInitializeWithWindow::Initialize HRESULT=0x{hr & 0xFFFFFFFF:08X}"
-                    )
+                init_with_window_ptr = ctypes.c_void_p()
+                hr = QueryInterface(raw_ptr, ctypes.byref(IID_IInitializeWithWindow), ctypes.byref(init_with_window_ptr))
+
+                if hr != 0 or not init_with_window_ptr.value:
+                    logger.warning(f"IInitializeWithWindow::QueryInterface HRESULT=0x{hr & 0xFFFFFFFF:08X}")
                     return False
 
-                logger.info(f"IInitializeWithWindow: parented to HWND {hwnd:#x}")
-                return True
+                # 3. Call Initialize(hwnd) on the queried interface
+                try:
+                    init_vtable_p = ctypes.cast(init_with_window_ptr.value, ctypes.POINTER(ctypes.POINTER(ctypes.c_void_p)))
+                    init_vtable = init_vtable_p[0]
+                    Initialize_fn = ctypes.WINFUNCTYPE(
+                        ctypes.HRESULT,
+                        ctypes.c_void_p,
+                        ctypes.wintypes.HWND
+                    )(init_vtable[3])
+
+                    hr_init = Initialize_fn(init_with_window_ptr.value, hwnd)
+                    if hr_init != 0:
+                        logger.warning(f"IInitializeWithWindow::Initialize HRESULT=0x{hr_init & 0xFFFFFFFF:08X}")
+                        return False
+                    
+                    logger.info(f"IInitializeWithWindow: parented to HWND {hwnd:#x}")
+                    return True
+
+                finally:
+                    # Release the IInitializeWithWindow pointer
+                    Release_fn = ctypes.WINFUNCTYPE(ctypes.c_ulong, ctypes.c_void_p)(init_vtable[2])
+                    Release_fn(init_with_window_ptr.value)
 
             except Exception as e:
                 logger.warning(f"IInitializeWithWindow: failed: {e}")
