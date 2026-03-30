@@ -617,17 +617,10 @@ def energy_reserve():
                 'required': amount
             }), 402  # Payment Required
         
-        # Deduct energy (Dual Pool Logic)
+        # Deduct energy
         new_balance = current_balance - amount
         user_profile['energy_balance'] = new_balance
-        
-        # If we dipped below purchased amount, clamp purchased pool
-        # Example: Total 75 (35 Free + 40 Paid). Spend 60. New Total 15.
-        # Paid was 40. Now must be 15. (Used 35 Free + 25 Paid)
-        current_purchased = user_profile.get('purchased_energy', 0)
-        if new_balance < current_purchased:
-             user_profile['purchased_energy'] = new_balance
-             
+
         # Save profile
         license_manager.save_user_profile(user_id, user_profile)
         
@@ -717,11 +710,6 @@ def energy_report():
         current_balance = user_profile.get('energy_balance', 0)
         new_balance = max(0, current_balance - usage)
         user_profile['energy_balance'] = new_balance
-
-        # Clamp purchased_energy if balance dipped below it (same logic as /energy/reserve)
-        current_purchased = user_profile.get('purchased_energy', 0)
-        if new_balance < current_purchased:
-            user_profile['purchased_energy'] = new_balance
 
         license_manager.save_user_profile(user_id, user_profile)
         

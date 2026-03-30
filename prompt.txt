@@ -1,15 +1,39 @@
-once clicked on card credits_500 the windows window apprear, i click get it (it is set to free for testing), then it gives message:
+energy added in the app. 
+
+on server :
+/home/wavyvoy/apps/wexporting-app/server/data/user_profiles.json
+{
+  "dev-test-001": {
+    "store_user_id": "dev-test-001",
+    "platform": "msstore",
+    "energy_balance": 709,
+    "purchased_energy": 200,
+    "is_premium": false,
+    "last_energy_refresh": "2026-03-30T09:51:58.024786",
+    "created_at": "2026-03-30T09:51:58.024905"
+  }
+}
+
+note: app not submitted, only installed 
+
+after clicking credits_500 or daily_200, why does this message persists?
 Looks like you already own this
 Go to My games and apps, or My library on your home device, to download it. If you’re gaming from the cloud, it should be ready to go.
 PUR-UserAlreadyOwnsContent
-jLsjBcV9lkWEednD.2.17.1.2.1.6.3
 
-read log:
-c:\Users\V\AppData\Roaming\wexporting\Logs\imgapp_20260330_145654.log
 
-the amount of credits doesnt increase. Server only shows:
-2026-03-30 12:57:01 INFO:api.app_config:App config requested for platform: windows from IP: 10.0.5.156
-2026-03-30 12:57:59 INFO:api.app_config:App config requested for platform: windows from IP: 10.0.5.156
+app log:
+C:\Users\V\AppData\Roaming\wexporting\Logs\imgapp_20260330_155831.log
 
-nothing else
-what do i have to do new? submit to store or the app msstore - server  communication doesnt work yet?
+server log:
+2026-03-30 13:59:00 INFO:auth.jwt_auth:Created JWT for user dev-test... (platform: msstore, premium: False)
+2026-03-30 13:59:00 INFO:api.routes:Purchase acknowledged: user=dev-test... product=9PFHR7GMBT0T type=energy_pack energy_added=500 premium=False
+2026-03-30 13:59:15 INFO:auth.jwt_auth:Created JWT for user dev-test... (platform: msstore, premium: False)
+2026-03-30 13:59:15 INFO:api.routes:Purchase acknowledged: user=dev-test... product=9NNK6Q3WZN2M type=limit_pack energy_added=200 premium=False
+
+server error log:
+2026-03-30 13:58:37,212: App config requested for platform: windows from IP: 10.0.5.156
+2026-03-30 13:59:00,974: Created JWT for user dev-test... (platform: msstore, premium: False)
+2026-03-30 13:59:00,975: Purchase acknowledged: user=dev-test... product=9PFHR7GMBT0T type=energy_pack energy_added=500 premium=False
+2026-03-30 13:59:15,623: Created JWT for user dev-test... (platform: msstore, premium: False)
+2026-03-30 13:59:15,624: Purchase acknowledged: user=dev-test... product=9NNK6Q3WZN2M type=limit_pack energy_added=200 premium=False
