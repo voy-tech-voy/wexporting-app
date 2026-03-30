@@ -339,6 +339,59 @@ def validate_store_receipt():
         }), 500
 
 
+@api_bp.route('/store/acknowledge-purchase', methods=['POST'])
+@require_jwt
+def acknowledge_purchase():
+    """
+    JWT-authenticated purchase acknowledgement.
+    Called after a successful MS Store purchase UI.
+    No receipt needed — JWT proves identity, Store UI proved payment.
+    """
+    data = request.get_json() or {}
+    product_id = data.get('product_id', '').strip()
+    if not product_id:
+        return jsonify({"success": False, "error": "missing_product_id"}), 400
+
+    store_user_id = get_current_user_id()
+    platform = request.jwt_claims.get('platform', 'msstore')
+
+    product_type = _get_product_type_from_id(product_id)
+    energy_to_add = _get_energy_amount_from_id(product_id)
+
+    profile = license_manager.get_or_create_user_profile(store_user_id, platform)
+    license_manager.check_daily_energy_reset(store_user_id, profile)
+    profile = license_manager.get_user_profile(store_user_id)
+
+    is_premium = profile.get('is_premium', False)
+
+    if product_type == 'lifetime':
+        license_manager.update_user_profile(store_user_id, {'is_premium': True})
+        is_premium = True
+    elif product_type == 'limit_pack' and energy_to_add > 0:
+        new_purchased = profile.get('purchased_energy', 0) + energy_to_add
+        new_balance = profile.get('energy_balance', 0) + energy_to_add
+        license_manager.update_user_profile(store_user_id, {
+            'purchased_energy': new_purchased,
+            'energy_balance': new_balance,
+        })
+    elif energy_to_add > 0:
+        new_balance = profile.get('energy_balance', 0) + energy_to_add
+        license_manager.update_user_profile(store_user_id, {'energy_balance': new_balance})
+
+    profile = license_manager.get_user_profile(store_user_id)
+    jwt_token = create_jwt_token(store_user_id, platform, is_premium)
+
+    logger.info(f"Purchase acknowledged: user={store_user_id[:8]}... product={product_id} "
+                f"type={product_type} energy_added={energy_to_add} premium={is_premium}")
+
+    return jsonify({
+        "success": True,
+        "is_premium": is_premium,
+        "energy_balance": profile.get('energy_balance', 0),
+        "jwt_token": jwt_token,
+    }), 200
+
+
 @api_bp.route('/store/register-free', methods=['POST'])
 def register_free_tier():
     """

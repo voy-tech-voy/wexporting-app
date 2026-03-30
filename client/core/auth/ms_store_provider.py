@@ -239,75 +239,62 @@ class MSStoreProvider(IStoreAuthProvider):
             logger.error(f"Failed to get receipt: {e}")
             return None
     
-    def validate_receipt(self, receipt_data: bytes, product_id: str = "unknown") -> bool:
+    def validate_receipt(self, receipt_data, product_id: str = "unknown") -> bool:
         """
-        Validate MS Store receipt with backend server.
+        Acknowledge a completed MS Store purchase with the server.
 
-        Sends the receipt to POST /api/v1/store/validate-receipt
-        which validates it with Microsoft Store Collections API.
+        Uses JWT authentication — no receipt needed. The winrt Python binding
+        does not expose GetAppReceiptAsync(), so receipt-based validation is
+        not possible. JWT proves user identity; the Store UI proves payment.
 
         Args:
-            receipt_data: MS Store receipt blob (None triggers get_receipt())
-            product_id: The actual MS Store product ID that was purchased
-                        (e.g. '9P4WCMTCH89V'). Must be passed from request_purchase().
+            receipt_data: Ignored (kept for interface compatibility).
+            product_id: The actual MS Store product ID that was purchased.
 
         Returns:
-            bool: True if receipt is valid and server updated the profile
+            bool: True if the server acknowledged the purchase successfully.
         """
-        if not self._store_available:
-            logger.error("Cannot validate receipt: MS Store APIs not available")
-            return False
-
         try:
             import requests
             from client.config.config import API_BASE_URL
+            from client.core.session_manager import SessionManager
 
-            # Get receipt if not provided
-            if not receipt_data:
-                receipt_data = self.get_receipt()
-
-            if not receipt_data:
-                logger.error("No receipt data available")
+            session = SessionManager.instance()
+            jwt_token = session.jwt_token
+            if not jwt_token:
+                logger.error("Cannot acknowledge purchase: no JWT available")
                 return False
 
-            # Send to server for validation with the real product_id
             response = requests.post(
-                f"{API_BASE_URL}/api/v1/store/validate-receipt",
-                json={
-                    "receipt_data": receipt_data,
-                    "platform": "msstore",
-                    "product_id": product_id
-                },
+                f"{API_BASE_URL}/api/v1/store/acknowledge-purchase",
+                json={"product_id": product_id},
+                headers={"Authorization": f"Bearer {jwt_token}"},
                 timeout=10
             )
-            
+
             if response.status_code == 200:
                 result = response.json()
                 if result.get('success'):
                     self._is_premium = result.get('is_premium', False)
-                    self._jwt_token = result.get('jwt_token')
+                    new_jwt = result.get('jwt_token')
                     energy_balance = result.get('energy_balance')
 
-                    # Update session with the real JWT returned by the server
-                    from client.core.session_manager import SessionManager
-                    if self._store_user_id:
-                        SessionManager.instance().start_session(
+                    if self._store_user_id and new_jwt:
+                        session.start_session(
                             store_user_id=self._store_user_id,
-                            jwt_token=self._jwt_token or "",
+                            jwt_token=new_jwt,
                             is_premium=self._is_premium
                         )
-                        # Persist JWT so next launch can sync with the server
-                        if self._jwt_token:
-                            SessionManager.instance().persist_jwt(self._jwt_token)
+                        session.persist_jwt(new_jwt)
 
-                    logger.info(f"Receipt validated successfully (premium: {self._is_premium}, balance: {energy_balance})")
+                    logger.info(f"Purchase acknowledged (premium={self._is_premium}, balance={energy_balance})")
                     return True
-            
-            logger.warning(f"Receipt validation failed: {response.status_code}")
+
+            logger.warning(f"Purchase acknowledgement failed: {response.status_code} {response.text}")
             return False
-            
+
         except Exception as e:
-            logger.error(f"Receipt validation failed: {e}")
+            logger.error(f"Purchase acknowledgement failed: {e}")
             return False
     
     def report_fulfillment(self, product_id: str, transaction_id: str) -> bool:

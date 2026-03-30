@@ -1,35 +1,15 @@
-testing installed mis, not installed via store. before we submit the app again. Let's look if everything is alright.
-
-
-In the store i have addons:
-credits_500 	Consumable (Developer-managed)	Last modified: 03/28/2026 	
-In the Microsoft Store
-premium 	Durable	Last modified: 03/28/2026 	
-Waiting to be released
-daily_limit_200 	Durable	Last modified: 03/28/2026 	
-In the Microsoft Store
-
 once clicked on card credits_500 the windows window apprear, i click get it (it is set to free for testing), then it gives message:
 Looks like you already own this
 Go to My games and apps, or My library on your home device, to download it. If you’re gaming from the cloud, it should be ready to go.
 PUR-UserAlreadyOwnsContent
 jLsjBcV9lkWEednD.2.17.1.2.1.6.3
 
-but this is consumabe and should be possible to buy multiple times.
-it doesnt increase available credits. Is this normal because I use not store submitted app?
+read log:
+c:\Users\V\AppData\Roaming\wexporting\Logs\imgapp_20260330_145654.log
 
-same message when i click daily_limit_200. nothing happens after, is this expected?
+the amount of credits doesnt increase. Server only shows:
+2026-03-30 12:57:01 INFO:api.app_config:App config requested for platform: windows from IP: 10.0.5.156
+2026-03-30 12:57:59 INFO:api.app_config:App config requested for platform: windows from IP: 10.0.5.156
 
-server log:
-2026-03-30 11:00:17 INFO:services.rate_limiter:Rate limit check passed for login_validate: email=None, remaining=9/10
-2026-03-30 11:00:17 INFO:auth.jwt_auth:Created JWT for user dev-test... (platform: msstore, premium: False)
-2026-03-30 11:00:17 INFO:api.routes:Free-tier registered: user dev-test... (platform: msstore)
-2026-03-30 11:00:22 INFO:api.app_config:App config requested for platform: windows from IP: 10.0.5.156
-
-you can read the log too:
-C:\Users\V\AppData\Roaming\wexporting\Logs\imgapp_20260330_130016.log
-
-the store architecture is here:
-docs\server\STORE_AUTH_AND_VALIDATION.md
-
-What needs to be done in order for the msstore-server communication and data working?
+nothing else
+what do i have to do new? submit to store or the app msstore - server  communication doesnt work yet?
