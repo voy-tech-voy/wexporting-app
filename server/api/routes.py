@@ -365,20 +365,15 @@ def acknowledge_purchase():
     is_premium = profile.get('is_premium', False)
 
     if product_type == 'lifetime':
-        license_manager.update_user_profile(store_user_id, {'is_premium': True})
+        profile['is_premium'] = True
         is_premium = True
     elif product_type == 'limit_pack' and energy_to_add > 0:
-        new_purchased = profile.get('purchased_energy', 0) + energy_to_add
-        new_balance = profile.get('energy_balance', 0) + energy_to_add
-        license_manager.update_user_profile(store_user_id, {
-            'purchased_energy': new_purchased,
-            'energy_balance': new_balance,
-        })
+        profile['purchased_energy'] = profile.get('purchased_energy', 0) + energy_to_add
+        profile['energy_balance'] = profile.get('energy_balance', 0) + energy_to_add
     elif energy_to_add > 0:
-        new_balance = profile.get('energy_balance', 0) + energy_to_add
-        license_manager.update_user_profile(store_user_id, {'energy_balance': new_balance})
+        profile['energy_balance'] = profile.get('energy_balance', 0) + energy_to_add
 
-    profile = license_manager.get_user_profile(store_user_id)
+    license_manager.save_user_profile(store_user_id, profile)
     jwt_token = create_jwt_token(store_user_id, platform, is_premium)
 
     logger.info(f"Purchase acknowledged: user={store_user_id[:8]}... product={product_id} "
